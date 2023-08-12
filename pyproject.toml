@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "whl2conda"
+dynamic = ["version"]
+license = "Apache-2.0"
+license-files.paths = ["LICENSE.md"]
+authors = [
+  { name = "Christopher Barber", email = "christopher.barber@analog.com" },
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "conda-package-handling >=2.2",
+    "wheel >=0.41"
+]
+
+[project.scripts]
+whl2conda = "whl2conda.cli:main"
+
+[tool.hatch.build]
+include = [
+    "src/whl2conda/**/*.py",
+    "src/whl2conda/py.typed"
+]
+
+[tool.hatch.version]
+path = "src/whl2conda/__about__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/whl2conda"]
+
+
