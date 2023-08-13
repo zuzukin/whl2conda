@@ -25,6 +25,19 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 """
 whl2conda command line interface
 """
@@ -53,120 +66,134 @@ def main():
     prog = os.path.basename(sys.argv[0])
     parser = argparse.ArgumentParser(
         usage=f"{prog} [<wheel>] [options]",
-        description=dedent("""
+        description=dedent(
+            """
         Generates a conda package from a pure python wheel
-        """),
+        """
+        ),
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )
 
     input_opts = parser.add_argument_group("Input options")
 
-    input_opts.add_argument(
-        "wheel", nargs="?", metavar="<wheel>",
-        help = "Wheel file to convert"
-    )
+    input_opts.add_argument("wheel", nargs="?", metavar="<wheel>", help="Wheel file to convert")
 
     input_opts.add_argument(
-        "--project-root", "--root", metavar="<dir>", default=os.getcwd(),
-        help = "Project root directory, if applicable. Default is current directory."
+        "--project-root",
+        "--root",
+        metavar="<dir>",
+        default=os.getcwd(),
+        help="Project root directory, if applicable. Default is current directory.",
     )
 
     output_opts = parser.add_argument_group("Output options")
 
     output_opts.add_argument(
-        "--out-dir", "--out", metavar="<dir>",
-        help = dedent("""
+        "--out-dir",
+        "--out",
+        metavar="<dir>",
+        help=dedent(
+            """
         Output directory for conda package. Defaults to wheel directory.
-        """)
+        """
+        ),
     )
     # TODO support generation in conda-bld/noarch (including index update)
 
     output_opts.add_argument(
-        "--overwrite", action="store_true",
-        help = dedent("""
+        "--overwrite",
+        action="store_true",
+        help=dedent(
+            """
         Overwrite existing output files.
-        """)
+        """
+        ),
     )
 
     output_opts.add_argument(
-        "--format", "--out-format",
+        "--format",
+        "--out-format",
         choices=["V1", "tar.bz2", "V2", "conda", "tree"],
         dest="out_format",
-        default = "tar.bz2",
-        help = "Output package format (%(default)s)"
+        default="tar.bz2",
+        help="Output package format (%(default)s)",
     )
 
     override_opts = parser.add_argument_group("Override options")
 
+    override_opts.add_argument("--name", metavar="<package-name>", help="Override package name")
     override_opts.add_argument(
-        "--name", metavar="<package-name>",
-        help = "Override package name"
-    )
-    override_opts.add_argument(
-        "-R", "--dependency-rename", nargs=2, metavar=("<pip-name>","<conda-name>"),
-        action="append", default=[],
-        help = dedent("""
+        "-R",
+        "--dependency-rename",
+        nargs=2,
+        metavar=("<pip-name>", "<conda-name>"),
+        action="append",
+        default=[],
+        help=dedent(
+            """
         Rename pip dependency for conda. May be specified muliple times.
-        """)
+        """
+        ),
     )
     override_opts.add_argument(
-        "-A", "--add-dependency", metavar="<conda-dep>",
-        action="append", default=[],
-        help = dedent("""
+        "-A",
+        "--add-dependency",
+        metavar="<conda-dep>",
+        action="append",
+        default=[],
+        help=dedent(
+            """
         Add an additional conda dependency. May be specified multiple times.
-        """)
+        """
+        ),
     )
     override_opts.add_argument(
-        "-D", "--drop-dependency", metavar="<pip-name>",
-        action="append", default=[],
-        help = dedent("""
+        "-D",
+        "--drop-dependency",
+        metavar="<pip-name>",
+        action="append",
+        default=[],
+        help=dedent(
+            """
         Drop dependency with given name from conda dependency list.
         May be specified multiple times.
-        """)
+        """
+        ),
     )
     override_opts.add_argument(
-        "-K", "--keep-pip-dependencies", action="store_true",
-        help = "Retain pip dependencies in python dist_info of conda package."
+        "-K",
+        "--keep-pip-dependencies",
+        action="store_true",
+        help="Retain pip dependencies in python dist_info of conda package.",
     )
     override_opts.add_argument(
-        "--python", metavar="<version-spec>",
-        help = "Set/override python dependency."
+        "--python", metavar="<version-spec>", help="Set/override python dependency."
     )
 
     test_opts = parser.add_argument_group("Test options")
 
     test_opts.add_argument(
-        "--test-install", metavar="<python-version>",
-        help = "Test installation into a temporary environment"
+        "--test-install",
+        metavar="<python-version>",
+        help="Test installation into a temporary environment",
     )
     test_opts.add_argument(
-        "--test-channel", metavar="<channel>", action="append", default=[],
-        help = "Add an extra channel for use in test install."
+        "--test-channel",
+        metavar="<channel>",
+        action="append",
+        default=[],
+        help="Add an extra channel for use in test install.",
     )
 
     info_opts = parser.add_argument_group("Help and debug options")
 
-    info_opts.add_argument(
-        "-n", "--dry-run", action="store_true",
-        help = "Do not write any files."
-    )
-    info_opts.add_argument(
-        "-v", "--verbose", action="count", default = 0,
-        help = "Increase verbosity."
-    )
-    info_opts.add_argument(
-        "-q", "--quiet", action="count", default=0,
-        help = "Less verbose output"
-    )
+    info_opts.add_argument("-n", "--dry-run", action="store_true", help="Do not write any files.")
+    info_opts.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity.")
+    info_opts.add_argument("-q", "--quiet", action="count", default=0, help="Less verbose output")
 
-    info_opts.add_argument(
-        "-h", "-?", "--help", action="help",
-        help = "Show usage and exit."
-    )
-    info_opts.add_argument(
-        "--version", action="version", version=__version__
-    )
+    info_opts.add_argument("-h", "-?", "--help", action="help", help="Show usage and exit.")
+    info_opts.add_argument("--version", action="version", version=__version__)
 
     parsed = parser.parse_args()
 
@@ -176,9 +203,7 @@ def main():
 
     wheel = parsed.wheel
     if not wheel:
-        parser.error(
-            "Cannot locate wheel."
-        )
+        parser.error("Cannot locate wheel.")
 
     wheel_file = Path(wheel).expanduser().absolute()
     if not wheel_file.exists():
@@ -213,8 +238,7 @@ def main():
     if parsed.test_install:
         try:
             subprocess.check_output(
-                ["conda", "run", "-n", "base", "conda-index", "-h"],
-                stderr=subprocess.STDOUT
+                ["conda", "run", "-n", "base", "conda-index", "-h"], stderr=subprocess.STDOUT
             )
         except Exception:  # pylint: disable=broad-exception-caught
             parser.error(
@@ -263,12 +287,10 @@ def main():
             test_channel_noarch = test_channel.joinpath("noarch")
             test_channel_noarch.mkdir(parents=True)
             shutil.copyfile(conda_package, test_channel_noarch.joinpath(conda_package.name))
-            subprocess.check_call(
-                ["conda", "run", "-n", "base", "conda-index", str(test_channel)]
-            )
+            subprocess.check_call(["conda", "run", "-n", "base", "conda-index", str(test_channel)])
             # create a test prefix
             test_prefix = tmppath.joinpath("prefix")
-            create_cmd =  ["conda", "create", "-p", str(test_prefix), "--yes"]
+            create_cmd = ["conda", "create", "-p", str(test_prefix), "--yes"]
             # create_cmd.append("--verbose")
             create_cmd.extend(["-c", f"file:/{test_channel}"])
             for channel in parsed.test_channel:

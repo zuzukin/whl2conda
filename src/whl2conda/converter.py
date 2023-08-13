@@ -25,6 +25,19 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 """
 Converter API
 """
@@ -49,10 +62,8 @@ from typing import Any, Dict, List, Optional
 from wheel.wheelfile import WheelFile
 from conda_package_handling.api import create as create_conda_pkg
 
-__all__ = [
-    "CondaPackageFormat",
-    "Wheel2CondaConverter"
-]
+__all__ = ["CondaPackageFormat", "Wheel2CondaConverter"]
+
 
 class CondaPackageFormat(enum.Enum):
     """
@@ -62,6 +73,7 @@ class CondaPackageFormat(enum.Enum):
     * V2: newer .conda format
     * TREE: dumps package out as a directory tree (for debugging)
     """
+
     V1 = ".tar.bz2"
     V2 = ".conda"
     TREE = ".tree"
@@ -72,6 +84,7 @@ class Wheel2CondaConverter:
     Converter supports generation of conda package from a pure python wheel.
 
     """
+
     package_name: str = ""
     logger: logging.Logger
     wheel_path: Path
@@ -81,17 +94,12 @@ class Wheel2CondaConverter:
     out_format: CondaPackageFormat
     overwrite: bool = False
     keep_pip_dependencies: bool = False
-    dependency_rename: Dict[str,str]
+    dependency_rename: Dict[str, str]
     extra_dependencies: List[str]
 
     temp_dir: Optional[tempfile.TemporaryDirectory] = None
 
-    def __init__(
-        self,
-        wheel_path: Path,
-        *,
-        out_dir: Optional[Path] = None
-    ):
+    def __init__(self, wheel_path: Path, *, out_dir: Optional[Path] = None):
         self.logger = logging.getLogger(__name__)
         self.wheel_path = wheel_path
         self.out_dir = out_dir or wheel_path.parent
@@ -142,7 +150,7 @@ class Wheel2CondaConverter:
             wheel_info_dir = next(wheel_dir.glob("*.dist-info"))
             wheel_md_file = wheel_info_dir.joinpath("METADATA")
             metadata_lines: List[str] = []
-            md: Dict[str,List[Any]] = {}
+            md: Dict[str, List[Any]] = {}
 
             for line in wheel_md_file.read_text().splitlines(keepends=False):
                 if line:
@@ -157,18 +165,17 @@ class Wheel2CondaConverter:
                         if mdkey == "requires-dist":
                             continue
 
-
                 metadata_lines.append(line)
 
             if not self.keep_pip_dependencies:
                 wheel_md_file.write_text("\n".join(metadata_lines))
 
-            package_name = self.package_name or str(md.get("name",[])[0]).strip()
+            package_name = self.package_name or str(md.get("name", [])[0]).strip()
             self.package_name = package_name
-            version = md.get("version",[""])[0].strip()
+            version = md.get("version", [""])[0].strip()
 
-            dependencies: List[str]= []
-            python_version = md.get("requires-python",[""])[0]
+            dependencies: List[str] = []
+            python_version = md.get("requires-python", [""])[0]
             if python_version:
                 dependencies.append(f"python {python_version}")
             dependencies.extend(md.get("requires-dist", []))
@@ -232,27 +239,26 @@ class Wheel2CondaConverter:
 
             # * info/about.json
             conda_about_file = conda_info_dir.joinpath("about.json")
-            conda_about_file.write_text(json.dumps(
-                dict(
-                    # TODO only include if defined
-                    description = md.get("description",[""])[0],
-                    license = md.get("license-expression",[""])[0],
-                    classifiers = md.get("classifier", []),
-                    keywords = md.get("keyword", [])
-                    # home
-                    # dev_url
-                    # doc_url
-                    # license_url
-                    # summary
-                ),
-                indent=2,
-            ))
+            conda_about_file.write_text(
+                json.dumps(
+                    dict(
+                        # TODO only include if defined
+                        description=md.get("description", [""])[0],
+                        license=md.get("license-expression", [""])[0],
+                        classifiers=md.get("classifier", []),
+                        keywords=md.get("keyword", [])
+                        # home
+                        # dev_url
+                        # doc_url
+                        # license_url
+                        # summary
+                    ),
+                    indent=2,
+                )
+            )
 
             conda_hash_input_file = conda_info_dir.joinpath("hash_input.json")
-            conda_hash_input_file.write_text(json.dumps(
-                {},
-                indent=2
-            ))
+            conda_hash_input_file.write_text(json.dumps({}, indent=2))
 
             # * info/files - list of relative paths of files not including info/
             conda_files_file = conda_info_dir.joinpath("files")
@@ -263,22 +269,24 @@ class Wheel2CondaConverter:
 
             # info/index.json
             conda_index_file = conda_info_dir.joinpath("index.json")
-            conda_index_file.write_text(json.dumps(
-                dict(
-                    arch = None,
-                    build = "py_0",
-                    build_number = 0,
-                    depends = conda_dependencies,
-                    license = md.get("license-expression",[""])[0],
-                    name = package_name,
-                    noarch = "python",
-                    platform = None,
-                    subdir = "noarch",
-                    timestamp = int(time.time()),
-                    version = version
-                ),
-                indent=2
-            ))
+            conda_index_file.write_text(
+                json.dumps(
+                    dict(
+                        arch=None,
+                        build="py_0",
+                        build_number=0,
+                        depends=conda_dependencies,
+                        license=md.get("license-expression", [""])[0],
+                        name=package_name,
+                        noarch="python",
+                        platform=None,
+                        subdir="noarch",
+                        timestamp=int(time.time()),
+                        version=version,
+                    ),
+                    indent=2,
+                )
+            )
 
             # info/link.json
             conda_link_file = conda_info_dir.joinpath("link.json")
@@ -288,18 +296,20 @@ class Wheel2CondaConverter:
                 wheel_entry_points = iniconfig.IniConfig(wheel_entry_points_file)
                 for section in ["console_scripts", "gui_scripts"]:
                     console_scripts.extend(
-                        f"{k}={v}" for k,v in wheel_entry_points[section].items()
+                        f"{k}={v}" for k, v in wheel_entry_points[section].items()
                     )
 
             # TODO - check correct setting for gui scripts
-            conda_link_file.write_text(json.dumps(
-                dict(
-                    noarch = dict(type="python"),
-                    entry_points = console_scripts, # TODO
-                    package_metadata_version = 1
-                ),
-                indent=2
-            ))
+            conda_link_file.write_text(
+                json.dumps(
+                    dict(
+                        noarch=dict(type="python"),
+                        entry_points=console_scripts,  # TODO
+                        package_metadata_version=1,
+                    ),
+                    indent=2,
+                )
+            )
 
             # info/paths.json - paths with SHA256 do we really need this?
             conda_paths_file = conda_info_dir.joinpath("paths.json")
@@ -307,19 +317,15 @@ class Wheel2CondaConverter:
             for rel_file in rel_files:
                 abs_file = conda_dir.joinpath(rel_file)
                 file_bytes = abs_file.read_bytes()
-                paths.append(dict(
-                    _path = rel_file,
-                    path_type = "hardlink",
-                    sha256 = sha256(file_bytes).hexdigest(),
-                    size_in_bytes = len(file_bytes)
-                ))
-            conda_paths_file.write_text(json.dumps(
-                dict(
-                    paths = paths,
-                    paths_version = 1
-                ),
-                indent= 2
-            ))
+                paths.append(
+                    dict(
+                        _path=rel_file,
+                        path_type="hardlink",
+                        sha256=sha256(file_bytes).hexdigest(),
+                        size_in_bytes=len(file_bytes),
+                    )
+                )
+            conda_paths_file.write_text(json.dumps(dict(paths=paths, paths_version=1), indent=2))
 
             #
             # Write the conda package
@@ -358,9 +364,7 @@ class Wheel2CondaConverter:
                 if self.out_format is CondaPackageFormat.TREE:
                     shutil.copytree(conda_dir, Path(self.out_dir).joinpath(conda_pkg_file))
                 else:
-                    create_conda_pkg(
-                        conda_dir, None, conda_pkg_file, self.out_dir
-                    )
+                    create_conda_pkg(conda_dir, None, conda_pkg_file, self.out_dir)
 
             return conda_pkg_path
 
