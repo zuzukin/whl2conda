@@ -2,17 +2,19 @@ name: whl2conda-dev
 channels:
   - conda-forge
 dependencies:
-  - python 3.8
+  - python 3.8.*
   # runtime
   - conda-package-handling >=2.2,<3.0
+  - tomli >=2.0
   - wheel >=0.41
   # build
   - hatchling >=1.18,<2.0
-  - make
+  - make >=4.3
   # testing
   - mypy >=1.5,<2.0
   - pylint >=2.17,<3.0
-  - pytest >=7.5,<8.-
+  - pytest >=7.4,<8.0
+  - pytest-cov >=4.1.0,<5.0
   # documentation
   - black >=23.7
   - mkdocs >=1.5,<2.0

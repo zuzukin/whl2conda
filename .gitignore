@@ -1,2 +1,5 @@
 # OS turd files
 .DS_Store
+
+# Build artifacts
+dist/

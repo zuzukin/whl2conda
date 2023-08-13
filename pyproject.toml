@@ -40,4 +40,61 @@ path = "src/whl2conda/__about__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/whl2conda"]
 
+[tool.black]
+line-length = 100
+skip-string-normalization = true
+
+[tool.mypy]
+check_untyped_defs = true
+mypy_path = "src"
+explicit_package_bases = true
+files = [
+    "src/whl2conda",
+    "test"
+]
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "conda_package_handling.*",
+    "wheel.*"
+]
+ignore_missing_imports = true
+
+[tool.pylint.main]
+jobs = 0  # enable parallel checks
+py-version = "3.8" # min python version
+source-roots = ["src", "test"]
+
+[tool.pylint.design]
+max-args = 5
+max-attributes = 7
+max-bool-expr = 5
+max-branches = 12
+max-locals = 15
+max-parents = 7
+max-public-methods = 20
+max-returns = 6
+max-statements = 50
+min-public-methods = 2
+
+[tool.pylint."messages control"]
+disable = [
+    "bad-inline-option",
+    "deprecated-pragma",
+    "file-ignored",
+    "fixme",
+    "invalid-name",
+    "locally-disabled",
+    "raw-checker-failed",
+    "suppressed-message",
+    "trailing-newlines",
+    "unspecified-encoding",
+    "use-dict-literal",
+    "use-symbolic-message-instead",
+    "useless-suppression",
+    "wrong-import-order"
+]
+
+
 
