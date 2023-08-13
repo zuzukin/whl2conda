@@ -1,5 +1,11 @@
 # OS turd files
 .DS_Store
 
+# python
+*.pyc
+__pycache__/
+
 # Build artifacts
 dist/
+htmlcov/
+site/

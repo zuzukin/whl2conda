@@ -1,0 +1,120 @@
+site_name: whl2conda
+repo_url: https://github.com/analog-cbarber/whl2conda
+#site_url: ?
+docs_dir: doc
+site_dir: site
+site_author: Christopher Barber
+repo_name: GitHub
+#edit_uri: edit/main/docs
+copyright: Copyright &copy; 2023 Christopher Barber
+
+nav:
+  - User Guide: index.md
+
+#  - API:
+#      - garpy.asyncio: api-asyncio.md
+#
+#  - Installation: install.md
+#
+#  - Support:
+#      - Getting help: support.md
+#      - Release notes: changelog.md
+#      - License: license.md
+
+# https://squidfunk.github.io/mkdocs-material/setup/changing-the-colors/
+
+extra_css:
+  - style.css
+
+theme:
+  name: material
+  language: en
+#  custom_dir: docs/overrides
+  font: 
+    text: Roboto
+    code: Roboto Mono
+  features:
+    - navigation.tabs
+#    - navigation.sections
+#    - navigation.instant # browser back doesn't work well with this option
+    - navigation.expand
+    - navigation.top
+#    - toc.integrate
+    - search.suggest
+    - search.highlight
+  highlight_js: true
+  hljs_languages:
+    python
+    json
+#  logo: whl2conda.svg
+#  favicon: whl2conda.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+      primary: white
+      accent: orange
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+      primary: white
+      accent: orange
+
+extra:
+  generator: false
+  version:
+    provider: mike
+    default: stable
+
+watch:
+  # path is relative to this file
+  - src/whl2conda
+
+plugins:
+  - search
+  - autorefs
+  # See https://mkdocstrings.github.io/
+  - mike:
+      # These fields are all optional; the defaults are as below...
+      canonical_version: stable
+      version_selector: true
+      css_dir: css
+      javascript_dir: js
+  - mkdocstrings:
+      default_handler: python
+      # generate objects.inv sphinx inventory file in site/ dir to support external cross references
+      enable_inventory: true
+      handlers:
+        python:
+          import:
+            - https://docs.python.org/3/objects.inv
+
+          options:
+            docstring_style: google
+            docstring_options:
+              replace_admonitions: true
+            filters:
+              - "!^_"
+              - "^__.*__$"
+              - "!(has_empty_body)"
+            heading_level: 2
+            show_source: true
+            show_submodules: false
+            show_if_no_docstring: false
+            show_category_heading: true
+            show_signature_annotations: true
+            separate_signature: true
+            docstring_section_style: spacy
+            relative_crossrefs: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.snippets:
+      check_paths: true
