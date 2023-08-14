@@ -19,6 +19,7 @@ Converter API
 from __future__ import annotations
 
 # standard
+import email
 import enum
 import iniconfig
 import json
@@ -124,26 +125,20 @@ class Wheel2CondaConverter:
 
             wheel_info_dir = next(wheel_dir.glob("*.dist-info"))
             wheel_md_file = wheel_info_dir.joinpath("METADATA")
-            metadata_lines: List[str] = []
             md: Dict[str, List[Any]] = {}
 
-            for line in wheel_md_file.read_text().splitlines(keepends=False):
-                if line:
-                    try:
-                        mdkey, mdval = line.strip().split(":", maxsplit=1)
-                    except ValueError:
-                        self._warn("Cannot parse METADATA line: `%s`", line)
-                    else:
-                        mdkey = mdkey.lower().strip()
-                        mdval = mdval.strip()
-                        md.setdefault(mdkey, []).append(mdval)
-                        if mdkey == "requires-dist":
-                            continue
-
-                metadata_lines.append(line)
+            # clean up metadata parsing code to only use lists for classifiers and requirements
+            md_msg = email.message_from_string(wheel_md_file.read_text())
+            for mdkey, mdval in md_msg.items():
+                mdkey = mdkey.lower().strip()
+                mdval = mdval.strip()
+                md.setdefault(mdkey, []).append(mdval)
+                if mdkey == "requires-dist":
+                    continue
 
             if not self.keep_pip_dependencies:
-                wheel_md_file.write_text("\n".join(metadata_lines))
+                del md_msg["Requires-Dist"]
+                wheel_md_file.write_text(md_msg.as_string())
 
             package_name = self.package_name or str(md.get("name", [])[0]).strip()
             self.package_name = package_name
@@ -211,6 +206,7 @@ class Wheel2CondaConverter:
 
             # TODO: copy licenses
             # * info/licenses - dir containing license files
+            license = md.get("license-expression", [""])[0] or md.get("license", [""])[0]
 
             # * info/about.json
             conda_about_file = conda_info_dir.joinpath("about.json")
@@ -219,7 +215,7 @@ class Wheel2CondaConverter:
                     dict(
                         # TODO only include if defined
                         description=md.get("description", [""])[0],
-                        license=md.get("license-expression", [""])[0],
+                        license=license,
                         classifiers=md.get("classifier", []),
                         keywords=md.get("keyword", []),
                         whl2conda_version=__version__,
@@ -252,7 +248,7 @@ class Wheel2CondaConverter:
                         build="py_0",
                         build_number=0,
                         depends=conda_dependencies,
-                        license=md.get("license-expression", [""])[0],
+                        license=license,
                         name=package_name,
                         noarch="python",
                         platform=None,

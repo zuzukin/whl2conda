@@ -57,7 +57,7 @@ class ConverterTestCase:
         dependency_rename: Optional[Dict[str, str]] = None,
         extra_dependencies: Sequence[str] = (),
     ) -> None:
-        if str(wheel_src).startswith("pypi:"):
+        if not str(wheel_src).startswith("pypi:"):
             wheel_src = Path(wheel_src)
             assert wheel_src.exists()
         self.wheel_src = wheel_src
@@ -106,7 +106,13 @@ class ConverterTestCase:
                 shutil.copytree(self.wheel_src, self._wheel_path)
         else:
             assert str(self.wheel_src).startswith("pypi:")
-            raise NotImplementedError("pypi wheel download not yet implemented")
+            spec = str(self.wheel_src)[5:]
+
+            subprocess.check_call(
+                ["pip", "download", spec, "--no-deps", "-d", str(self._source_dir)]
+            )
+
+            self._wheel_path = next(self._source_dir.glob("*.whl"))
 
         return self._wheel_path
 
@@ -168,3 +174,18 @@ def test_this(test_case: ConverterTestCaseFactory) -> None:
 
     for fmt in CondaPackageFormat:
         case.run(fmt)
+
+
+def test_pypi_tomlkit(test_case: ConverterTestCaseFactory):
+    """
+    Test tomlkit package from pypi
+    """
+    test_case("pypi:tomlkit").run()
+
+
+@pytest.mark.skip(reason="FIXME: broken")
+def test_pypi_sphinx(test_case: ConverterTestCaseFactory):
+    """
+    Test sphinx package from pypi
+    """
+    test_case("pypi:tomlkit").run()

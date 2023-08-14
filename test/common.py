@@ -17,6 +17,7 @@ Common test code
 
 from __future__ import annotations
 
+import email
 import hashlib
 import json
 import re
@@ -77,18 +78,16 @@ class PackageValidator:
         metdata_files = list(wheel_dir.glob("*.dist-info/METADATA"))
         assert metdata_files
         md_file = metdata_files[0]
+        md_msg = email.message_from_string(md_file.read_text())
 
         list_keys = {"classifier", "license-file", "requires-dist"}
         md: Dict[str, Any] = {}
-        for line in md_file.read_text().splitlines():
-            parts = line.split(":", maxsplit=1)
-            if len(parts) > 1:
-                key = parts[0].strip().lower()
-                value = parts[1].strip()
-                if key in list_keys:
-                    md.setdefault(key, []).append(value)
-                else:
-                    md[key] = value
+        for key, value in md_msg.items():
+            key = key.lower()
+            if key in list_keys:
+                md.setdefault(key, []).append(value)
+            else:
+                md[key] = value
         return md
 
     def _unpack_package(self, pkg_path: Path) -> Path:
@@ -158,7 +157,7 @@ class PackageValidator:
         assert index['build_number'] == 0  # TODO support setting build #
         assert index["platform"] is None
         assert index["subdir"] == "noarch"
-        assert index.get("license") == wheel_md.get("license-expression")
+        assert index.get("license") == wheel_md.get("license-expression", wheel_md.get("license"))
 
         self._validate_dependencies(index["depends"])
 

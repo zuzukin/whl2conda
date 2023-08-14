@@ -80,6 +80,9 @@ max-returns = 6
 max-statements = 50
 min-public-methods = 1
 
+[tool.pylint.variables]
+allowed-redefined-builtins = ["license"]
+
 [tool.pylint."messages control"]
 disable = [
     "bad-inline-option",
