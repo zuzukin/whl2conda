@@ -31,11 +31,13 @@ whl2conda = "whl2conda.cli:main"
 [tool.hatch.build]
 include = [
     "src/whl2conda/**/*.py",
-    "src/whl2conda/py.typed"
+    "src/whl2conda/py.typed",
+    "src/whl2conda/VERSION"
 ]
 
 [tool.hatch.version]
-path = "src/whl2conda/__about__.py"
+path = "src/whl2conda/VERSION"
+pattern = "\\s*(?P<version>[\\w.]*)"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/whl2conda"]
