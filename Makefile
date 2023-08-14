@@ -44,3 +44,6 @@ lint: pylint mypy black-check
 
 pytest:
 	$(CONDA_RUN) pytest test
+
+# TODO add coverage target
+# TODO add doc targets

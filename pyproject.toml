@@ -64,11 +64,11 @@ ignore_missing_imports = true
 [tool.pylint.main]
 jobs = 0  # enable parallel checks
 py-version = "3.8" # min python version
-source-roots = ["src", "test"]
+source-roots = ["src"]
 
 [tool.pylint.design]
 max-args = 5
-max-attributes = 7
+max-attributes = 20
 max-bool-expr = 5
 max-branches = 12
 max-locals = 15
@@ -76,7 +76,7 @@ max-parents = 7
 max-public-methods = 20
 max-returns = 6
 max-statements = 50
-min-public-methods = 2
+min-public-methods = 1
 
 [tool.pylint."messages control"]
 disable = [

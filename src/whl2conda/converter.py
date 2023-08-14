@@ -38,6 +38,19 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 """
 Converter API
 """
@@ -294,10 +307,10 @@ class Wheel2CondaConverter:
             console_scripts: List[str] = []
             if wheel_entry_points_file.is_file():
                 wheel_entry_points = iniconfig.IniConfig(wheel_entry_points_file)
-                for section in ["console_scripts", "gui_scripts"]:
-                    console_scripts.extend(
-                        f"{k}={v}" for k, v in wheel_entry_points[section].items()
-                    )
+                for section_name in ["console_scripts", "gui_scripts"]:
+                    if section_name in wheel_entry_points:
+                        if section := wheel_entry_points[section_name]:
+                            console_scripts.extend(f"{k}={v}" for k, v in section.items())
 
             # TODO - check correct setting for gui scripts
             conda_link_file.write_text(
