@@ -139,6 +139,9 @@ class Wheel2CondaConverter:
                     continue
 
             if not self.keep_pip_dependencies:
+                # TODO instead perhaps convert to an "extra", e.g.
+                #    Provides-Extra: pypi
+                #    Requires-Dist: <spec>; extra == 'pypi'
                 del md_msg["Requires-Dist"]
                 wheel_md_file.write_text(md_msg.as_string())
 
