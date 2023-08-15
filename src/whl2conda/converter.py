@@ -121,7 +121,9 @@ class Wheel2CondaConverter:
             # Parse the metadata
             #
 
-            # TODO check for pure python
+            # TODO check for pure python:
+            #     Root-Is-Purelib: true in WHEEL file
+            #     https://peps.python.org/pep-0427/#what-s-the-deal-with-purelib-vs-platlib
 
             wheel_info_dir = next(wheel_dir.glob("*.dist-info"))
             wheel_md_file = wheel_info_dir.joinpath("METADATA")
@@ -246,6 +248,7 @@ class Wheel2CondaConverter:
                     dict(
                         arch=None,
                         build="py_0",
+                        # TODO convert build number from WHEEL file
                         build_number=0,
                         depends=conda_dependencies,
                         license=license,

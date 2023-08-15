@@ -199,9 +199,21 @@ def main():
     info_opts.add_argument("-h", "-?", "--help", action="help", help="Show usage and exit.")
     info_opts.add_argument(
         "--markdown-help", action="store_true",
-        help = argparse.SUPPRESS # "Show help in markdown format"
+        help = argparse.SUPPRESS # For internal use, do not show help
     )
     info_opts.add_argument("--version", action="version", version=__version__)
+
+    # TODO
+    #   -w --wheel-dir - generate wheel in specified dir (cannot specify `wheel` arg) and keep
+    #   --test-python - python version to use in test install (implies --test-install)
+    #   --test-env - name of test conda environment, will be retained after test (implies --test-install)
+    #   --override-pyproject - ignore [tool.whl2conda] pyproject settings
+    #   --conda-bld - install in conda-bld and reindex (exclusive with --out-dir?), perhaps
+    #       only after tests?
+    #
+    #  - Debug options for keeping work?
+    #  - Way to run tests in test env?
+    #  - Do we need to remove package from conda-bld/pkgs cache if anything goes wrong with test?
 
     parsed = parser.parse_args()
 

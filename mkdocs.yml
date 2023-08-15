@@ -12,6 +12,12 @@ nav:
   - User Guide: index.md
   - Reference:
       - Command line: whl2conda-cli.md
+
+# TODO:
+#   - Links:
+#      - wheel format
+#      - conda package format
+#
 #  - API:
 #      - garpy.asyncio: api-asyncio.md
 #
