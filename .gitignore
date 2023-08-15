@@ -9,3 +9,6 @@ __pycache__/
 dist/
 htmlcov/
 site/
+
+# Generated files
+doc/whl2conda-cli.md

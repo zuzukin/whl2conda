@@ -10,7 +10,8 @@ copyright: Copyright &copy; 2023 Christopher Barber
 
 nav:
   - User Guide: index.md
-
+  - Reference:
+      - Command line: whl2conda-cli.md
 #  - API:
 #      - garpy.asyncio: api-asyncio.md
 #

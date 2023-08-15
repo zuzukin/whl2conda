@@ -24,12 +24,41 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 from pathlib import Path
-from textwrap import dedent
 
 from .__about__ import __version__
 from .converter import Wheel2CondaConverter, CondaPackageFormat
 
+class MarkdownHelpFormatter(argparse.RawTextHelpFormatter):
+    def __init__(self, prog:str):
+        super().__init__(prog, max_help_position=12, width=80)
+    def add_usage(self, usage, actions, groups, prefix=None):
+        self.add_text(f"## {usage.split()[0]}")
+        self.start_section("Usage")
+        super().add_usage(usage, actions, groups, prefix)
+        self.end_section()
+
+    def start_section(self, heading):
+        self._indent()
+        section = self._Section(self, self._current_section, argparse.SUPPRESS)
+        def add_heading() -> str:
+            if section.items:
+                return f"### {heading}\n```text"
+            else:
+                return ''
+        self._add_item(add_heading, [])
+        self._add_item(section.format_help, [])
+        self._current_section = section
+
+    def end_section(self) -> None:
+        show = bool(self._current_section.items)
+        super().end_section()
+        if show:
+            self.add_text("```")
+
+def dedent(text: str) -> str:
+    return textwrap.dedent(text).strip()
 
 # pylint: disable=too-many-statements,too-many-branches,too-many-locals
 def main():
@@ -41,12 +70,14 @@ def main():
         usage=f"{prog} [<wheel>] [options]",
         description=dedent(
             """
-        Generates a conda package from a pure python wheel
-        """
+            Generates a conda package from a pure python wheel
+            """
         ),
+        # formatter_class=MarkdownHelpFormatter,
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )
+    # parser._action_groups = []
 
     input_opts = parser.add_argument_group("Input options")
 
@@ -79,8 +110,8 @@ def main():
         action="store_true",
         help=dedent(
             """
-        Overwrite existing output files.
-        """
+            Overwrite existing output files.
+            """
         ),
     )
 
@@ -129,9 +160,9 @@ def main():
         default=[],
         help=dedent(
             """
-        Drop dependency with given name from conda dependency list.
-        May be specified multiple times.
-        """
+            Drop dependency with given name from conda dependency list.
+            May be specified multiple times.
+            """
         ),
     )
     override_opts.add_argument(
@@ -166,6 +197,10 @@ def main():
     info_opts.add_argument("-q", "--quiet", action="count", default=0, help="Less verbose output")
 
     info_opts.add_argument("-h", "-?", "--help", action="help", help="Show usage and exit.")
+    info_opts.add_argument(
+        "--markdown-help", action="store_true",
+        help = argparse.SUPPRESS # "Show help in markdown format"
+    )
     info_opts.add_argument("--version", action="version", version=__version__)
 
     parsed = parser.parse_args()
@@ -173,6 +208,11 @@ def main():
     #
     # Process args
     #
+
+    if parsed.markdown_help:
+        parser.formatter_class = MarkdownHelpFormatter
+        parser.print_help()
+        sys.exit(0)
 
     wheel = parsed.wheel
     if not wheel:

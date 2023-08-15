@@ -45,5 +45,16 @@ lint: pylint mypy black-check
 pytest:
 	$(CONDA_RUN) pytest test
 
+doc/whl2conda-cli.md: src/whl2conda/cli.py
+	$(CONDA_RUN) whl2conda --markdown-help > $@
+
+doc: doc/whl2conda-cli.md
+	$(CONDA_RUN) mkdocs build
+
+show-doc: doc/whl2conda-cli.md
+	$(CONDA_RUN) mkdocs serve
+
+clean-doc:
+
+
 # TODO add coverage target
-# TODO add doc targets
