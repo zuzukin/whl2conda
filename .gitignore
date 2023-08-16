@@ -10,5 +10,8 @@ dist/
 htmlcov/
 site/
 
+# test files
+.coverage*
+
 # Generated files
 doc/whl2conda-cli.md

@@ -7,7 +7,7 @@ ifdef OS
 	OPEN :=
 else
 	UNAME_S := $(shell uname -s)
-	ifeq ($(NAME_S),Darwin)
+	ifeq ($(UNAME_S),Darwin)
 		OPEN := open
 	else
 		OPEN := xdg-open
@@ -31,12 +31,16 @@ help:
 	"--- dev environment ---\n" \
 	"createdev - create conda development environment named $(DEV_ENV)\n" \
 	"updatedev - update conda development environment\n" \
+	"\n" \
 	"--- testing ---\n" \
-	"pylint      - run pylint checks\n" \
-	"mypy        - run mypy type checks\n" \
-	"black-check - check black formatting\n" \
-	"lint        - run all lint checkers\n" \
-	"pytest      - run pytests\n" \
+	"pylint        - run pylint checks\n" \
+	"mypy          - run mypy type checks\n" \
+	"black-check   - check black formatting\n" \
+	"lint          - run all lint checkers\n" \
+	"pytest        - run pytests\n" \
+	"coverage      - run pytests with test coverage\n" \
+	"open-coverage - open HTML coverage report\n" \
+	"\n" \
 	"--- documentation ---\n" \
 	"doc         - build documentation\n" \
 	"open-doc    - open documentation index.html\n" \
@@ -75,7 +79,14 @@ pytest:
 
 test: pytest
 
-# TODO add coverage target
+coverage:
+	$(CONDA_RUN) pytest --cov=src --cov-report=html --cov-report=term test
+
+htmlcov/index.html:
+	$(MAKE) coverage
+
+open-coverage: htmlcov/index.html
+	$(OPEN) $<
 
 #
 # Documentation targets
@@ -91,13 +102,17 @@ serve-doc: doc/whl2conda-cli.md
 	$(CONDA_RUN) mkdocs serve
 
 open-doc: doc/whl2conda-cli.md
-	open site/index.html
+	$(OPEN) site/index.html
 
 #
 # Cleanup targets
 #
 
+clean-coverage:
+	$(RMDIR) htmlcov .coverage
+
 clean-doc:
 	$(RMDIR) site doc/whl2conda-cli.md
 
-clean: clean-doc
+clean: clean-doc clean-coverage
+
