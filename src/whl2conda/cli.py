@@ -23,8 +23,9 @@ import os
 import subprocess
 import sys
 import textwrap
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence, Tuple
 
 from .__about__ import __version__
 from .converter import Wheel2CondaConverter, CondaPackageFormat
@@ -67,14 +68,37 @@ def dedent(text: str) -> str:
     return textwrap.dedent(text).strip()
 
 
-# pylint: disable=too-many-statements,too-many-branches,too-many-locals
-def main():
+@dataclass
+class Whl2CondaArgs:
     """
-    Main command line interface
+    Parsed arguments
     """
+
+    dep_renames: Sequence[Tuple[str, str]] = ()
+    dropped_deps: Sequence[str] = ()
+    dry_run: bool = False
+    extra_deps: Sequence[str] = ()
+    keep_pip_deps: bool = False
+    markdown_help: bool = False
+    name: str = ""
+    out_dir: Optional[str] = None
+    out_format: str = "conda"
+    overwrite: bool = False
+    project_root: Optional[str] = None
+    quiet: int = 0
+    test_env: Optional[str] = None
+    test_channels: Sequence[str] = ()
+    test_install: bool = False
+    test_prefix: Optional[str] = None
+    test_python: str = ""
+    verbose: int = 0
+    wheel_or_root: Optional[str] = None
+
+
+def _create_argparser() -> argparse.ArgumentParser:
     prog = os.path.basename(sys.argv[0])
     parser = argparse.ArgumentParser(
-        usage=f"{prog} [<wheel>] [options]",
+        usage=f"{prog} [<wheel-or-root>] [options]",
         description=dedent(
             """
             Generates a conda package from a pure python wheel
@@ -89,19 +113,35 @@ def main():
     input_opts = parser.add_argument_group("Input options")
 
     input_opts.add_argument(
-        "wheel",
+        "wheel_or_root",
         nargs="?",
-        metavar="<wheel>",
-        help="Wheel file to convert",
+        metavar="<wheel-or-root>",
+        help=dedent(
+            """
+        Either path to a wheel file to convert or a project root
+        directory containing a pyproject.toml or setup.py file.
+        """
+        ),
     )
     # TODO instead take either wheel or project root
 
     input_opts.add_argument(
         "--project-root",
         "--root",
+        dest="project_root",
         metavar="<dir>",
-        default=os.getcwd(),
-        help="Project root directory, if applicable. Default is current directory.",
+        help=dedent(
+            """
+            Project root directory. This is a directory containing either a
+            pyproject.toml or a (deprecated) setup.py file. This option may
+            not be used if the project directory was given as the positional
+            argument.
+            
+            If not specified, the project root will be located by searching
+            the wheel directory and its parent directories, or if no wheel
+            given, will default to the current directory.
+        """
+        ),
     )
     # TODO search for pyproject.toml/setup.py starting from wheel directory
 
@@ -110,11 +150,13 @@ def main():
     output_opts.add_argument(
         "--out-dir",
         "--out",
+        dest="out_dir",
         metavar="<dir>",
         help=dedent(
             """
-        Output directory for conda package. Defaults to wheel directory.
-        """
+            Output directory for conda package. Defaults to wheel directory
+            or else project dist directory.
+            """
         ),
     )
     # TODO support generation in conda-bld/noarch (including index update)
@@ -142,13 +184,17 @@ def main():
         "--out-format",
         choices=["V1", "tar.bz2", "V2", "conda", "tree"],
         dest="out_format",
-        default="tar.bz2", # TODO default to conda
+        default="conda",
         help="Output package format (%(default)s)",
     )
 
     override_opts = parser.add_argument_group("Override options")
 
-    override_opts.add_argument("--name", metavar="<package-name>", help="Override package name")
+    override_opts.add_argument(
+        "--name",
+        metavar="<package-name>",
+        help="Override package name",
+    )
     override_opts.add_argument(
         "-R",
         "--dependency-rename",
@@ -156,6 +202,7 @@ def main():
         metavar=("<pip-name>", "<conda-name>"),
         action="append",
         default=[],
+        dest="dep_renames",
         help=dedent(
             """
         Rename pip dependency for conda. May be specified muliple times.
@@ -165,19 +212,21 @@ def main():
     override_opts.add_argument(
         "-A",
         "--add-dependency",
+        dest="extra_deps",
         metavar="<conda-dep>",
         action="append",
         default=[],
         help=dedent(
             """
-        Add an additional conda dependency. May be specified multiple times.
-        """
+            Add an additional conda dependency. May be specified multiple times.
+            """
         ),
     )
     override_opts.add_argument(
         "-D",
         "--drop-dependency",
         metavar="<pip-name>",
+        dest="dropped_deps",
         action="append",
         default=[],
         help=dedent(
@@ -190,6 +239,7 @@ def main():
     override_opts.add_argument(
         "-K",
         "--keep-pip-dependencies",
+        dest="keep_pip_deps",
         action="store_true",
         help="Retain pip dependencies in python dist_info of conda package.",
     )
@@ -208,6 +258,7 @@ def main():
         "--test-channel",
         metavar="<channel>",
         action="append",
+        dest="test_channels",
         default=[],
         help="Add an extra channel for use in test install.",
     )
@@ -219,19 +270,46 @@ def main():
     )
     test_env_opts = test_opts.add_mutually_exclusive_group()
     test_env_opts.add_argument(
-        "--test-env", metavar="<name>", help="Test environment name to create"
+        "--test-env",
+        metavar="<name>",
+        help="Test environment name to create",
     )
     test_env_opts.add_argument(
-        "--test-prefix", metavar="<prefix>", help="Test environment prefix to create"
+        "--test-prefix",
+        metavar="<prefix>",
+        help="Test environment prefix to create",
     )
 
     info_opts = parser.add_argument_group("Help and debug options")
 
-    info_opts.add_argument("-n", "--dry-run", action="store_true", help="Do not write any files.")
-    info_opts.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity.")
-    info_opts.add_argument("-q", "--quiet", action="count", default=0, help="Less verbose output")
+    info_opts.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Do not write any files.",
+    )
+    info_opts.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase verbosity.",
+    )
+    info_opts.add_argument(
+        "-q",
+        "--quiet",
+        action="count",
+        default=0,
+        help="Less verbose output",
+    )
 
-    info_opts.add_argument("-h", "-?", "--help", action="help", help="Show usage and exit.")
+    info_opts.add_argument(
+        "-h",
+        "-?",
+        "--help",
+        action="help",
+        help="Show usage and exit.",
+    )
     info_opts.add_argument(
         "--markdown-help",
         action="store_true",
@@ -248,28 +326,65 @@ def main():
     #  - Way to run tests in test env?
     #  - Do we need to remove package from conda-bld/pkgs cache if anything goes wrong with test?
 
-    parsed = parser.parse_args()
+    return parser
 
-    #
-    # Process args
-    #
+
+def _parse_args(parser: argparse.ArgumentParser) -> Whl2CondaArgs:
+    return Whl2CondaArgs(**vars(parser.parse_args()))
+
+
+def _is_project_root(path: Path) -> bool:
+    return any(path.joinpath(f).is_file() for f in ["pyproject.toml", "setup.py"])
+
+
+# pylint: disable=too-many-statements,too-many-branches,too-many-locals
+def main():
+    """
+    Main command line interface
+    """
+
+    parser = _create_argparser()
+    parsed = _parse_args(parser)
+
+    _interactive = sys.__stdin__.isatty()
+
+    project_root: Optional[Path] = Path.cwd()
+    wheel_file: Optional[Path] = None
+
+    wheel_or_root = parsed.wheel_or_root
+    if not wheel_or_root:
+        project_root = Path.cwd()
+    else:
+        wheel_or_root_path = Path(wheel_or_root)
+        if not wheel_or_root_path.exists():
+            parser.error(f"Input path `{wheel_or_root_path}` does not exist")
+        if wheel_or_root_path.is_dir():
+            project_root = wheel_or_root_path
+        else:
+            wheel_file = wheel_or_root_path
+            if wheel_file.suffix != ".whl":
+                parser.error(f"Input file '{wheel_file} does not have .whl suffix")
+            # Look for project root in wheel's parent directories
+            if any((pr := p) for p in wheel_file.parents if _is_project_root(p)):
+                project_root = pr
+
+    if parsed.project_root:
+        if project_root:
+            parser.error("Cannot specify project root as both positional and keyword argument.")
+        project_root = Path(parsed.project_root)
+
+    if project_root:
+        project_root = project_root.expanduser().absolute()
+        if not _is_project_root(project_root):
+            parser.error(f"No pyproject.toml or setup.py in project root '{project_root}'")
+
+    if not wheel_file:
+        pass
 
     if parsed.markdown_help:
         parser.formatter_class = MarkdownHelpFormatter
         parser.print_help()
         sys.exit(0)
-
-    wheel_file: Optional[Path] = None
-    if wheel := parsed.wheel:
-        wheel_file = Path(wheel).expanduser().absolute()
-        if not wheel_file.exists():
-            parser.error(f"Input wheel '{wheel_file}' does not exist")
-        if wheel_file.suffix != ".whl":
-            parser.error(f"Input file '{wheel_file} does not have .whl suffix")
-
-    project_root = Path(parsed.project_root).expanduser().absolute()
-    if not project_root.is_dir():
-        parser.error(f"Project root '{project_root}' does not exist.")
 
     out_dir: Optional[Path] = None
     if parsed.out_dir:
@@ -306,12 +421,12 @@ def main():
     converter.package_name = parsed.name
     converter.out_format = out_fmt
     converter.overwrite = parsed.overwrite
-    converter.keep_pip_dependencies = parsed.keep_pip_dependencies
-    converter.extra_dependencies = parsed.add_dependency
+    converter.keep_pip_dependencies = parsed.keep_pip_deps
+    converter.extra_dependencies = list(parsed.extra_deps)
 
-    for dropname in parsed.drop_dependency:
+    for dropname in parsed.dropped_deps:
         converter.dependency_rename[dropname] = ""
-    for pipname, replacement in parsed.dependency_rename:
+    for pipname, replacement in parsed.dep_renames:
         converter.dependency_rename[pipname] = replacement
 
     if verbosity < -1:
