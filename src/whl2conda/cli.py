@@ -94,6 +94,7 @@ def main():
         metavar="<wheel>",
         help="Wheel file to convert",
     )
+    # TODO instead take either wheel or project root
 
     input_opts.add_argument(
         "--project-root",
@@ -102,6 +103,7 @@ def main():
         default=os.getcwd(),
         help="Project root directory, if applicable. Default is current directory.",
     )
+    # TODO search for pyproject.toml/setup.py starting from wheel directory
 
     output_opts = parser.add_argument_group("Output options")
 
@@ -116,6 +118,14 @@ def main():
         ),
     )
     # TODO support generation in conda-bld/noarch (including index update)
+
+    # TODO check for interactive terminal using sys.__stdin__.isatty()
+    #  if interactive allow prompts for
+    #   - choosing wheel if multiple wheels in input dist dir
+    #   - whether to overwrite existing files
+    #   - whether to build missing wheel
+    #
+    # TODO add --yes option
 
     output_opts.add_argument(
         "--overwrite",
@@ -132,7 +142,7 @@ def main():
         "--out-format",
         choices=["V1", "tar.bz2", "V2", "conda", "tree"],
         dest="out_format",
-        default="tar.bz2",
+        default="tar.bz2", # TODO default to conda
         help="Output package format (%(default)s)",
     )
 
@@ -231,12 +241,8 @@ def main():
 
     # TODO
     #   -w --wheel-dir - generate wheel in specified dir (cannot specify `wheel` arg) and keep
-    #   --test-python - python version to use in test install (implies --test-install)
-    #   --test-env - name of test conda environment, will be retained after test
-    #        (implies --test-install)
     #   --override-pyproject - ignore [tool.whl2conda] pyproject settings
-    #   --conda-bld - install in conda-bld and reindex (exclusive with --out-dir?), perhaps
-    #       only after tests?
+    #   --conda-bld - install in conda-bld and reindex (require tests first?)
     #
     #  - Debug options for keeping work?
     #  - Way to run tests in test env?
