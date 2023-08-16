@@ -65,7 +65,7 @@ class Wheel2CondaConverter:
 
     package_name: str = ""
     logger: logging.Logger
-    wheel_path: Path
+    wheel_path: Optional[Path]
     out_dir: Path
     dry_run: bool = False
     wheel: Optional[WheelFile]
@@ -74,15 +74,27 @@ class Wheel2CondaConverter:
     keep_pip_dependencies: bool = False
     dependency_rename: Dict[str, str]
     extra_dependencies: List[str]
+    project_root: Path
 
     temp_dir: Optional[tempfile.TemporaryDirectory] = None
 
-    def __init__(self, wheel_path: Path, *, out_dir: Optional[Path] = None):
+    def __init__(
+        self,
+        wheel_path: Optional[Path] = None,
+        *,
+        out_dir: Optional[Path] = None,
+    ):
         self.logger = logging.getLogger(__name__)
         self.wheel_path = wheel_path
-        self.out_dir = out_dir or wheel_path.parent
+        if out_dir:
+            self.out_dir = out_dir
+        elif wheel_path:
+            self.out_dir = wheel_path.parent
+        else:
+            self.out_dir = Path.cwd()
         self.dependency_rename = {}
         self.extra_dependencies = []
+        self.project_root = Path.cwd()
 
     def __enter__(self):
         self.temp_dir = tempfile.TemporaryDirectory(prefix="whl2conda-")
@@ -105,6 +117,28 @@ class Wheel2CondaConverter:
 
         with self:
             assert self.temp_dir is not None
+            tmp_path = Path(self.temp_dir.name)
+
+            #
+            # Build the wheel if needed
+            #
+
+            if self.wheel_path is None:
+                self.logger.info("Building wheel for %s", self.project_root)
+                wheel_dist_dir = tmp_path.joinpath("dist")
+                subprocess.check_call(
+                    [
+                        "pip",
+                        "wheel",
+                        str(self.project_root),
+                        "-w",
+                        str(wheel_dist_dir),
+                        "--no-deps",
+                        "--no-build-isolation",
+                    ]
+                )
+                self.wheel_path = next(wheel_dist_dir.glob("*.whl"))
+
             #
             # Extract the wheel
             #

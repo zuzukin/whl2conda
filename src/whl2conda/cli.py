@@ -24,6 +24,7 @@ import subprocess
 import sys
 import textwrap
 from pathlib import Path
+from typing import Optional
 
 from .__about__ import __version__
 from .converter import Wheel2CondaConverter, CondaPackageFormat
@@ -87,7 +88,12 @@ def main():
 
     input_opts = parser.add_argument_group("Input options")
 
-    input_opts.add_argument("wheel", nargs="?", metavar="<wheel>", help="Wheel file to convert")
+    input_opts.add_argument(
+        "wheel",
+        nargs="?",
+        metavar="<wheel>",
+        help="Wheel file to convert",
+    )
 
     input_opts.add_argument(
         "--project-root",
@@ -247,26 +253,23 @@ def main():
         parser.print_help()
         sys.exit(0)
 
-    wheel = parsed.wheel
-    if not wheel:
-        parser.error("Cannot locate wheel.")
-
-    wheel_file = Path(wheel).expanduser().absolute()
-    if not wheel_file.exists():
-        parser.error(f"Input wheel '{wheel_file}' does not exist")
-    if wheel_file.suffix != ".whl":
-        parser.error(f"Input file '{wheel_file} does not have .whl suffix")
+    wheel_file: Optional[Path] = None
+    if wheel := parsed.wheel:
+        wheel_file = Path(wheel).expanduser().absolute()
+        if not wheel_file.exists():
+            parser.error(f"Input wheel '{wheel_file}' does not exist")
+        if wheel_file.suffix != ".whl":
+            parser.error(f"Input file '{wheel_file} does not have .whl suffix")
 
     project_root = Path(parsed.project_root).expanduser().absolute()
     if not project_root.is_dir():
         parser.error(f"Project root '{project_root}' does not exist.")
 
+    out_dir: Optional[Path] = None
     if parsed.out_dir:
         out_dir = Path(parsed.out_dir).expanduser().absolute()
-    else:
-        out_dir = wheel_file.parent
-    if not out_dir.is_dir():
-        parser.error(f"Output directory '{out_dir}' does not exist.")
+        if out_dir.is_dir():
+            parser.error(f"Output directory '{out_dir}' does not exist.")
 
     fmtname = parsed.out_format.lower()
     if fmtname in ("v1", "tar.bz2"):
@@ -292,8 +295,6 @@ def main():
             )
 
     # TODO - get options from pyproject.toml file
-    # TODO - build missing wheel using pyproject.toml
-
     converter = Wheel2CondaConverter(wheel_file, out_dir=out_dir)
     converter.dry_run = parsed.dry_run
     converter.package_name = parsed.name
