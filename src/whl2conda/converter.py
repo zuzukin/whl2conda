@@ -25,12 +25,14 @@ import iniconfig
 import json
 import logging
 import re
-import tempfile
 import shutil
+import subprocess
+import sys
+import tempfile
 import time
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 # third party
 from wheel.wheelfile import WheelFile
@@ -345,6 +347,56 @@ class Wheel2CondaConverter:
                     create_conda_pkg(conda_dir, None, conda_pkg_file, self.out_dir)
 
             return conda_pkg_path
+
+    def test_install(
+        self,
+        conda_package: Path,
+        *,
+        env_prefix: Union[Path, str, None] = None,
+        env_name: Optional[str] = None,
+        python_version: str = "",
+        channels: Sequence[str] = (),
+    ) -> None:
+        """
+        Test installing package
+
+        Args:
+            conda_package: package file to install
+            env_prefix: location of test prefix environment
+            env_name: name of test environment.
+            python_version: python version of test environment,
+                defaults to current environment
+            channels: additional channels to use for creation
+        """
+        # TODO - move to a function in separate module or in converter
+        if not python_version:
+            python_version = ".".join(str(x) for x in sys.version_info[:2])
+
+        print(f"Test installing package in python {python_version} environment")
+        with tempfile.TemporaryDirectory(prefix="whl2conda-test-install-") as tmpdir:
+            tmppath = Path(tmpdir)
+            if env_prefix is not None:
+                env_args = ["-p", str(env_prefix)]
+            elif env_name is not None:
+                env_args = ["-n", env_name]
+            else:
+                env_args = ["-p", str(tmppath.joinpath("prefix"))]
+            # make a local test channel and index it
+            test_channel = tmppath.joinpath("channel")
+            test_channel_noarch = test_channel.joinpath("noarch")
+            test_channel_noarch.mkdir(parents=True)
+            shutil.copyfile(conda_package, test_channel_noarch.joinpath(conda_package.name))
+            subprocess.check_call(["conda", "run", "-n", "base", "conda-index", str(test_channel)])
+            # create a test prefix
+            create_cmd = ["conda", "create", "--yes"]
+            create_cmd.extend(env_args)
+            # create_cmd.append("--verbose")
+            create_cmd.extend(["-c", f"file:/{test_channel}"])
+            for channel in channels:
+                create_cmd.extend(["-c", channel])
+            create_cmd.append(f"python={python_version}")
+            create_cmd.append(self.package_name)
+            subprocess.check_call(create_cmd)
 
     def _warn(self, msg, *args):
         self.logger.warning(msg, *args)

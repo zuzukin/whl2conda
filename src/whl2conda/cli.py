@@ -20,19 +20,23 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-import shutil
 import subprocess
 import sys
-import tempfile
 import textwrap
 from pathlib import Path
 
 from .__about__ import __version__
 from .converter import Wheel2CondaConverter, CondaPackageFormat
 
+
 class MarkdownHelpFormatter(argparse.RawTextHelpFormatter):
-    def __init__(self, prog:str):
+    """
+    Format help in markdown format for use in docs
+    """
+
+    def __init__(self, prog: str):
         super().__init__(prog, max_help_position=12, width=80)
+
     def add_usage(self, usage, actions, groups, prefix=None):
         self.add_text(f"## {usage.split()[0]}")
         self.start_section("Usage")
@@ -42,11 +46,10 @@ class MarkdownHelpFormatter(argparse.RawTextHelpFormatter):
     def start_section(self, heading):
         self._indent()
         section = self._Section(self, self._current_section, argparse.SUPPRESS)
+
         def add_heading() -> str:
-            if section.items:
-                return f"### {heading}\n```text"
-            else:
-                return ''
+            return f"### {heading}\n```text" if section.items else ''
+
         self._add_item(add_heading, [])
         self._add_item(section.format_help, [])
         self._current_section = section
@@ -57,8 +60,11 @@ class MarkdownHelpFormatter(argparse.RawTextHelpFormatter):
         if show:
             self.add_text("```")
 
+
 def dedent(text: str) -> str:
+    """Deindent help string"""
     return textwrap.dedent(text).strip()
+
 
 # pylint: disable=too-many-statements,too-many-branches,too-many-locals
 def main():
@@ -179,7 +185,7 @@ def main():
 
     test_opts.add_argument(
         "--test-install",
-        metavar="<python-version>",
+        action="store_true",
         help="Test installation into a temporary environment",
     )
     test_opts.add_argument(
@@ -188,6 +194,19 @@ def main():
         action="append",
         default=[],
         help="Add an extra channel for use in test install.",
+    )
+    test_opts.add_argument(
+        "--test-python",
+        metavar="<version>",
+        default="",
+        help="Version of python to use for test install. (Default is current version).",
+    )
+    test_env_opts = test_opts.add_mutually_exclusive_group()
+    test_env_opts.add_argument(
+        "--test-env", metavar="<name>", help="Test environment name to create"
+    )
+    test_env_opts.add_argument(
+        "--test-prefix", metavar="<prefix>", help="Test environment prefix to create"
     )
 
     info_opts = parser.add_argument_group("Help and debug options")
@@ -198,15 +217,17 @@ def main():
 
     info_opts.add_argument("-h", "-?", "--help", action="help", help="Show usage and exit.")
     info_opts.add_argument(
-        "--markdown-help", action="store_true",
-        help = argparse.SUPPRESS # For internal use, do not show help
+        "--markdown-help",
+        action="store_true",
+        help=argparse.SUPPRESS,  # For internal use, do not show help
     )
     info_opts.add_argument("--version", action="version", version=__version__)
 
     # TODO
     #   -w --wheel-dir - generate wheel in specified dir (cannot specify `wheel` arg) and keep
     #   --test-python - python version to use in test install (implies --test-install)
-    #   --test-env - name of test conda environment, will be retained after test (implies --test-install)
+    #   --test-env - name of test conda environment, will be retained after test
+    #        (implies --test-install)
     #   --override-pyproject - ignore [tool.whl2conda] pyproject settings
     #   --conda-bld - install in conda-bld and reindex (exclusive with --out-dir?), perhaps
     #       only after tests?
@@ -302,27 +323,14 @@ def main():
 
     conda_package = converter.convert()
 
-    if conda_package.is_file() and not dry_run and parsed.test_install is not None:
-        # TODO - move to a function in separate module or in converter
-        print(f"Test installing package in python {parsed.test_install} environment")
-        with tempfile.TemporaryDirectory(prefix="whl2conda-test-install-") as tmpdir:
-            tmppath = Path(tmpdir)
-            # make a local test channel and index it
-            test_channel = tmppath.joinpath("channel")
-            test_channel_noarch = test_channel.joinpath("noarch")
-            test_channel_noarch.mkdir(parents=True)
-            shutil.copyfile(conda_package, test_channel_noarch.joinpath(conda_package.name))
-            subprocess.check_call(["conda", "run", "-n", "base", "conda-index", str(test_channel)])
-            # create a test prefix
-            test_prefix = tmppath.joinpath("prefix")
-            create_cmd = ["conda", "create", "-p", str(test_prefix), "--yes"]
-            # create_cmd.append("--verbose")
-            create_cmd.extend(["-c", f"file:/{test_channel}"])
-            for channel in parsed.test_channel:
-                create_cmd.extend(["-c", channel])
-            create_cmd.append(f"python={parsed.test_install}")
-            create_cmd.append(converter.package_name)
-            subprocess.check_call(create_cmd)
+    if conda_package.is_file() and not dry_run and parsed.test_install:
+        converter.test_install(
+            conda_package,
+            channels=parsed.test_channels,
+            python_version=parsed.test_python,
+            env_name=parsed.test_env,
+            env_prefix=parsed.test_prefix,
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover
