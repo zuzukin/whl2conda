@@ -85,6 +85,7 @@ watch:
 plugins:
   - search
   - autorefs
+  - offline
   # See https://mkdocstrings.github.io/
   - mike:
       # These fields are all optional; the defaults are as below...
