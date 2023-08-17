@@ -25,7 +25,7 @@ import sys
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from .__about__ import __version__
 from .converter import Wheel2CondaConverter, CondaPackageFormat
@@ -68,34 +68,76 @@ def dedent(text: str) -> str:
     return textwrap.dedent(text).strip()
 
 
+def bool_input(prompt: str) -> bool:
+    """Boolean interactive prompt, accepts y/n, yes/no, true/false"""
+    true_vals = {"y", "yes", "true"}
+    false_vals = {"n", "no", "false"}
+    while True:
+        answer = input(prompt).lower()
+        if answer in true_vals:
+            return True
+        if answer in false_vals:
+            return False
+
+
+# pylint: disable=too-many-instance-attributes
 @dataclass
 class Whl2CondaArgs:
     """
     Parsed arguments
     """
 
-    dep_renames: Sequence[Tuple[str, str]] = ()
-    dropped_deps: Sequence[str] = ()
-    dry_run: bool = False
-    extra_deps: Sequence[str] = ()
-    keep_pip_deps: bool = False
-    markdown_help: bool = False
-    name: str = ""
-    out_dir: Optional[str] = None
-    out_format: str = "conda"
-    overwrite: bool = False
-    project_root: Optional[str] = None
-    quiet: int = 0
-    test_env: Optional[str] = None
-    test_channels: Sequence[str] = ()
-    test_install: bool = False
-    test_prefix: Optional[str] = None
-    test_python: str = ""
-    verbose: int = 0
-    wheel_or_root: Optional[str] = None
+    dep_renames: Sequence[Tuple[str, str]]
+    dropped_deps: Sequence[str]
+    dry_run: bool
+    extra_deps: List[str]
+    keep_pip_deps: bool
+    markdown_help: bool
+    name: str
+    out_dir: Optional[Path]
+    out_format: str
+    overwrite: bool
+    project_root: Optional[Path]
+    python: str
+    quiet: int
+    test_env: Optional[str]
+    test_channels: Sequence[str]
+    test_install: bool
+    test_prefix: Optional[Path]
+    test_python: Optional[str]
+    verbose: int
+    wheel_dir: Optional[Path]
+    wheel_or_root: Optional[Path]
+    yes: bool
+
+
+def _existing_path(val: str) -> Path:
+    path = Path(val)
+    if not path.exists():
+        raise argparse.ArgumentTypeError(f"path '{val}' does not exist")
+    return path
+
+
+def _existing_file(val: str) -> Path:
+    path = _existing_path(val)
+    if not path.is_file():
+        raise argparse.ArgumentTypeError(f"'{val}' is not a file")
+    return path
+
+
+def _existing_dir(val: str) -> Path:
+    path = _existing_path(val)
+    if not path.is_dir():
+        raise argparse.ArgumentTypeError(f"'{val}' is not a directory")
+    return path
 
 
 def _create_argparser() -> argparse.ArgumentParser:
+    """Creates the argument parser
+
+    The parser will return a namespace with attributes matching
+    Whl2CondaArgs
+    """
     prog = os.path.basename(sys.argv[0])
     parser = argparse.ArgumentParser(
         usage=f"{prog} [<wheel-or-root>] [options]",
@@ -108,7 +150,6 @@ def _create_argparser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )
-    # parser._action_groups = []
 
     input_opts = parser.add_argument_group("Input options")
 
@@ -116,6 +157,7 @@ def _create_argparser() -> argparse.ArgumentParser:
         "wheel_or_root",
         nargs="?",
         metavar="<wheel-or-root>",
+        type=_existing_path,
         help=dedent(
             """
         Either path to a wheel file to convert or a project root
@@ -123,13 +165,13 @@ def _create_argparser() -> argparse.ArgumentParser:
         """
         ),
     )
-    # TODO instead take either wheel or project root
 
     input_opts.add_argument(
         "--project-root",
         "--root",
         dest="project_root",
         metavar="<dir>",
+        type=_existing_dir,
         help=dedent(
             """
             Project root directory. This is a directory containing either a
@@ -143,7 +185,19 @@ def _create_argparser() -> argparse.ArgumentParser:
         """
         ),
     )
-    # TODO search for pyproject.toml/setup.py starting from wheel directory
+
+    input_opts.add_argument(
+        "-w",
+        "--wheel-dir",
+        metavar="<dir>",
+        type=_existing_dir,
+        help=dedent(
+            """
+            Location of wheel directory. Defaults to dist/ subdirectory of 
+            project.
+            """
+        ),
+    )
 
     output_opts = parser.add_argument_group("Output options")
 
@@ -152,6 +206,7 @@ def _create_argparser() -> argparse.ArgumentParser:
         "--out",
         dest="out_dir",
         metavar="<dir>",
+        type=Path,
         help=dedent(
             """
             Output directory for conda package. Defaults to wheel directory
@@ -163,11 +218,8 @@ def _create_argparser() -> argparse.ArgumentParser:
 
     # TODO check for interactive terminal using sys.__stdin__.isatty()
     #  if interactive allow prompts for
-    #   - choosing wheel if multiple wheels in input dist dir
     #   - whether to overwrite existing files
-    #   - whether to build missing wheel
     #
-    # TODO add --yes option
 
     output_opts.add_argument(
         "--overwrite",
@@ -244,7 +296,9 @@ def _create_argparser() -> argparse.ArgumentParser:
         help="Retain pip dependencies in python dist_info of conda package.",
     )
     override_opts.add_argument(
-        "--python", metavar="<version-spec>", help="Set/override python dependency."
+        "--python",
+        metavar="<version-spec>",
+        help="Set/override python dependency.",
     )
 
     test_opts = parser.add_argument_group("Test options")
@@ -277,6 +331,7 @@ def _create_argparser() -> argparse.ArgumentParser:
     test_env_opts.add_argument(
         "--test-prefix",
         metavar="<prefix>",
+        type=Path,
         help="Test environment prefix to create",
     )
 
@@ -287,6 +342,11 @@ def _create_argparser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="Do not write any files.",
+    )
+    info_opts.add_argument(
+        "--yes",
+        action="store_true",
+        help="Answer 'yes' or choose default to all interactive questions",
     )
     info_opts.add_argument(
         "-v",
@@ -318,7 +378,6 @@ def _create_argparser() -> argparse.ArgumentParser:
     info_opts.add_argument("--version", action="version", version=__version__)
 
     # TODO
-    #   -w --wheel-dir - generate wheel in specified dir (cannot specify `wheel` arg) and keep
     #   --override-pyproject - ignore [tool.whl2conda] pyproject settings
     #   --conda-bld - install in conda-bld and reindex (require tests first?)
     #
@@ -330,11 +389,51 @@ def _create_argparser() -> argparse.ArgumentParser:
 
 
 def _parse_args(parser: argparse.ArgumentParser) -> Whl2CondaArgs:
+    """Parse and return arguments"""
     return Whl2CondaArgs(**vars(parser.parse_args()))
 
 
 def _is_project_root(path: Path) -> bool:
     return any(path.joinpath(f).is_file() for f in ["pyproject.toml", "setup.py"])
+
+
+def _choose_wheel(
+    wheel_dir: Path,
+    *,
+    interactive: bool = False,
+    choose_first: bool = False,
+) -> Optional[Path]:
+    """
+    Choose wheel from available wheels in distribution directory.
+
+    Args:
+        wheel_dir: directory containing .whl files
+        interactive: if true, prompt user for choice
+        choose_first: choose first available wheel (the most recent one)
+    """
+    wheel_file: Optional[Path] = None
+    if wheels := sorted(wheel_dir.glob("*.whl"), key=lambda p: p.stat().st_ctime, reverse=True):
+        if choose_first:
+            wheel_file = wheels[0]
+        elif interactive:
+            options = []
+            for i, wheel in enumerate(wheels):
+                print(f"[{i}] {wheel.relative_to(Path.cwd())}")
+                options.append(str(i))
+            print("[build] build a new wheel")
+            options.extend(["build", "quit"])
+            prompt = f"Choose wheel ({','.join(options)}): "
+            answer = ""
+            while answer not in options:
+                answer = input(prompt).lower()
+            if answer == "quit":
+                sys.exit(0)
+            if answer == "build":
+                pass
+            else:
+                wheel_file = wheels[int(answer)]
+
+    return wheel_file
 
 
 # pylint: disable=too-many-statements,too-many-branches,too-many-locals
@@ -346,22 +445,29 @@ def main():
     parser = _create_argparser()
     parsed = _parse_args(parser)
 
-    _interactive = sys.__stdin__.isatty()
+    interactive = sys.__stdin__.isatty()
+    always_yes = parsed.yes
 
-    project_root: Optional[Path] = Path.cwd()
+    dry_run = parsed.dry_run
+    # dry_run implies at least verbosity of 1 unless turned off by quiet flag
+    verbosity = max(parsed.verbose, int(dry_run)) - parsed.quiet
+
+    project_root: Optional[Path] = None
     wheel_file: Optional[Path] = None
+    wheel_dir: Optional[Path] = parsed.wheel_dir
+
+    build_wheel = False  # TODO add option for this
 
     wheel_or_root = parsed.wheel_or_root
     if not wheel_or_root:
         project_root = Path.cwd()
     else:
-        wheel_or_root_path = Path(wheel_or_root)
-        if not wheel_or_root_path.exists():
-            parser.error(f"Input path `{wheel_or_root_path}` does not exist")
-        if wheel_or_root_path.is_dir():
-            project_root = wheel_or_root_path
+        if not wheel_or_root.exists():
+            parser.error(f"Input path `{wheel_or_root}` does not exist")
+        if wheel_or_root.is_dir():
+            project_root = wheel_or_root
         else:
-            wheel_file = wheel_or_root_path
+            wheel_file = wheel_or_root
             if wheel_file.suffix != ".whl":
                 parser.error(f"Input file '{wheel_file} does not have .whl suffix")
             # Look for project root in wheel's parent directories
@@ -371,15 +477,39 @@ def main():
     if parsed.project_root:
         if project_root:
             parser.error("Cannot specify project root as both positional and keyword argument.")
-        project_root = Path(parsed.project_root)
+        project_root = parsed.project_root
 
     if project_root:
         project_root = project_root.expanduser().absolute()
         if not _is_project_root(project_root):
             parser.error(f"No pyproject.toml or setup.py in project root '{project_root}'")
+        if not wheel_dir:
+            # Use dist directory of project
+            # TODO - check for build system specific alternate dist location for
+            #   various backends in pyproject.toml:
+            #      flit: ?
+            #      hatchling: tool.hatch.build.directory
+            #      pdm-backend: .pdm-build (default)
+            #         see: https://pdm-backend.fming.dev/hooks/#change-the-build-directory
+            #      poetry: ?
+            wheel_dir = project_root.joinpath("dist")
+            if not wheel_dir.is_dir():
+                wheel_dir = None
 
-    if not wheel_file:
-        pass
+    if not wheel_file and wheel_dir and not build_wheel:
+        # find wheel in directory
+        wheel_file = _choose_wheel(wheel_dir, interactive=interactive, choose_first=always_yes)
+        if not wheel_file and interactive:
+            # If nothing returned and interactive, user wants a build
+            build_wheel = True
+
+    if not wheel_file and not build_wheel:
+        if always_yes:
+            build_wheel = True
+        elif interactive:
+            build_wheel = bool_input("No wheel found. Build? ")
+        if not build_wheel:
+            parser.error("No wheel to convert")
 
     if parsed.markdown_help:
         parser.formatter_class = MarkdownHelpFormatter
@@ -388,9 +518,7 @@ def main():
 
     out_dir: Optional[Path] = None
     if parsed.out_dir:
-        out_dir = Path(parsed.out_dir).expanduser().absolute()
-        if out_dir.is_dir():
-            parser.error(f"Output directory '{out_dir}' does not exist.")
+        out_dir = parsed.out_dir.expanduser().absolute()
 
     fmtname = parsed.out_format.lower()
     if fmtname in ("v1", "tar.bz2"):
@@ -399,11 +527,6 @@ def main():
         out_fmt = CondaPackageFormat.V2
     else:
         out_fmt = CondaPackageFormat.TREE
-
-    dry_run = bool(parsed.dry_run)
-    verbosity = int(parsed.verbose)
-    verbosity = max(verbosity, int(dry_run))
-    verbosity -= int(parsed.quiet)
 
     if parsed.test_install:
         try:
@@ -422,7 +545,7 @@ def main():
     converter.out_format = out_fmt
     converter.overwrite = parsed.overwrite
     converter.keep_pip_dependencies = parsed.keep_pip_deps
-    converter.extra_dependencies = list(parsed.extra_deps)
+    converter.extra_dependencies = parsed.extra_deps
 
     for dropname in parsed.dropped_deps:
         converter.dependency_rename[dropname] = ""

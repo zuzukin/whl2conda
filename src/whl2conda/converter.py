@@ -123,6 +123,7 @@ class Wheel2CondaConverter:
             # Build the wheel if needed
             #
 
+            # TODO add explicit option to enable/request building wheel
             if self.wheel_path is None:
                 self.logger.info("Building wheel for %s", self.project_root)
                 wheel_dist_dir = tmp_path.joinpath("dist")
@@ -388,7 +389,7 @@ class Wheel2CondaConverter:
         *,
         env_prefix: Union[Path, str, None] = None,
         env_name: Optional[str] = None,
-        python_version: str = "",
+        python_version: Optional[str] = None,
         channels: Sequence[str] = (),
     ) -> None:
         """
