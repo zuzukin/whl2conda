@@ -36,6 +36,7 @@ from .common import PackageValidator
 
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent
+projects_dir = this_dir.joinpath("projects")
 
 
 class ConverterTestCase:
@@ -96,7 +97,11 @@ class ConverterTestCase:
         self._out_dir.mkdir()
 
     def _convert(self, wheel_path: Path, *, out_format: CondaPackageFormat) -> Path:
-        converter = Wheel2CondaConverter(wheel_path, out_dir=self._out_dir)
+        if wheel_path.is_dir():
+            converter = Wheel2CondaConverter(out_dir=self._out_dir)
+            converter.project_root = wheel_path
+        else:
+            converter = Wheel2CondaConverter(wheel_path, out_dir=self._out_dir)
         converter.dependency_rename = list(self.dependency_rename)
         converter.extra_dependencies = list(self.extra_dependencies)
         converter.package_name = self.package_name
@@ -183,6 +188,11 @@ def test_this(test_case: ConverterTestCaseFactory) -> None:
 
     for fmt in CondaPackageFormat:
         case.run(fmt)
+
+
+# TODO support building wheel in test
+# def test_simple(test_case: ConverterTestCaseFactory):
+#     test_case(projects_dir.joinpath("simple")).run()
 
 
 def test_pypi_tomlkit(test_case: ConverterTestCaseFactory):

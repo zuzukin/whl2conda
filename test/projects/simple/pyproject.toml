@@ -1,0 +1,10 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "simple"
+version = "1.0.2"
+license = "MIT"
+requires-python = ">=3.8"
+

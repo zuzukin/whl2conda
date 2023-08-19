@@ -107,13 +107,14 @@ class Wheel2CondaConverter:
     keep_pip_dependencies: bool = False
     dependency_rename: List[Tuple[str, str]]
     extra_dependencies: List[str]
-    project_root: Path
+    project_root: Optional[Path]
     interactive: bool = False
 
     temp_dir: Optional[tempfile.TemporaryDirectory] = None
 
     def __init__(
         self,
+        # TODO require wheel_path
         wheel_path: Optional[Path] = None,
         *,
         out_dir: Optional[Path] = None,
@@ -157,6 +158,7 @@ class Wheel2CondaConverter:
             # Build the wheel if needed
             #
 
+            # TODO move wheel build to cli module
             # TODO add explicit option to enable/request building wheel
             if self.wheel_path is None:
                 self.logger.info("Building wheel for %s", self.project_root)
@@ -450,6 +452,7 @@ class Wheel2CondaConverter:
                 if self.out_format is CondaPackageFormat.TREE:
                     shutil.copytree(conda_dir, Path(self.out_dir).joinpath(conda_pkg_file))
                 else:
+                    self.out_dir.mkdir(parents=True, exist_ok=True)
                     create_conda_pkg(conda_dir, None, conda_pkg_file, self.out_dir)
 
             return conda_pkg_path

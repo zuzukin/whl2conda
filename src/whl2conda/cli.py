@@ -121,7 +121,7 @@ def _existing_dir(val: str) -> Path:
     return path
 
 
-def _create_argparser() -> argparse.ArgumentParser:
+def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     """Creates the argument parser
 
     The parser will return a namespace with attributes matching
@@ -130,6 +130,7 @@ def _create_argparser() -> argparse.ArgumentParser:
     prog = os.path.basename(sys.argv[0])
     parser = argparse.ArgumentParser(
         usage=f"{prog} [<wheel-or-root>] [options]",
+        prog=prog,
         description=dedent(
             """
             Generates a conda package from a pure python wheel
@@ -371,9 +372,9 @@ def _create_argparser() -> argparse.ArgumentParser:
     return parser
 
 
-def _parse_args(parser: argparse.ArgumentParser) -> Whl2CondaArgs:
+def _parse_args(parser: argparse.ArgumentParser, args: Optional[Sequence[str]]) -> Whl2CondaArgs:
     """Parse and return arguments"""
-    return Whl2CondaArgs(**vars(parser.parse_args()))
+    return Whl2CondaArgs(**vars(parser.parse_args(args)))
 
 
 def _is_project_root(path: Path) -> bool:
@@ -394,39 +395,41 @@ def _choose_wheel(
         interactive: if true, prompt user for choice
         choose_first: choose first available wheel (the most recent one)
     """
+    wheels = sorted(wheel_dir.glob("*.whl"), key=lambda p: p.stat().st_ctime, reverse=True)
+    if choose_first:
+        return wheels[0] if wheels else None
+    if not interactive:
+        return None
+
     wheel_file: Optional[Path] = None
-    if wheels := sorted(wheel_dir.glob("*.whl"), key=lambda p: p.stat().st_ctime, reverse=True):
-        if choose_first:
-            wheel_file = wheels[0]
-        elif interactive:
-            options = []
-            for i, wheel in enumerate(wheels):
-                print(f"[{i}] {wheel.relative_to(Path.cwd())}")
-                options.append(str(i))
-            print("[build] build a new wheel")
-            options.extend(["build", "quit"])
-            prompt = f"Choose wheel ({','.join(options)}): "
-            answer = ""
-            while answer not in options:
-                answer = input(prompt).lower()
-            if answer == "quit":
-                sys.exit(0)
-            if answer == "build":
-                pass
-            else:
-                wheel_file = wheels[int(answer)]
+    options = []
+    for i, wheel in enumerate(wheels):
+        print(f"[{i}] {wheel.relative_to(Path.cwd())}")
+        options.append(str(i))
+    print("[build] build a new wheel")
+    options.extend(["build", "quit"])
+    prompt = f"Choose wheel ({','.join(options)}): "
+    answer = ""
+    while answer not in options:
+        answer = input(prompt).lower()
+    if answer == "quit":
+        sys.exit(0)
+    if answer == "build":
+        pass
+    else:
+        wheel_file = wheels[int(answer)]
 
     return wheel_file
 
 
 # pylint: disable=too-many-statements,too-many-branches,too-many-locals
-def main():
+def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
     """
     Main command line interface
     """
 
-    parser = _create_argparser()
-    parsed = _parse_args(parser)
+    parser = _create_argparser(prog)
+    parsed = _parse_args(parser, args)
 
     interactive = is_interactive()
     always_yes = parsed.yes
@@ -476,8 +479,6 @@ def main():
             #         see: https://pdm-backend.fming.dev/hooks/#change-the-build-directory
             #      poetry: ?
             wheel_dir = project_root.joinpath("dist")
-            if not wheel_dir.is_dir():
-                wheel_dir = None
 
     if not wheel_file and wheel_dir and not build_wheel:
         # find wheel in directory
@@ -502,6 +503,8 @@ def main():
     out_dir: Optional[Path] = None
     if parsed.out_dir:
         out_dir = parsed.out_dir.expanduser().absolute()
+    else:
+        out_dir = wheel_dir
 
     fmtname = parsed.out_format.lower()
     if fmtname in ("v1", "tar.bz2"):
@@ -522,6 +525,16 @@ def main():
             )
 
     # TODO - get options from pyproject.toml file
+    # [tools.whl2conda]
+    # conda-name = "my.package"
+    # wheel-dir = "dist
+    # out-dir = "dist"
+    # conda-format = "V1"
+    # dependency-rename = [
+    #   ("acme-(.*)", "acme-$1")
+    # ]
+    # extra-dependencies = []
+
     converter = Wheel2CondaConverter(wheel_file, out_dir=out_dir)
     converter.dry_run = parsed.dry_run
     converter.package_name = parsed.name
@@ -530,6 +543,7 @@ def main():
     converter.keep_pip_dependencies = parsed.keep_pip_deps
     converter.extra_dependencies = parsed.extra_deps
     converter.interactive = interactive
+    converter.project_root = project_root
 
     for dropname in parsed.dropped_deps:
         converter.dependency_rename.append((dropname, ""))
