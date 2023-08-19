@@ -120,9 +120,7 @@ class ConverterTestCase:
                     ["pip", "download", spec, "--no-deps", "-d", str(self._source_dir)]
                 )
             except subprocess.CalledProcessError as ex:
-                pytest.skip(
-                    f"Cannot download {spec} from pypi: {ex}"
-                )
+                pytest.skip(f"Cannot download {spec} from pypi: {ex}")
             self._wheel_path = next(self._source_dir.glob("*.whl"))
 
         return self._wheel_path
@@ -193,12 +191,17 @@ def test_pypi_tomlkit(test_case: ConverterTestCaseFactory):
     """
     test_case("pypi:tomlkit").run()
 
+
 def test_pypi_sphinx(test_case: ConverterTestCaseFactory):
     """
     Test sphinx package from pypi
     """
     test_case("pypi:sphinx").run()
 
+
 def test_pypi_zstandard(test_case: ConverterTestCaseFactory):
-    with pytest.raises(Wheel2CondaError,match="not pure python"):
+    """
+    Test zstandard package - not pure python
+    """
+    with pytest.raises(Wheel2CondaError, match="not pure python"):
         test_case("pypi:zstandard").run()

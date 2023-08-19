@@ -38,17 +38,15 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 from wheel.wheelfile import WheelFile
 from conda_package_handling.api import create as create_conda_pkg
 
-__all__ = [
-    "CondaPackageFormat",
-    "Wheel2CondaConverter",
-    "Wheel2CondaError"
-]
+__all__ = ["CondaPackageFormat", "Wheel2CondaConverter", "Wheel2CondaError"]
 
 from .__about__ import __version__
 from .prompt import bool_input
 
+
 class Wheel2CondaError(RuntimeError):
     """Errors from Wheel2CondaConverter"""
+
 
 class CondaPackageFormat(enum.Enum):
     """
@@ -63,13 +61,17 @@ class CondaPackageFormat(enum.Enum):
     V2 = ".conda"
     TREE = ".tree"
 
+
 class NonNoneDict(dict):
+    """dict that drops keys with None values"""
+
     def __setitem__(self, key: str, val: Any) -> None:
         if val is None:
             if key in self:
                 del self[key]
         else:
             super().__setitem__(key, val)
+
 
 class Wheel2CondaConverter:
     """
@@ -178,12 +180,14 @@ class Wheel2CondaConverter:
             WHEEL_file = wheel_info_dir.joinpath("WHEEL")
             WHEEL_msg = email.message_from_string(WHEEL_file.read_text("utf8"))
             # https://peps.python.org/pep-0427/#what-s-the-deal-with-purelib-vs-platlib
-            is_pure_lib = WHEEL_msg.get("Root-Is-Purelib","").lower() == "true"
-            wheel_build_number = WHEEL_msg.get("Build", "")
+            is_pure_lib = WHEEL_msg.get("Root-Is-Purelib", "").lower() == "true"
+            _wheel_build_number = WHEEL_msg.get("Build", "")
             wheel_version = WHEEL_msg.get("Wheel-Version")
 
             if wheel_version != "1.0":
-                raise Wheel2CondaError(f"Wheel {self.wheel_path} has unsupported wheel version {wheel_version}")
+                raise Wheel2CondaError(
+                    f"Wheel {self.wheel_path} has unsupported wheel version {wheel_version}"
+                )
 
             if not is_pure_lib:
                 raise Wheel2CondaError(f"Wheel {self.wheel_path} is not pure python")
@@ -191,7 +195,8 @@ class Wheel2CondaConverter:
             wheel_md_file = wheel_info_dir.joinpath("METADATA")
             md: Dict[str, List[Any]] = {}
 
-            # TODO: clean up metadata parsing code to only use lists for classifiers and requirements
+            # TODO: clean up metadata parsing code to only use lists for appropriate keys
+            #    - classifier, requires-dist, ...
             md_msg = email.message_from_string(wheel_md_file.read_text())
             for mdkey, mdval in md_msg.items():
                 mdkey = mdkey.lower().strip()
@@ -201,7 +206,7 @@ class Wheel2CondaConverter:
                     continue
 
             if not self.keep_pip_dependencies:
-                requires = md_msg.get_all("Requires-Dist",())
+                requires = md_msg.get_all("Requires-Dist", ())
                 del md_msg["Requires-Dist"]
                 # Turn requirements into optional extra requirements
                 for require in requires:
