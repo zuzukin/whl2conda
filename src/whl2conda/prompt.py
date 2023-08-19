@@ -19,16 +19,15 @@ from __future__ import annotations
 
 import sys
 
-__all__ = [
-    "bool_input",
-    "is_interactive"
-]
+__all__ = ["bool_input", "is_interactive"]
+
 
 def is_interactive() -> bool:
     """
     True if input appears to be connected to an interactive terminal
     """
     return sys.__stdin__.isatty()
+
 
 def bool_input(prompt: str) -> bool:
     """Boolean interactive prompt, accepts y/n, yes/no, true/false"""

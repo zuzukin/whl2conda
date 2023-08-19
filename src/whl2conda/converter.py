@@ -43,6 +43,7 @@ __all__ = ["CondaPackageFormat", "Wheel2CondaConverter"]
 from .__about__ import __version__
 from .prompt import bool_input
 
+
 class CondaPackageFormat(enum.Enum):
     """
     Supported output package formats

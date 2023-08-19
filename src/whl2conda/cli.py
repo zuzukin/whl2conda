@@ -31,6 +31,7 @@ from .__about__ import __version__
 from .prompt import bool_input, is_interactive
 from .converter import Wheel2CondaConverter, CondaPackageFormat
 
+
 class MarkdownHelpFormatter(argparse.RawTextHelpFormatter):
     """
     Format help in markdown format for use in docs
@@ -537,7 +538,7 @@ def main():
     converter.interactive = interactive
 
     for dropname in parsed.dropped_deps:
-        converter.dependency_rename.append((dropname,""))
+        converter.dependency_rename.append((dropname, ""))
     converter.dependency_rename.extend(parsed.dep_renames)
 
     if verbosity < -1:
