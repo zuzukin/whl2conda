@@ -63,6 +63,13 @@ class CondaPackageFormat(enum.Enum):
     V2 = ".conda"
     TREE = ".tree"
 
+class NonNoneDict(dict):
+    def __setitem__(self, key: str, val: Any) -> None:
+        if val is None:
+            if key in self:
+                del self[key]
+        else:
+            super().__setitem__(key, val)
 
 class Wheel2CondaConverter:
     """
@@ -173,6 +180,10 @@ class Wheel2CondaConverter:
             # https://peps.python.org/pep-0427/#what-s-the-deal-with-purelib-vs-platlib
             is_pure_lib = WHEEL_msg.get("Root-Is-Purelib","").lower() == "true"
             wheel_build_number = WHEEL_msg.get("Build", "")
+            wheel_version = WHEEL_msg.get("Wheel-Version")
+
+            if wheel_version != "1.0":
+                raise Wheel2CondaError(f"Wheel {self.wheel_path} has unsupported wheel version {wheel_version}")
 
             if not is_pure_lib:
                 raise Wheel2CondaError(f"Wheel {self.wheel_path} is not pure python")
@@ -180,7 +191,7 @@ class Wheel2CondaConverter:
             wheel_md_file = wheel_info_dir.joinpath("METADATA")
             md: Dict[str, List[Any]] = {}
 
-            # clean up metadata parsing code to only use lists for classifiers and requirements
+            # TODO: clean up metadata parsing code to only use lists for classifiers and requirements
             md_msg = email.message_from_string(wheel_md_file.read_text())
             for mdkey, mdval in md_msg.items():
                 mdkey = mdkey.lower().strip()
@@ -190,10 +201,11 @@ class Wheel2CondaConverter:
                     continue
 
             if not self.keep_pip_dependencies:
-                # TODO instead perhaps convert to an "extra", e.g.
-                #    Provides-Extra: pypi
-                #    Requires-Dist: <spec>; extra == 'pypi'
+                requires = md_msg.get_all("Requires-Dist",())
                 del md_msg["Requires-Dist"]
+                # Turn requirements into optional extra requirements
+                for require in requires:
+                    md_msg.add_header("Requires-Dist", f"{require}: extra == 'pypi")
                 wheel_md_file.write_text(md_msg.as_string())
 
             package_name = self.package_name or str(md.get("name", [])[0]).strip()
@@ -262,24 +274,26 @@ class Wheel2CondaConverter:
 
             # TODO: copy licenses
             # * info/licenses - dir containing license files
-            license = md.get("license-expression", [""])[0] or md.get("license", [""])[0]
+            license = md.get("license-expression", [None])[0] or md.get("license", [None])[0]
 
             # * info/about.json
             conda_about_file = conda_info_dir.joinpath("about.json")
             conda_about_file.write_text(
                 json.dumps(
-                    dict(
+                    NonNoneDict(
                         # TODO only include if defined
                         description=md.get("description", [""])[0],
-                        license=license,
-                        classifiers=md.get("classifier", []),
-                        keywords=md.get("keyword", []),
+                        license=license or None,
+                        classifiers=md.get("classifier"),
+                        keywords=md.get("keyword"),
                         whl2conda_version=__version__,
+                        # TODO:
                         # home
                         # dev_url
                         # doc_url
                         # license_url
-                        # summary
+                        # summary - get from body of METADATA
+                        # authors, maintainers
                     ),
                     indent=2,
                 )

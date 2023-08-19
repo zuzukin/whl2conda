@@ -27,7 +27,11 @@ from typing import Generator, Sequence, Tuple, Union
 import pytest
 
 # this package
-from whl2conda.converter import Wheel2CondaConverter, CondaPackageFormat
+from whl2conda.converter import (
+    Wheel2CondaConverter,
+    Wheel2CondaError,
+    CondaPackageFormat,
+)
 from .common import PackageValidator
 
 this_dir = Path(__file__).parent.absolute()
@@ -111,10 +115,14 @@ class ConverterTestCase:
             assert str(self.wheel_src).startswith("pypi:")
             spec = str(self.wheel_src)[5:]
 
-            subprocess.check_call(
-                ["pip", "download", spec, "--no-deps", "-d", str(self._source_dir)]
-            )
-
+            try:
+                subprocess.check_call(
+                    ["pip", "download", spec, "--no-deps", "-d", str(self._source_dir)]
+                )
+            except subprocess.CalledProcessError as ex:
+                pytest.skip(
+                    f"Cannot download {spec} from pypi: {ex}"
+                )
             self._wheel_path = next(self._source_dir.glob("*.whl"))
 
         return self._wheel_path
@@ -185,10 +193,12 @@ def test_pypi_tomlkit(test_case: ConverterTestCaseFactory):
     """
     test_case("pypi:tomlkit").run()
 
-
-@pytest.mark.skip(reason="FIXME: broken")
 def test_pypi_sphinx(test_case: ConverterTestCaseFactory):
     """
     Test sphinx package from pypi
     """
     test_case("pypi:sphinx").run()
+
+def test_pypi_zstandard(test_case: ConverterTestCaseFactory):
+    with pytest.raises(Wheel2CondaError,match="not pure python"):
+        test_case("pypi:zstandard").run()
