@@ -203,12 +203,6 @@ def _create_argparser() -> argparse.ArgumentParser:
             """
         ),
     )
-    # TODO support generation in conda-bld/noarch (including index update)
-
-    # TODO check for interactive terminal using sys.__stdin__.isatty()
-    #  if interactive allow prompts for
-    #   - whether to overwrite existing files
-    #
 
     output_opts.add_argument(
         "--overwrite",

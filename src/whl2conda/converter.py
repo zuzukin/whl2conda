@@ -198,7 +198,7 @@ class Wheel2CondaConverter:
             WHEEL_msg = email.message_from_string(WHEEL_file.read_text("utf8"))
             # https://peps.python.org/pep-0427/#what-s-the-deal-with-purelib-vs-platlib
             is_pure_lib = WHEEL_msg.get("Root-Is-Purelib", "").lower() == "true"
-            _wheel_build_number = WHEEL_msg.get("Build", "")
+            wheel_build_number = WHEEL_msg.get("Build", "")
             wheel_version = WHEEL_msg.get("Wheel-Version")
 
             if wheel_version not in self.SUPPORTED_WHEEL_VERSIONS:
@@ -346,13 +346,17 @@ class Wheel2CondaConverter:
 
             # info/index.json
             conda_index_file = conda_info_dir.joinpath("index.json")
+            # TODO allow build number override
+            try:
+                build_number = int(wheel_build_number)
+            except ValueError:
+                build_number = 0
             conda_index_file.write_text(
                 json.dumps(
                     dict(
                         arch=None,
                         build="py_0",
-                        # TODO convert build number from WHEEL file
-                        build_number=0,
+                        build_number=build_number,
                         depends=conda_dependencies,
                         license=license,
                         name=package_name,
