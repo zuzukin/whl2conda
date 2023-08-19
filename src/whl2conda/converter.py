@@ -38,11 +38,17 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 from wheel.wheelfile import WheelFile
 from conda_package_handling.api import create as create_conda_pkg
 
-__all__ = ["CondaPackageFormat", "Wheel2CondaConverter"]
+__all__ = [
+    "CondaPackageFormat",
+    "Wheel2CondaConverter",
+    "Wheel2CondaError"
+]
 
 from .__about__ import __version__
 from .prompt import bool_input
 
+class Wheel2CondaError(RuntimeError):
+    """Errors from Wheel2CondaConverter"""
 
 class CondaPackageFormat(enum.Enum):
     """
@@ -160,11 +166,17 @@ class Wheel2CondaConverter:
             # Parse the metadata
             #
 
-            # TODO check for pure python:
-            #     Root-Is-Purelib: true in WHEEL file
-            #     https://peps.python.org/pep-0427/#what-s-the-deal-with-purelib-vs-platlib
-
             wheel_info_dir = next(wheel_dir.glob("*.dist-info"))
+
+            WHEEL_file = wheel_info_dir.joinpath("WHEEL")
+            WHEEL_msg = email.message_from_string(WHEEL_file.read_text("utf8"))
+            # https://peps.python.org/pep-0427/#what-s-the-deal-with-purelib-vs-platlib
+            is_pure_lib = WHEEL_msg.get("Root-Is-Purelib","").lower() == "true"
+            wheel_build_number = WHEEL_msg.get("Build", "")
+
+            if not is_pure_lib:
+                raise Wheel2CondaError(f"Wheel {self.wheel_path} is not pure python")
+
             wheel_md_file = wheel_info_dir.joinpath("METADATA")
             md: Dict[str, List[Any]] = {}
 
