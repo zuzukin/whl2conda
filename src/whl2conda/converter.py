@@ -32,16 +32,16 @@ import tempfile
 import time
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 # third party
 from wheel.wheelfile import WheelFile
 from conda_package_handling.api import create as create_conda_pkg
 
-from .__about__ import __version__
-
 __all__ = ["CondaPackageFormat", "Wheel2CondaConverter"]
 
+from .__about__ import __version__
+from .prompt import bool_input
 
 class CondaPackageFormat(enum.Enum):
     """
@@ -72,9 +72,10 @@ class Wheel2CondaConverter:
     out_format: CondaPackageFormat
     overwrite: bool = False
     keep_pip_dependencies: bool = False
-    dependency_rename: Dict[str, str]
+    dependency_rename: List[Tuple[str, str]]
     extra_dependencies: List[str]
     project_root: Path
+    interactive: bool = False
 
     temp_dir: Optional[tempfile.TemporaryDirectory] = None
 
@@ -92,7 +93,7 @@ class Wheel2CondaConverter:
             self.out_dir = wheel_path.parent
         else:
             self.out_dir = Path.cwd()
-        self.dependency_rename = {}
+        self.dependency_rename = []
         self.extra_dependencies = []
         self.project_root = Path.cwd()
 
@@ -228,7 +229,7 @@ class Wheel2CondaConverter:
                 else:
                     conda_name = pip_name = m.group(1)
                     conda_ver = m.group(2)
-                    for oldmatch, replacement in self.dependency_rename.items():
+                    for oldmatch, replacement in self.dependency_rename:
                         if m := re.fullmatch(oldmatch, pip_name):
                             conda_name = m.expand(replacement)
                             break
@@ -363,9 +364,13 @@ class Wheel2CondaConverter:
 
             if conda_pkg_path.exists():
                 if not self.overwrite:
-                    raise FileExistsError(
-                        f"Output conda package already exists at '{conda_pkg_path}'"
-                    )
+                    msg = f"Output conda package already exists at '{conda_pkg_path}'"
+                    overwrite = False
+                    if self.interactive:
+                        print(msg)
+                        overwrite = bool_input("Overwrite? ")
+                    if not overwrite:
+                        raise FileExistsError(msg)
                 self._info("Removing existing %s%s", conda_pkg_path, dry_run_suffix)
                 if not self.dry_run:
                     if conda_pkg_path.is_dir():

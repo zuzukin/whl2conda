@@ -28,8 +28,8 @@ from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
 from .__about__ import __version__
+from .prompt import bool_input, is_interactive
 from .converter import Wheel2CondaConverter, CondaPackageFormat
-
 
 class MarkdownHelpFormatter(argparse.RawTextHelpFormatter):
     """
@@ -66,18 +66,6 @@ class MarkdownHelpFormatter(argparse.RawTextHelpFormatter):
 def dedent(text: str) -> str:
     """Deindent help string"""
     return textwrap.dedent(text).strip()
-
-
-def bool_input(prompt: str) -> bool:
-    """Boolean interactive prompt, accepts y/n, yes/no, true/false"""
-    true_vals = {"y", "yes", "true"}
-    false_vals = {"n", "no", "false"}
-    while True:
-        answer = input(prompt).lower()
-        if answer in true_vals:
-            return True
-        if answer in false_vals:
-            return False
 
 
 # pylint: disable=too-many-instance-attributes
@@ -445,7 +433,7 @@ def main():
     parser = _create_argparser()
     parsed = _parse_args(parser)
 
-    interactive = sys.__stdin__.isatty()
+    interactive = is_interactive()
     always_yes = parsed.yes
 
     dry_run = parsed.dry_run
@@ -546,11 +534,11 @@ def main():
     converter.overwrite = parsed.overwrite
     converter.keep_pip_dependencies = parsed.keep_pip_deps
     converter.extra_dependencies = parsed.extra_deps
+    converter.interactive = interactive
 
     for dropname in parsed.dropped_deps:
-        converter.dependency_rename[dropname] = ""
-    for pipname, replacement in parsed.dep_renames:
-        converter.dependency_rename[pipname] = replacement
+        converter.dependency_rename.append((dropname,""))
+    converter.dependency_rename.extend(parsed.dep_renames)
 
     if verbosity < -1:
         level = logging.ERROR

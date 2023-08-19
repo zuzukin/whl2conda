@@ -17,13 +17,16 @@ Unit tests for converter module
 
 from __future__ import annotations
 
+# standard
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Dict, Generator, Optional, Sequence, Union
+from typing import Generator, Sequence, Tuple, Union
 
+# third party
 import pytest
 
+# this package
 from whl2conda.converter import Wheel2CondaConverter, CondaPackageFormat
 from .common import PackageValidator
 
@@ -37,7 +40,7 @@ class ConverterTestCase:
     """
 
     wheel_src: Union[Path, str]
-    dependency_rename: Dict[str, str]
+    dependency_rename: Sequence[Tuple[str, str]]
     extra_dependencies: Sequence[str]
     package_name: str
     tmp_dir: Path
@@ -54,14 +57,14 @@ class ConverterTestCase:
         *,
         tmp_dir: Path,
         package_name: str = "",
-        dependency_rename: Optional[Dict[str, str]] = None,
+        dependency_rename: Sequence[Tuple[str, str]] = (),
         extra_dependencies: Sequence[str] = (),
     ) -> None:
         if not str(wheel_src).startswith("pypi:"):
             wheel_src = Path(wheel_src)
             assert wheel_src.exists()
         self.wheel_src = wheel_src
-        self.dependency_rename = dict(dependency_rename) if dependency_rename else {}
+        self.dependency_rename = tuple(dependency_rename)
         self.extra_dependencies = tuple(extra_dependencies)
         self.tmp_dir = tmp_dir
         self.package_name = package_name
@@ -90,7 +93,7 @@ class ConverterTestCase:
 
     def _convert(self, wheel_path: Path, *, out_format: CondaPackageFormat) -> Path:
         converter = Wheel2CondaConverter(wheel_path, out_dir=self._out_dir)
-        converter.dependency_rename = dict(self.dependency_rename)
+        converter.dependency_rename = list(self.dependency_rename)
         converter.extra_dependencies = list(self.extra_dependencies)
         converter.package_name = self.package_name
         converter.out_format = out_format
@@ -135,7 +138,7 @@ class ConverterTestCaseFactory:
         wheel_src: Union[Path, str],
         *,
         package_name: str = "",
-        dependency_rename: Optional[Dict[str, str]] = None,
+        dependency_rename: Sequence[Tuple[str, str]] = (),
         extra_dependencies: Sequence[str] = (),
     ) -> ConverterTestCase:
         return ConverterTestCase(
@@ -188,4 +191,4 @@ def test_pypi_sphinx(test_case: ConverterTestCaseFactory):
     """
     Test sphinx package from pypi
     """
-    test_case("pypi:tomlkit").run()
+    test_case("pypi:sphinx").run()
