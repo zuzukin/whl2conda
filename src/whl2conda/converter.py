@@ -79,6 +79,23 @@ class Wheel2CondaConverter:
 
     """
 
+    SUPPORTED_WHEEL_VERSIONS = ("1.0",)
+    SUPPORTED_METADATA_VERSIONS = ("1.0", "1.1", "1.2", "2.1", "2.2", "2.3")
+    LIST_METADATA_KEYS = {
+        "Classifier",
+        "Dynamic",
+        "Platform",
+        "Obsoletes",
+        "Obsoletes-Dist",
+        "Provides",
+        "Provides-Dist",
+        "Provides-Extra",
+        "Requires",
+        "Requires-Dist",
+        "Requires-External",
+        "Supported-Platform",
+    }
+
     package_name: str = ""
     logger: logging.Logger
     wheel_path: Optional[Path]
@@ -184,7 +201,7 @@ class Wheel2CondaConverter:
             _wheel_build_number = WHEEL_msg.get("Build", "")
             wheel_version = WHEEL_msg.get("Wheel-Version")
 
-            if wheel_version != "1.0":
+            if wheel_version not in self.SUPPORTED_WHEEL_VERSIONS:
                 raise Wheel2CondaError(
                     f"Wheel {self.wheel_path} has unsupported wheel version {wheel_version}"
                 )
@@ -195,33 +212,46 @@ class Wheel2CondaConverter:
             wheel_md_file = wheel_info_dir.joinpath("METADATA")
             md: Dict[str, List[Any]] = {}
 
-            # TODO: clean up metadata parsing code to only use lists for appropriate keys
-            #    - classifier, requires-dist, ...
+            # Metdata spec: https://packaging.python.org/en/latest/specifications/core-metadata/
+            # Required keys: Metadata-Version, Name, Version
             md_msg = email.message_from_string(wheel_md_file.read_text())
+            md_version_str = md_msg.get("Metadata-Version")
+            if md_version_str not in self.SUPPORTED_METADATA_VERSIONS:
+                # TODO - perhaps just warn about this if not in "strict" mode
+                raise Wheel2CondaError(
+                    f"Wheel {self.wheel_path} has unsupported metadata version {md_version_str}"
+                )
+            # md_version = tuple(int(x) for x in md_version_str.split("."))
             for mdkey, mdval in md_msg.items():
-                mdkey = mdkey.lower().strip()
-                mdval = mdval.strip()
-                md.setdefault(mdkey, []).append(mdval)
-                if mdkey == "requires-dist":
+                mdkey = mdkey.strip()
+                if mdkey in self.LIST_METADATA_KEYS:
+                    md.setdefault(mdkey.lower(), []).append(mdval)
+                else:
+                    md[mdkey.lower()] = mdval
+                if mdkey in {"requires-dist", "requires"}:
                     continue
 
             if not self.keep_pip_dependencies:
-                requires = md_msg.get_all("Requires-Dist", ())
+                del md_msg["Requires"]
                 del md_msg["Requires-Dist"]
+                requires = md_msg.get_all("Requires-Dist", ())
                 # Turn requirements into optional extra requirements
-                for require in requires:
-                    md_msg.add_header("Requires-Dist", f"{require}: extra == 'pypi")
+                if requires:
+                    for require in requires:
+                        md_msg.add_header("Requires-Dist", f"{require}: extra == 'original")
+                    md_msg.add_header("Provides-Extra", "original")
                 wheel_md_file.write_text(md_msg.as_string())
 
-            package_name = self.package_name or str(md.get("name", [])[0]).strip()
+            package_name = self.package_name or str(md.get("name"))
             self.package_name = package_name
-            version = md.get("version", [""])[0].strip()
+            version = md.get("version")
 
             dependencies: List[str] = []
-            python_version = md.get("requires-python", [""])[0]
+            python_version = md.get("requires-python")
             if python_version:
                 dependencies.append(f"python {python_version}")
-            dependencies.extend(md.get("requires-dist", []))
+            # Use Requires-Dist if present, otherwise deprecated Requires keyword
+            dependencies.extend(md.get("requires-dist", md.get("requires", [])))
 
             #
             # Copy site-packages files
@@ -279,7 +309,7 @@ class Wheel2CondaConverter:
 
             # TODO: copy licenses
             # * info/licenses - dir containing license files
-            license = md.get("license-expression", [None])[0] or md.get("license", [None])[0]
+            license = md.get("license-expression") or md.get("license")
 
             # * info/about.json
             conda_about_file = conda_info_dir.joinpath("about.json")
@@ -287,10 +317,10 @@ class Wheel2CondaConverter:
                 json.dumps(
                     NonNoneDict(
                         # TODO only include if defined
-                        description=md.get("description", [""])[0],
+                        description=md.get("description"),
                         license=license or None,
                         classifiers=md.get("classifier"),
-                        keywords=md.get("keyword"),
+                        keywords=md.get("keywords"),
                         whl2conda_version=__version__,
                         # TODO:
                         # home
