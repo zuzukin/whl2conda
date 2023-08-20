@@ -9,6 +9,9 @@ __pycache__/
 dist/
 htmlcov/
 site/
+build/
+*.egg-info
+*.whl
 
 # test files
 .coverage*

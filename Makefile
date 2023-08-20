@@ -114,5 +114,10 @@ clean-coverage:
 clean-doc:
 	$(RMDIR) site doc/whl2conda-cli.md
 
-clean: clean-doc clean-coverage
+clean-gen:
+	-find . \( -name '*.whl' -or -name '*.conda' -or -name '*.tar.bz2' \) -exec $(RM) {} \;
+	-find . \( -name 'dist' -or -name 'build' -or -name '*.egg-info' \) -exec $(RMDIR) {} \;
+
+clean: clean-doc clean-coverage clean-gen
+
 
