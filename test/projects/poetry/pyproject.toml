@@ -1,0 +1,11 @@
+[build-system]
+requires = ["poetry-core","setuptools"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "simple"
+version = "1.0.2"
+description = "simple test project"
+authors = ["bob"]
+license = "MIT"
+
