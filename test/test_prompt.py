@@ -18,12 +18,14 @@ Unit tests for whl2conda.prompt module
 
 import io
 import sys
+from collections import deque
+from pathlib import Path
 from typing import Iterator, Tuple
 
 import pytest
 
 import whl2conda.prompt
-from whl2conda.prompt import is_interactive, bool_input
+from whl2conda.prompt import is_interactive, bool_input, choose_wheel
 
 
 def test_is_interactive(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -39,15 +41,6 @@ def test_is_interactive(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_bool_input(monkeypatch: pytest.MonkeyPatch) -> None:
     """Unit test for bool_input function"""
-    if is_interactive():
-        monkeypatch.setattr(whl2conda.prompt, "is_interactive", lambda: False)
-    with pytest.raises(AssertionError):
-        bool_input("")
-    monkeypatch.undo()
-
-    if not is_interactive():
-        monkeypatch.setattr(whl2conda.prompt, "is_interactive", lambda: True)
-
     input_calls: Iterator[Tuple[str, str]] = iter(())
 
     def fake_input(prompt: str) -> str:
@@ -70,3 +63,70 @@ def test_bool_input(monkeypatch: pytest.MonkeyPatch) -> None:
 
     input_calls = iter([("continue:", "maybe"), ("continue:", "yes")])
     assert bool_input("continue:")
+
+
+def test_choose_wheel(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unit test for choose_wheel function."""
+
+    #
+    # Non-interactive cases
+    #
+
+    with pytest.raises(FileNotFoundError, match="No wheels found"):
+        choose_wheel(tmp_path)
+
+    with pytest.raises(FileNotFoundError, match="No wheels found"):
+        choose_wheel(tmp_path, interactive=True, choose_first=False)
+
+    wheel1 = tmp_path.joinpath("wheel1.whl")
+    wheel1.write_bytes(b'')
+
+    assert choose_wheel(tmp_path) == wheel1
+    assert choose_wheel(tmp_path, interactive=True, choose_first=True) == wheel1
+
+    wheel2 = tmp_path.joinpath("wheel2.whl")
+    wheel2.write_bytes(b'')
+
+    with pytest.raises(FileExistsError, match="multiple wheels"):
+        choose_wheel(tmp_path)
+
+    assert choose_wheel(tmp_path, choose_first=True) == wheel2
+
+    #
+    # Interactive cases
+    #
+
+    inputs: deque[str] = deque()
+
+    def fake_input(prompt: str) -> str:
+        print(prompt)
+        return inputs.popleft()
+
+    monkeypatch.setattr("builtins.input", fake_input)
+
+    with pytest.raises(SystemExit):
+        inputs.append("quit")
+        choose_wheel(tmp_path, interactive=True)
+
+    out,err = capsys.readouterr()
+    assert not err
+    assert "[0] wheel2.whl" in out
+    assert "[1] wheel1.whl" in out
+    assert "build" not in out
+
+    inputs.append("bad-option")
+    inputs.append("1")
+    wheel = choose_wheel(
+        tmp_path,
+        interactive = True,
+        can_build = True
+    )
+
+    assert wheel == wheel1
+    out,err = capsys.readouterr()
+    assert "[build] build wheel" in out
+    assert "[no-dep] build wheel with --no-deps" in out

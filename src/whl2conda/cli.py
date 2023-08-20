@@ -25,10 +25,10 @@ import sys
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from .__about__ import __version__
-from .prompt import is_interactive
+from .prompt import is_interactive, choose_wheel
 from .converter import Wheel2CondaConverter, CondaPackageFormat
 
 
@@ -388,73 +388,6 @@ def _parse_args(parser: argparse.ArgumentParser, args: Optional[Sequence[str]]) 
 
 def _is_project_root(path: Path) -> bool:
     return any(path.joinpath(f).is_file() for f in ["pyproject.toml", "setup.py"])
-
-
-# TODO move to prompt module
-def choose_wheel(
-    wheel_dir: Path,
-    *,
-    interactive: bool = False,
-    choose_first: bool = False,
-    can_build: bool = False,
-) -> Path:
-    """
-    Choose wheel from available wheels in distribution directory.
-
-    Args:
-        wheel_dir: directory containing .whl files
-        interactive: if true, prompt user for choice
-        choose_first: choose first available wheel (the most recent one)
-            implies not interactive
-        can_build: show build options when interactive
-
-    Returns:
-        Path object of wheel, or else Path('build') or Path('build-no-dep')
-
-    Raises:
-        FileNotFoundError: no wheels in directory and not interactive
-            or choose_first
-        FileExistsError: more than one wheel in directory when non-interactive
-    """
-    print(f"{choose_first=} {interactive=} {can_build=}")
-    if choose_first:
-        interactive = False
-
-    wheels = sorted(
-        wheel_dir.glob("*.whl"),
-        key=lambda p: p.stat().st_ctime,
-        reverse=True,
-    )
-
-    if not wheels and not (interactive and can_build):
-        raise FileNotFoundError(f"No wheels found in directory '{wheel_dir}'")
-    if not interactive:
-        if choose_first or len(wheels) == 1:
-            return wheels[0]
-        raise FileExistsError(f"Cannot choose from multiple wheels in directory '{wheel_dir}'")
-
-    # key -> (label,Path)
-    options: Dict[str, Tuple[str, Path]] = {
-        str(i): (wheel.name, wheel) for i, wheel in enumerate(wheels)
-    }
-    if can_build:
-        options['build'] = ('build wheel', Path('build'))
-        options['no-dep'] = (
-            'build wheel with --no-deps --no-build-isolation',
-            Path('build-no-dep'),
-        )
-    options['quit'] = ("quit program", Path('quit'))
-
-    while True:
-        for k, (label, path) in options.items():
-            key = f"[{k}]"
-            print(f"{key:>8s} {label}")
-        option = input(f"Choose wheel ({','.join(options)}): ")
-        if t := options.get(option):
-            path = t[1]
-            if path == Path('quit'):
-                sys.exit(0)
-            return path
 
 
 # pylint: disable=too-many-statements,too-many-branches,too-many-locals

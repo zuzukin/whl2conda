@@ -19,7 +19,14 @@ from __future__ import annotations
 
 import sys
 
-__all__ = ["bool_input", "is_interactive"]
+__all__ = [
+    "bool_input",
+    "choose_wheel",
+    "is_interactive",
+]
+
+from pathlib import Path
+from typing import Dict, Tuple
 
 
 def is_interactive() -> bool:
@@ -31,7 +38,6 @@ def is_interactive() -> bool:
 
 def bool_input(prompt: str) -> bool:
     """Boolean interactive prompt, accepts y/n, yes/no, true/false"""
-    assert is_interactive()
     true_vals = {"y", "yes", "true"}
     false_vals = {"n", "no", "false"}
     while True:
@@ -40,3 +46,68 @@ def bool_input(prompt: str) -> bool:
             return True
         if answer in false_vals:
             return False
+
+
+def choose_wheel(
+    wheel_dir: Path,
+    *,
+    interactive: bool = False,
+    choose_first: bool = False,
+    can_build: bool = False,
+) -> Path:
+    """
+    Choose wheel from available wheels in distribution directory.
+
+    Args:
+        wheel_dir: directory containing .whl files
+        interactive: if true, prompt user for choice
+        choose_first: choose first available wheel (the most recent one)
+            implies not interactive
+        can_build: show build options when interactive
+
+    Returns:
+        Path object of wheel, or else Path('build') or Path('build-no-dep')
+
+    Raises:
+        FileNotFoundError: no wheels in directory and not interactive
+            or choose_first
+        FileExistsError: more than one wheel in directory when non-interactive
+    """
+    if choose_first:
+        interactive = False
+
+    wheels = sorted(
+        wheel_dir.glob("*.whl"),
+        key=lambda p: p.stat().st_ctime,
+        reverse=True,
+    )
+
+    if not wheels and not (interactive and can_build):
+        raise FileNotFoundError(f"No wheels found in directory '{wheel_dir}'")
+    if not interactive:
+        if choose_first or len(wheels) == 1:
+            return wheels[0]
+        raise FileExistsError(f"Cannot choose from multiple wheels in directory '{wheel_dir}'")
+
+    # key -> (label,Path)
+    options: Dict[str, Tuple[str, Path]] = {
+        str(i): (wheel.name, wheel) for i, wheel in enumerate(wheels)
+    }
+    if can_build:
+        options['build'] = ('build wheel', Path('build'))
+        options['no-dep'] = (
+            'build wheel with --no-deps --no-build-isolation',
+            Path('build-no-dep'),
+        )
+    options['quit'] = ("quit program", Path('quit'))
+
+    while True:
+        for k, (label, path) in options.items():
+            key = f"[{k}]"
+            print(f"{key:>8s} {label}")
+        option = input(f"Choose wheel ({','.join(options)}): ")
+        if t := options.get(option):
+            path = t[1]
+            if path == Path('quit'):
+                sys.exit(0)
+            return path
