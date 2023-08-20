@@ -20,11 +20,10 @@ import io
 import sys
 from collections import deque
 from pathlib import Path
-from typing import Iterator, Tuple
+from typing import Deque, Iterator, Tuple
 
 import pytest
 
-import whl2conda.prompt
 from whl2conda.prompt import is_interactive, bool_input, choose_wheel
 
 
@@ -100,7 +99,7 @@ def test_choose_wheel(
     # Interactive cases
     #
 
-    inputs: deque[str] = deque()
+    inputs: Deque[str] = deque()
 
     def fake_input(prompt: str) -> str:
         print(prompt)
@@ -112,7 +111,7 @@ def test_choose_wheel(
         inputs.append("quit")
         choose_wheel(tmp_path, interactive=True)
 
-    out,err = capsys.readouterr()
+    out, err = capsys.readouterr()
     assert not err
     assert "[0] wheel2.whl" in out
     assert "[1] wheel1.whl" in out
@@ -120,13 +119,9 @@ def test_choose_wheel(
 
     inputs.append("bad-option")
     inputs.append("1")
-    wheel = choose_wheel(
-        tmp_path,
-        interactive = True,
-        can_build = True
-    )
+    wheel = choose_wheel(tmp_path, interactive=True, can_build=True)
 
     assert wheel == wheel1
-    out,err = capsys.readouterr()
+    out, err = capsys.readouterr()
     assert "[build] build wheel" in out
     assert "[no-dep] build wheel with --no-deps" in out
