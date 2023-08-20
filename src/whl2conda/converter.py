@@ -20,7 +20,6 @@ from __future__ import annotations
 
 # standard
 import email
-import enum
 import iniconfig
 import json
 import logging
@@ -43,24 +42,11 @@ __all__ = ["CondaPackageFormat", "Wheel2CondaConverter", "Wheel2CondaError"]
 
 from .__about__ import __version__
 from .prompt import bool_input
+from .pyproject import CondaPackageFormat
 
 
 class Wheel2CondaError(RuntimeError):
     """Errors from Wheel2CondaConverter"""
-
-
-class CondaPackageFormat(enum.Enum):
-    """
-    Supported output package formats
-
-    * V1: original conda format as .tar.bz2 file
-    * V2: newer .conda format
-    * TREE: dumps package out as a directory tree (for debugging)
-    """
-
-    V1 = ".tar.bz2"
-    V2 = ".conda"
-    TREE = ".tree"
 
 
 class NonNoneDict(dict):
@@ -77,6 +63,7 @@ class NonNoneDict(dict):
 @dataclass
 class MetadataFromWheel:
     """Metadata parsed from wheel distribution"""
+
     md: Dict[str, Any]
     package_name: str
     version: str

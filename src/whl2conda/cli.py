@@ -31,6 +31,7 @@ from typing import List, Optional, Sequence, Tuple
 from .__about__ import __version__
 from .prompt import is_interactive, choose_wheel
 from .converter import Wheel2CondaConverter, CondaPackageFormat
+from .pyproject import read_pyproject
 
 
 class MarkdownHelpFormatter(argparse.RawTextHelpFormatter):
@@ -222,7 +223,6 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         "--out-format",
         choices=["V1", "tar.bz2", "V2", "conda", "tree"],
         dest="out_format",
-        default="conda",
         help="Output package format (%(default)s)",
     )
 
@@ -435,20 +435,24 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
             parser.error("Cannot specify project root as both positional and keyword argument.")
         project_root = parsed.project_root
 
+    pyproj_info = read_pyproject(project_root)
+
     if project_root:
         project_root = project_root.expanduser().absolute()
         if not _is_project_root(project_root):
             parser.error(f"No pyproject.toml or setup.py in project root '{project_root}'")
         if not wheel_dir:
-            # Use dist directory of project
-            # TODO - check for build system specific alternate dist location for
-            #   various backends in pyproject.toml:
-            #      flit: ?
-            #      hatchling: tool.hatch.build.directory
-            #      pdm-backend: .pdm-build (default)
-            #         see: https://pdm-backend.fming.dev/hooks/#change-the-build-directory
-            #      poetry: ?
-            wheel_dir = project_root.joinpath("dist")
+            wheel_dir = pyproj_info.wheel_dir
+            if not wheel_dir:
+                # Use dist directory of project
+                # TODO - check for build system specific alternate dist location for
+                #   various backends in pyproject.toml:
+                #      flit-core: flit build -> dist, pip wheel -> cur dir
+                #      hatchling: tool.hatch.build.directory, default dist
+                #      pdm-backend: .pdm-build (default)
+                #         see: https://pdm-backend.fming.dev/hooks/#change-the-build-directory
+                #      poetry.core.masonry.api: poetry build -> dist/, pip wheel -> cur dir
+                wheel_dir = project_root.joinpath("dist")
 
     can_build = project_root is not None
 
@@ -484,13 +488,17 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
     else:
         out_dir = wheel_dir
 
-    fmtname = parsed.out_format.lower()
-    if fmtname in ("v1", "tar.bz2"):
-        out_fmt = CondaPackageFormat.V1
-    elif fmtname in ("v2", "conda"):
-        out_fmt = CondaPackageFormat.V2
+    if fmtname := parsed.out_format:
+        if fmtname in ("v1", "tar.bz2"):
+            out_fmt = CondaPackageFormat.V1
+        elif fmtname in ("v2", "conda"):
+            out_fmt = CondaPackageFormat.V2
+        else:
+            out_fmt = CondaPackageFormat.TREE
+    elif pyproj_info.conda_format:
+        out_fmt = pyproj_info.conda_format
     else:
-        out_fmt = CondaPackageFormat.TREE
+        out_fmt = CondaPackageFormat.V2
 
     if parsed.test_install:
         try:
@@ -501,17 +509,6 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
             parser.error(
                 "--test-install requires that conda-index be installed in the base channel"
             )
-
-    # TODO - get options from pyproject.toml file
-    # [tools.whl2conda]
-    # conda-name = "my.package"
-    # wheel-dir = "dist
-    # out-dir = "dist"
-    # conda-format = "V1"
-    # dependency-rename = [
-    #   ("acme-(.*)", "acme-$1")
-    # ]
-    # extra-dependencies = []
 
     if not wheel_file:
         if build_wheel:
@@ -524,14 +521,16 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
 
     converter = Wheel2CondaConverter(wheel_file, out_dir=out_dir)
     converter.dry_run = parsed.dry_run
-    converter.package_name = parsed.name
+    converter.package_name = parsed.name or pyproj_info.conda_name
     converter.out_format = out_fmt
     converter.overwrite = parsed.overwrite
     converter.keep_pip_dependencies = parsed.keep_pip_deps
-    converter.extra_dependencies = parsed.extra_deps
+    converter.extra_dependencies.extend(pyproj_info.extra_dependencies)
+    converter.extra_dependencies.extend(parsed.extra_deps)
     converter.interactive = interactive
     converter.project_root = project_root
 
+    converter.dependency_rename.extend(pyproj_info.dependency_rename)
     for dropname in parsed.dropped_deps:
         converter.dependency_rename.append((dropname, ""))
     converter.dependency_rename.extend(parsed.dep_renames)
