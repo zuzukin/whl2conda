@@ -163,6 +163,7 @@ class Wheel2CondaConverter:
             if self.wheel_path is None:
                 self.logger.info("Building wheel for %s", self.project_root)
                 wheel_dist_dir = tmp_path.joinpath("dist")
+                # TODO capture/hide output in quiet mode
                 subprocess.check_call(
                     [
                         "pip",

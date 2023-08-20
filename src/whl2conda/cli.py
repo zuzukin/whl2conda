@@ -25,10 +25,10 @@ import sys
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from .__about__ import __version__
-from .prompt import bool_input, is_interactive
+from .prompt import is_interactive
 from .converter import Wheel2CondaConverter, CondaPackageFormat
 
 
@@ -80,6 +80,7 @@ class Whl2CondaArgs:
     dropped_deps: Sequence[str]
     dry_run: bool
     extra_deps: List[str]
+    interactive: bool
     keep_pip_deps: bool
     markdown_help: bool
     name: str
@@ -328,6 +329,14 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         help="Do not write any files.",
     )
     info_opts.add_argument(
+        "--batch",
+        "--not-interactive",
+        dest='interactive',
+        action="store_false",
+        default=is_interactive(),
+        help="Batch mode - disable interactive prompts.",
+    )
+    info_opts.add_argument(
         "--yes",
         action="store_true",
         help="Answer 'yes' or choose default to all interactive questions",
@@ -381,12 +390,14 @@ def _is_project_root(path: Path) -> bool:
     return any(path.joinpath(f).is_file() for f in ["pyproject.toml", "setup.py"])
 
 
-def _choose_wheel(
+# TODO move to prompt module
+def choose_wheel(
     wheel_dir: Path,
     *,
     interactive: bool = False,
     choose_first: bool = False,
-) -> Optional[Path]:
+    can_build: bool = False,
+) -> Path:
     """
     Choose wheel from available wheels in distribution directory.
 
@@ -394,32 +405,56 @@ def _choose_wheel(
         wheel_dir: directory containing .whl files
         interactive: if true, prompt user for choice
         choose_first: choose first available wheel (the most recent one)
+            implies not interactive
+        can_build: show build options when interactive
+
+    Returns:
+        Path object of wheel, or else Path('build') or Path('build-no-dep')
+
+    Raises:
+        FileNotFoundError: no wheels in directory and not interactive
+            or choose_first
+        FileExistsError: more than one wheel in directory when non-interactive
     """
-    wheels = sorted(wheel_dir.glob("*.whl"), key=lambda p: p.stat().st_ctime, reverse=True)
+    print(f"{choose_first=} {interactive=} {can_build=}")
     if choose_first:
-        return wheels[0] if wheels else None
+        interactive = False
+
+    wheels = sorted(
+        wheel_dir.glob("*.whl"),
+        key=lambda p: p.stat().st_ctime,
+        reverse=True,
+    )
+
+    if not wheels and not (interactive and can_build):
+        raise FileNotFoundError(f"No wheels found in directory '{wheel_dir}'")
     if not interactive:
-        return None
+        if choose_first or len(wheels) == 1:
+            return wheels[0]
+        raise FileExistsError(f"Cannot choose from multiple wheels in directory '{wheel_dir}'")
 
-    wheel_file: Optional[Path] = None
-    options = []
-    for i, wheel in enumerate(wheels):
-        print(f"[{i}] {wheel.relative_to(Path.cwd())}")
-        options.append(str(i))
-    print("[build] build a new wheel")
-    options.extend(["build", "quit"])
-    prompt = f"Choose wheel ({','.join(options)}): "
-    answer = ""
-    while answer not in options:
-        answer = input(prompt).lower()
-    if answer == "quit":
-        sys.exit(0)
-    if answer == "build":
-        pass
-    else:
-        wheel_file = wheels[int(answer)]
+    # key -> (label,Path)
+    options: Dict[str, Tuple[str, Path]] = {
+        str(i): (wheel.name, wheel) for i, wheel in enumerate(wheels)
+    }
+    if can_build:
+        options['build'] = ('build wheel', Path('build'))
+        options['no-dep'] = (
+            'build wheel with --no-deps --no-build-isolation',
+            Path('build-no-dep'),
+        )
+    options['quit'] = ("quit program", Path('quit'))
 
-    return wheel_file
+    while True:
+        for k, (label, path) in options.items():
+            key = f"[{k}]"
+            print(f"{key:>8s} {label}")
+        option = input(f"Choose wheel ({','.join(options)}): ")
+        if t := options.get(option):
+            path = t[1]
+            if path == Path('quit'):
+                sys.exit(0)
+            return path
 
 
 # pylint: disable=too-many-statements,too-many-branches,too-many-locals
@@ -431,7 +466,7 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
     parser = _create_argparser(prog)
     parsed = _parse_args(parser, args)
 
-    interactive = is_interactive()
+    interactive = parsed.interactive
     always_yes = parsed.yes
 
     dry_run = parsed.dry_run
@@ -443,6 +478,7 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
     wheel_dir: Optional[Path] = parsed.wheel_dir
 
     build_wheel = False  # TODO add option for this
+    build_no_deps = False  # pylint: disable=unused-variable
 
     wheel_or_root = parsed.wheel_or_root
     if not wheel_or_root:
@@ -480,20 +516,28 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
             #      poetry: ?
             wheel_dir = project_root.joinpath("dist")
 
+    can_build = project_root is not None
+
     if not wheel_file and wheel_dir and not build_wheel:
         # find wheel in directory
-        wheel_file = _choose_wheel(wheel_dir, interactive=interactive, choose_first=always_yes)
-        if not wheel_file and interactive:
-            # If nothing returned and interactive, user wants a build
-            build_wheel = True
-
-    if not wheel_file and not build_wheel:
-        if always_yes:
-            build_wheel = True
-        elif interactive:
-            build_wheel = bool_input("No wheel found. Build? ")
-        if not build_wheel:
-            parser.error("No wheel to convert")
+        try:
+            wheel_file = choose_wheel(
+                wheel_dir, interactive=interactive, choose_first=always_yes, can_build=can_build
+            )
+            if wheel_file == Path('build'):
+                build_wheel = True
+                wheel_file = None
+            elif wheel_file == Path("build-no-dep"):
+                build_wheel = True
+                build_no_deps = True
+                wheel_file = None
+        except FileNotFoundError as ex:
+            if always_yes and can_build:
+                build_wheel = True
+            else:
+                parser.error(str(ex))
+        except Exception as ex:  # pylint: disable=broad-except
+            parser.error(str(ex))
 
     if parsed.markdown_help:
         parser.formatter_class = MarkdownHelpFormatter
