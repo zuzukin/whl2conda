@@ -32,7 +32,7 @@ from whl2conda.converter import (
     Wheel2CondaError,
     CondaPackageFormat,
 )
-from .common import PackageValidator
+from .validator import PackageValidator
 
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent
