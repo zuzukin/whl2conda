@@ -22,6 +22,7 @@ import logging
 import os
 import subprocess
 import sys
+import time
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path
@@ -512,6 +513,15 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
     # ]
     # extra-dependencies = []
 
+    if not wheel_file:
+        if build_wheel:
+            assert project_root and wheel_dir
+            wheel_file = do_build_wheel(
+                project_root, wheel_dir, no_deps=build_no_deps, dry_run=dry_run
+            )
+
+    assert wheel_file
+
     converter = Wheel2CondaConverter(wheel_file, out_dir=out_dir)
     converter.dry_run = parsed.dry_run
     converter.package_name = parsed.name
@@ -550,6 +560,54 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
             env_name=parsed.test_env,
             env_prefix=parsed.test_prefix,
         )
+
+
+def do_build_wheel(
+    project_root: Path, wheel_dir: Path, *, no_deps: bool = False, dry_run: bool = False
+) -> Path:
+    """Build wheel for project
+
+    Arguments:
+        project_root: directory containing pyproject.toml or setup.py
+        wheel_dir: target output directory, created as needed
+        no_deps: build with --no-deps --no-build-isolation
+        dry_run: just log, don't actually run anything
+
+    Returns:
+        path to created wheel
+    """
+    logger = logging.getLogger(__name__)
+    logger.info("Building wheel for %s", project_root)
+    if not dry_run:
+        wheel_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "pip",
+        "wheel",
+        str(project_root),
+        "-w",
+        str(wheel_dir),
+    ]
+    if no_deps:
+        cmd.extend(["--no-deps", "--no-build-isolation"])
+    logger.info("Running: %s", cmd)
+    if dry_run:
+        wheel = wheel_dir.joinpath("dry-run-1.0-py3-none-any.whl")
+    else:
+        start = time.time()
+        # TODO capture/hide output in quiet mode
+        subprocess.check_call(cmd)
+
+        wheels = sorted(
+            wheel_dir.glob("*.whl"),
+            key=lambda p: p.stat().st_ctime,
+            reverse=True,
+        )
+
+        assert wheels and wheels[0].stat().st_ctime >= start, f"No wheel created in '{wheel_dir}'"
+
+        wheel = wheels[0]
+
+    return wheel
 
 
 if __name__ == "__main__":  # pragma: no cover

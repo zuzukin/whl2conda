@@ -98,7 +98,7 @@ class Wheel2CondaConverter:
 
     package_name: str = ""
     logger: logging.Logger
-    wheel_path: Optional[Path]
+    wheel_path: Path
     out_dir: Path
     dry_run: bool = False
     wheel: Optional[WheelFile]
@@ -114,8 +114,7 @@ class Wheel2CondaConverter:
 
     def __init__(
         self,
-        # TODO require wheel_path
-        wheel_path: Optional[Path] = None,
+        wheel_path: Path,
         *,
         out_dir: Optional[Path] = None,
     ):
@@ -152,30 +151,6 @@ class Wheel2CondaConverter:
 
         with self:
             assert self.temp_dir is not None
-            tmp_path = Path(self.temp_dir.name)
-
-            #
-            # Build the wheel if needed
-            #
-
-            # TODO move wheel build to cli module
-            # TODO add explicit option to enable/request building wheel
-            if self.wheel_path is None:
-                self.logger.info("Building wheel for %s", self.project_root)
-                wheel_dist_dir = tmp_path.joinpath("dist")
-                # TODO capture/hide output in quiet mode
-                subprocess.check_call(
-                    [
-                        "pip",
-                        "wheel",
-                        str(self.project_root),
-                        "-w",
-                        str(wheel_dist_dir),
-                        "--no-deps",
-                        "--no-build-isolation",
-                    ]
-                )
-                self.wheel_path = next(wheel_dist_dir.glob("*.whl"))
 
             #
             # Extract the wheel

@@ -97,11 +97,7 @@ class ConverterTestCase:
         self._out_dir.mkdir()
 
     def _convert(self, wheel_path: Path, *, out_format: CondaPackageFormat) -> Path:
-        if wheel_path.is_dir():
-            converter = Wheel2CondaConverter(out_dir=self._out_dir)
-            converter.project_root = wheel_path
-        else:
-            converter = Wheel2CondaConverter(wheel_path, out_dir=self._out_dir)
+        converter = Wheel2CondaConverter(wheel_path, out_dir=self._out_dir)
         converter.dependency_rename = list(self.dependency_rename)
         converter.extra_dependencies = list(self.extra_dependencies)
         converter.package_name = self.package_name
