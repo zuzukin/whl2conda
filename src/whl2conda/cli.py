@@ -369,13 +369,12 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     )
     info_opts.add_argument("--version", action="version", version=__version__)
 
-    # TODO
-    #   --override-pyproject - ignore [tool.whl2conda] pyproject settings
-    #   --conda-bld - install in conda-bld and reindex (require tests first?)
+    # TODO --override-pyproject - ignore [tool.whl2conda] pyproject settings
+    # TODO  --conda-bld - install in conda-bld and reindex (require tests first?)
     #
-    #  - Debug options for keeping work?
-    #  - Way to run tests in test env?
-    #  - Do we need to remove package from conda-bld/pkgs cache if anything goes wrong with test?
+    # TODO - Debug options for keeping work?
+    # TODO  - Way to run tests in test env?
+    # TODO  - Do we need to remove package from conda-bld/pkgs cache if anything goes wrong with test?
 
     return parser
 
@@ -453,13 +452,7 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
             wheel_dir = pyproj_info.wheel_dir
             if not wheel_dir:
                 # Use dist directory of project
-                # TODO - check for build system specific alternate dist location for
-                #   various backends in pyproject.toml:
-                #      flit-core: flit build -> dist, pip wheel -> cur dir
-                #      hatchling: tool.hatch.build.directory, default dist
-                #      pdm-backend: .pdm-build (default)
-                #         see: https://pdm-backend.fming.dev/hooks/#change-the-build-directory
-                #      poetry.core.masonry.api: poetry build -> dist/, pip wheel -> cur dir
+                # TODO - check for build system specific alternate dist (#23)
                 wheel_dir = project_root.joinpath("dist")
 
     can_build = project_root is not None

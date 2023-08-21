@@ -146,7 +146,6 @@ class Wheel2CondaConverter:
         Returns:
             Path of conda package
         """
-        # TODO - split up into smaller methods
         # pylint: disable=too-many-statements,too-many-branches,too-many-locals
 
         with self:
@@ -251,7 +250,7 @@ class Wheel2CondaConverter:
             json.dumps(
                 dict(
                     noarch=dict(type="python"),
-                    entry_points=console_scripts,  # TODO
+                    entry_points=console_scripts,
                     package_metadata_version=1,
                 ),
                 indent=2,
@@ -307,13 +306,12 @@ class Wheel2CondaConverter:
         conda_about_file.write_text(
             json.dumps(
                 NonNoneDict(
-                    # TODO only include if defined
                     description=md.get("description"),
                     license=license or None,
                     classifiers=md.get("classifier"),
                     keywords=md.get("keywords"),
                     whl2conda_version=__version__,
-                    # TODO:
+                    # TODO: add more about.json values
                     # home
                     # dev_url
                     # doc_url
@@ -423,7 +421,6 @@ class Wheel2CondaConverter:
             dependencies.append(f"python {python_version}")
         # Use Requires-Dist if present, otherwise deprecated Requires keyword
         dependencies.extend(md.get("requires-dist", md.get("requires", [])))
-        # TODO fewer return values
         return MetadataFromWheel(
             md=md,
             package_name=package_name,
