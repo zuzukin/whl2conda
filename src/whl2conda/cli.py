@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import subprocess
 import sys
 import time
@@ -31,7 +30,7 @@ from typing import List, Optional, Sequence, Tuple
 from .__about__ import __version__
 from .prompt import is_interactive, choose_wheel
 from .converter import Wheel2CondaConverter, CondaPackageFormat
-from .pyproject import read_pyproject
+from .pyproject import read_pyproject, PyProjInfo
 
 
 class MarkdownHelpFormatter(argparse.RawTextHelpFormatter):
@@ -130,9 +129,8 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     The parser will return a namespace with attributes matching
     Whl2CondaArgs
     """
-    prog = os.path.basename(sys.argv[0])
     parser = argparse.ArgumentParser(
-        usage=f"{prog} [<wheel-or-root>] [options]",
+        usage="%(prog)s [<wheel-or-root>] [options]",
         prog=prog,
         description=dedent(
             """
@@ -400,6 +398,11 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
     parser = _create_argparser(prog)
     parsed = _parse_args(parser, args)
 
+    if parsed.markdown_help:
+        parser.formatter_class = MarkdownHelpFormatter
+        parser.print_help()
+        sys.exit(0)
+
     interactive = parsed.interactive
     always_yes = parsed.yes
 
@@ -435,7 +438,12 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
             parser.error("Cannot specify project root as both positional and keyword argument.")
         project_root = parsed.project_root
 
-    pyproj_info = read_pyproject(project_root)
+    pyproj_info = PyProjInfo.no_project()
+    if project_root:
+        try:
+            pyproj_info = read_pyproject(project_root)
+        except FileNotFoundError:
+            pass
 
     if project_root:
         project_root = project_root.expanduser().absolute()
@@ -476,11 +484,6 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
                 parser.error(str(ex))
         except Exception as ex:  # pylint: disable=broad-except
             parser.error(str(ex))
-
-    if parsed.markdown_help:
-        parser.formatter_class = MarkdownHelpFormatter
-        parser.print_help()
-        sys.exit(0)
 
     out_dir: Optional[Path] = None
     if parsed.out_dir:

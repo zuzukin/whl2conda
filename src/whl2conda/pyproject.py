@@ -55,7 +55,7 @@ class CondaPackageFormat(enum.Enum):
         try:
             return cls[name.upper()]
         except LookupError:
-            return cls(name.lower)
+            return cls(name.lower())
 
 
 @dataclass
@@ -95,8 +95,13 @@ class PyProjInfo:
     """tool.whl2conda.extra-dependencies - additional conda dependencies
     """
 
+    @classmethod
+    def no_project(cls) -> PyProjInfo:
+        """Info object used when there is no project file"""
+        return PyProjInfo({})
 
-def read_pyproject(path: Optional[Path]) -> PyProjInfo:
+
+def read_pyproject(path: Path) -> PyProjInfo:
     """
     Reads information
     Args:
@@ -105,13 +110,8 @@ def read_pyproject(path: Optional[Path]) -> PyProjInfo:
     Returns:
         Parsed information from the pyproject file or else one with defaults.
     """
-    if path is None:
-        return PyProjInfo({})
-
     if path.is_dir():
         path = path.joinpath("pyproject.toml")
-    if not path.is_file():
-        return PyProjInfo({})
 
     toml = tomli.loads(path.read_text("utf8"))
     pyproj = PyProjInfo(toml)

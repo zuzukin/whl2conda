@@ -66,6 +66,7 @@ class ConverterTestCase:
         extra_dependencies: Sequence[str] = (),
     ) -> None:
         if not str(wheel_src).startswith("pypi:"):
+            # TODO - copy source file or directory into temp directory
             wheel_src = Path(wheel_src)
             assert wheel_src.exists()
         self.wheel_src = wheel_src
