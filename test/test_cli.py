@@ -16,6 +16,8 @@
 Unit tests for whl2conda command line interface
 """
 
+from __future__ import annotations
+
 # standard
 import re
 from dataclasses import dataclass, field
@@ -26,11 +28,12 @@ from typing import Generator, List, Sequence
 import pytest
 
 # this project
-import whl2conda.prompt
 from whl2conda.__about__ import __version__
 from whl2conda.converter import CondaPackageFormat, Wheel2CondaConverter
 from whl2conda.cli import main
 from whl2conda.prompt import is_interactive
+
+from .test_prompt import monkeypatch_interactive
 
 this_dir = Path(__file__).parent
 project_dir = this_dir.joinpath("projects")
@@ -62,23 +65,49 @@ class CliTestCase:
         expected_out = iter(self.expected_prompts)
         responses = iter(self.responses)
 
+        # pylint: disable=unused-argument
+        def fake_build_wheel(
+            project_root: Path,
+            wheel_dir: Path,
+            *,
+            no_deps: bool = False,
+            dry_run: bool = False,
+        ) -> Path:
+            return wheel_dir.joinpath("fake-1.0-py3-none-any.whl")
+
         def fake_input(prompt: str) -> str:
             expected_prompt = next(expected_out)
             assert re.search(expected_prompt, prompt)
             return next(responses)
 
-        self.monkeypatch.setattr(Wheel2CondaConverter, "convert", lambda: None)
-        self.monkeypatch.setattr("builtins.input", fake_input)
-        if self.interactive is not is_interactive():
-            # TODO - this isn't working. Figure out way to force interactive in tests
-            self.monkeypatch.setattr(whl2conda.prompt, "is_interactive", lambda: self.interactive)
+        with self.monkeypatch.context() as mp:
+            mp.setattr(Wheel2CondaConverter, "convert", self.validate_converter)
+            mp.setattr("builtins.input", fake_input)
+            mp.setattr("whl2conda.cli.do_build_wheel", fake_build_wheel)
+            if self.interactive is not is_interactive():
+                monkeypatch_interactive(mp, self.interactive)
 
-        main(self.args, "whl2conda")
+            # Run the command
+            try:
+                main(self.args, "whl2conda")
+            except SystemExit as exex:
+                _caught_exit = exex
+            except Exception as ex:  # pylint: disable=broad-exception-caught
+                _caught_exception = ex
 
-    def add_prompt(self, expected_prompt: str, response: str) -> None:
-        """Add a prompt/response pair"""
+    def add_prompt(self, expected_prompt: str, response: str) -> CliTestCase:
+        """Add a prompt/response pair
+
+        Return:
+            this object, to enable method chaining
+        """
         self.expected_prompts.append(expected_prompt)
         self.responses.append(response)
+        return self
+
+    def validate_converter(self, converter: Wheel2CondaConverter) -> None:
+        """Validate converter settings"""
+        print(converter)
 
 
 class CliTestCaseFactory:
@@ -159,9 +188,11 @@ def test_version(capsys: pytest.CaptureFixture):
 
 
 # def test_simple(test_case):
+#     # TODO - copy project directory to tmp dir
 #     test_case.monkeypatch.chdir(project_dir)
-#     case = test_case(
+#     test_case(
 #         ["simple"],
 #         interactive = True
-#     )
-#     case.run()
+#     ).add_prompt(
+#         "Choose wheel", "build"
+#     ).run()

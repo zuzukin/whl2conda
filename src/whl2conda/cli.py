@@ -374,7 +374,8 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     #
     # TODO - Debug options for keeping work?
     # TODO  - Way to run tests in test env?
-    # TODO  - Do we need to remove package from conda-bld/pkgs cache if anything goes wrong with test?
+    # TODO  - Do we need to remove package from conda-bld/pkgs cache
+    #         if anything goes wrong with test?
 
     return parser
 
@@ -558,7 +559,11 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
 
 
 def do_build_wheel(
-    project_root: Path, wheel_dir: Path, *, no_deps: bool = False, dry_run: bool = False
+    project_root: Path,
+    wheel_dir: Path,
+    *,
+    no_deps: bool = False,
+    dry_run: bool = False,
 ) -> Path:
     """Build wheel for project
 

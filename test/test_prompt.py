@@ -16,8 +16,6 @@
 Unit tests for whl2conda.prompt module
 """
 
-import io
-import sys
 from collections import deque
 from pathlib import Path
 from typing import Deque, Iterator, Tuple
@@ -26,16 +24,27 @@ import pytest
 
 from whl2conda.prompt import is_interactive, bool_input, choose_wheel
 
+__all__ = ["monkeypatch_interactive"]
 
-def test_is_interactive(monkeypatch: pytest.MonkeyPatch) -> None:
+# pylint: disable=unused-argument
+
+
+def monkeypatch_interactive(monkeypatch: pytest.MonkeyPatch, interactive: bool) -> None:
+    """monkeypatch is_interactive() to return given value"""
+    monkeypatch.setattr('sys.__stdin__.isatty', lambda: interactive)
+
+
+def test_is_interactive(
+    monkeypatch: pytest.MonkeyPatch,
+    # include capsys to make sure that monkeypatch works with capsys
+    capsys: pytest.CaptureFixture,
+) -> None:
     """Unit test for is_interactive"""
     # whitebox test
-    with io.StringIO() as f:
-        assert not f.isatty()
-        monkeypatch.setattr(sys, "__stdin__", f)
-        assert not is_interactive()
-        monkeypatch.setattr(f, "isatty", lambda: True)
-        assert is_interactive()
+    monkeypatch_interactive(monkeypatch, True)
+    assert is_interactive()
+    monkeypatch_interactive(monkeypatch, False)
+    assert not is_interactive()
 
 
 def test_bool_input(monkeypatch: pytest.MonkeyPatch) -> None:

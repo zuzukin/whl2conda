@@ -17,6 +17,7 @@ Interactive prompt utilities.
 """
 from __future__ import annotations
 
+import io
 import sys
 
 __all__ = [
@@ -102,10 +103,13 @@ def choose_wheel(
     options['quit'] = ("quit program", Path('quit'))
 
     while True:
-        for k, (label, path) in options.items():
-            key = f"[{k}]"
-            print(f"{key:>8s} {label}")
-        option = input(f"Choose wheel ({','.join(options)}): ")
+        with io.StringIO() as out:
+            for k, (label, path) in options.items():
+                key = f"[{k}]"
+                print(f"{key:>8s} {label}", file=out)
+            print(f"Choose wheel ({','.join(options)}): ")
+            prompt = out.getvalue()
+        option = input(prompt)
         if t := options.get(option):
             path = t[1]
             if path == Path('quit'):
