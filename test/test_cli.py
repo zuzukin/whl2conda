@@ -20,9 +20,9 @@ from __future__ import annotations
 
 # standard
 import re
-from dataclasses import dataclass, field
+import shutil
 from pathlib import Path
-from typing import Generator, List, Sequence
+from typing import Generator, List, Optional, Sequence
 
 # third party
 import pytest
@@ -38,17 +38,27 @@ from .test_prompt import monkeypatch_interactive
 this_dir = Path(__file__).parent
 project_dir = this_dir.joinpath("projects")
 
+# pylint: disable=redefined-outer-name
 
-@dataclass
+
 class CliTestCase:
     """A CLI test case runner"""
+
+    #
+    # pytest fixtures
+    #
 
     caplog: pytest.LogCaptureFixture
     capsys: pytest.CaptureFixture
     monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path
+
+    #
+    # Expected values
+    #
 
     args: Sequence[str]
-    interactive: bool = field(default_factory=is_interactive)
+    interactive: bool
     expected_dry_run: bool = False
     expected_package_name: str = ""
     expected_out_fmt: CondaPackageFormat = CondaPackageFormat.V2
@@ -56,14 +66,65 @@ class CliTestCase:
     expected_keep_pip: bool = False
     expected_extra_dependencies: Sequence[str] = ()
     expected_interactive: bool = True
-    expected_prompts: List[str] = field(default_factory=list)
-    responses: List[str] = field(default_factory=list)
+    expected_project_root: str = ""
+    """Relative path from projects dir"""
+
+    expected_prompts: List[str]
+    responses: List[str]
+
+    #
+    # Other test state
+    #
+
+    project_dir: Path
+
+    def __init__(
+        self,
+        args: Sequence[str],
+        *,
+        # required
+        caplog: pytest.LogCaptureFixture,
+        capsys: pytest.CaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        # optional
+        interactive: Optional[bool] = None,
+        expected_dry_run: bool = False,
+        expected_package_name: str = "",
+        expected_out_fmt: CondaPackageFormat = CondaPackageFormat.V2,
+        expected_overwrite: bool = False,
+        expected_keep_pip: bool = False,
+        expected_extra_dependencies: Sequence[str] = (),
+        expected_interactive: bool = True,
+        expected_project_root: str = "",
+    ):
+        self.caplog = caplog
+        self.capsys = capsys
+        self.monkeypatch = monkeypatch
+        self.tmp_path = tmp_path
+
+        self.args = args
+        self.interactive = is_interactive() if interactive is None else interactive
+        self.expected_dry_run = expected_dry_run
+        self.expected_package_name = expected_package_name
+        self.expected_out_fmt = expected_out_fmt
+        self.expected_overwrite = expected_overwrite
+        self.expected_keep_pip = expected_keep_pip
+        self.expected_extra_dependencies = list(expected_extra_dependencies)
+        self.expected_interactive = expected_interactive
+        self.expected_project_root = expected_project_root
+        self.expected_prompts = []
+        self.responses = []
+
+        self.project_dir = tmp_path.joinpath("projects")
 
     def run(self) -> None:
         """Run the test"""
 
         expected_out = iter(self.expected_prompts)
         responses = iter(self.responses)
+
+        shutil.copytree(project_dir, self.project_dir)
 
         # pylint: disable=unused-argument
         def fake_build_wheel(
@@ -77,23 +138,46 @@ class CliTestCase:
 
         def fake_input(prompt: str) -> str:
             expected_prompt = next(expected_out)
-            assert re.search(expected_prompt, prompt)
+            assert re.search(
+                expected_prompt, prompt
+            ), f"'{expected_prompt}' does not match prompt '{prompt}'"
             return next(responses)
 
+        def fake_convert(converter: Wheel2CondaConverter) -> Path:
+            self.validate_converter(converter)
+
+            wheel_name = converter.wheel_path.name
+            # parse package name and version from wheel filename
+            m = re.fullmatch(r"([^-]+)-([^-]+)(-.*)?\.whl", wheel_name)
+            assert m is not None
+            default_package_name = re.sub("_", "-", m.group(1))
+            version = m.group(2)
+            package_name = converter.package_name or default_package_name
+            # pylint: disable=protected-access
+            conda_pkg_path = converter._conda_package_path(package_name, version)
+            if not conda_pkg_path.is_file() and not converter.dry_run:
+                # just write an empty file so that existence check will work
+                conda_pkg_path.parent.mkdir(parents=True, exist_ok=True)
+                conda_pkg_path.write_text("")
+            return conda_pkg_path
+
         with self.monkeypatch.context() as mp:
-            mp.setattr(Wheel2CondaConverter, "convert", self.validate_converter)
+            mp.setattr(Wheel2CondaConverter, "convert", fake_convert)
             mp.setattr("builtins.input", fake_input)
             mp.setattr("whl2conda.cli.do_build_wheel", fake_build_wheel)
             if self.interactive is not is_interactive():
                 monkeypatch_interactive(mp, self.interactive)
+            mp.chdir(self.project_dir)
 
             # Run the command
             try:
                 main(self.args, "whl2conda")
-            except SystemExit as exex:
-                _caught_exit = exex
-            except Exception as ex:  # pylint: disable=broad-exception-caught
-                _caught_exception = ex
+            finally:
+                pass
+            # except SystemExit as exex:
+            #     _caught_exit = exex
+            # except Exception as ex:  # pylint: disable=broad-exception-caught
+            #     _caught_exception = ex
 
     def add_prompt(self, expected_prompt: str, response: str) -> CliTestCase:
         """Add a prompt/response pair
@@ -107,7 +191,15 @@ class CliTestCase:
 
     def validate_converter(self, converter: Wheel2CondaConverter) -> None:
         """Validate converter settings"""
-        print(converter)
+        # TODO check for expected settings
+        assert converter.project_root == self.project_dir.joinpath(self.expected_project_root)
+        assert converter.dry_run is self.expected_dry_run
+        assert converter.package_name is self.expected_package_name
+        assert converter.out_format is self.expected_out_fmt
+        assert converter.overwrite is self.expected_overwrite
+        assert converter.keep_pip_dependencies is self.expected_keep_pip
+        assert converter.extra_dependencies == list(self.expected_extra_dependencies)
+        # assert converter.dependency_rename == list(self.exp)
 
 
 class CliTestCaseFactory:
@@ -115,6 +207,7 @@ class CliTestCaseFactory:
 
     capsys: pytest.CaptureFixture
     monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path
 
     def __init__(
         self,
@@ -122,16 +215,19 @@ class CliTestCaseFactory:
         caplog: pytest.LogCaptureFixture,
         capsys: pytest.CaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
     ):
         self.caplog = caplog
         self.capsys = capsys
         self.monkeypatch = monkeypatch
+        self.tmp_path = tmp_path
 
     def __call__(self, args: Sequence[str], **kwargs) -> CliTestCase:
         return CliTestCase(
             caplog=self.caplog,
             capsys=self.capsys,
             monkeypatch=self.monkeypatch,
+            tmp_path=self.tmp_path,
             args=args,
             **kwargs,
         )
@@ -142,12 +238,11 @@ def test_case(
     caplog: pytest.LogCaptureFixture,
     capsys: pytest.CaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> Generator[CliTestCaseFactory, None, None]:
     """Yields test CLI case factory"""
     yield CliTestCaseFactory(
-        caplog=caplog,
-        capsys=capsys,
-        monkeypatch=monkeypatch,
+        caplog=caplog, capsys=capsys, monkeypatch=monkeypatch, tmp_path=tmp_path
     )
 
 
@@ -187,12 +282,15 @@ def test_version(capsys: pytest.CaptureFixture):
     assert out.strip() == __version__
 
 
-# def test_simple(test_case):
-#     # TODO - copy project directory to tmp dir
-#     test_case.monkeypatch.chdir(project_dir)
-#     test_case(
-#         ["simple"],
-#         interactive = True
-#     ).add_prompt(
-#         "Choose wheel", "build"
-#     ).run()
+def test_simple_default(test_case: CliTestCaseFactory) -> None:
+    """
+    Interactive mode run on project dir with no options.
+    """
+    test_case(
+        ["simple"],
+        interactive=True,
+        expected_project_root="simple",
+    ).add_prompt(
+        r"\[build\] build wheel",
+        "build",
+    ).run()

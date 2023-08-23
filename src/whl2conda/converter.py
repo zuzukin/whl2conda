@@ -110,6 +110,9 @@ class Wheel2CondaConverter:
     project_root: Optional[Path]
     interactive: bool = False
 
+    wheel_md: Optional[MetadataFromWheel] = None
+    conda_pkg_path: Optional[Path] = None
+
     temp_dir: Optional[tempfile.TemporaryDirectory] = None
 
     def __init__(
@@ -172,25 +175,28 @@ class Wheel2CondaConverter:
             self._write_link_file(conda_info_dir, wheel_md.wheel_info_dir)
             self._write_paths_file(conda_dir, rel_files)
 
-            conda_pkg_path = self._write_conda_package(
-                conda_dir, wheel_md.package_name, wheel_md.version
-            )
+            conda_pkg_path = self._conda_package_path(wheel_md.package_name, wheel_md.version)
+            self._write_conda_package(conda_dir, conda_pkg_path)
 
             return conda_pkg_path
 
-    # pylint: disable=too-many-branches
-    def _write_conda_package(self, conda_dir: Path, package_name: str, version: str) -> Path:
-        dry_run_suffix = " (dry run)" if self.dry_run else ""
-        if self.logger.getEffectiveLevel() <= logging.DEBUG:
-            for file in conda_dir.glob("**/*"):
-                if file.is_file():
-                    self._debug("Packaging %s", file.relative_to(conda_dir))
+    def _conda_package_path(self, package_name: str, version: str) -> Path:
+        """Construct conda package file path"""
         if self.out_format is CondaPackageFormat.TREE:
             suffix = ""
         else:
             suffix = str(self.out_format.value)
         conda_pkg_file = f"{package_name}-{version}-py_0{suffix}"
-        conda_pkg_path = Path(self.out_dir).joinpath(conda_pkg_file)
+        self.conda_pkg_path = Path(self.out_dir).joinpath(conda_pkg_file)
+        return self.conda_pkg_path
+
+    # pylint: disable=too-many-branches
+    def _write_conda_package(self, conda_dir: Path, conda_pkg_path: Path) -> Path:
+        dry_run_suffix = " (dry run)" if self.dry_run else ""
+        if self.logger.getEffectiveLevel() <= logging.DEBUG:
+            for file in conda_dir.glob("**/*"):
+                if file.is_file():
+                    self._debug("Packaging %s", file.relative_to(conda_dir))
         if conda_pkg_path.exists():
             if not self.overwrite:
                 msg = f"Output conda package already exists at '{conda_pkg_path}'"
@@ -421,7 +427,7 @@ class Wheel2CondaConverter:
             dependencies.append(f"python {python_version}")
         # Use Requires-Dist if present, otherwise deprecated Requires keyword
         dependencies.extend(md.get("requires-dist", md.get("requires", [])))
-        return MetadataFromWheel(
+        self.wheel_md = MetadataFromWheel(
             md=md,
             package_name=package_name,
             version=str(version),
@@ -430,6 +436,7 @@ class Wheel2CondaConverter:
             dependencies=dependencies,
             wheel_info_dir=wheel_info_dir,
         )
+        return self.wheel_md
 
     def _extract_wheel(self) -> Path:
         self.logger.info("Reading %s", self.wheel_path)
