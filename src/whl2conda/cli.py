@@ -421,8 +421,6 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
     if not wheel_or_root:
         project_root = Path.cwd()
     else:
-        if not wheel_or_root.exists():
-            parser.error(f"Input path `{wheel_or_root}` does not exist")
         if wheel_or_root.is_dir():
             project_root = wheel_or_root
         else:

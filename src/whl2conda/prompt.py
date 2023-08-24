@@ -113,5 +113,5 @@ def choose_wheel(
         if t := options.get(option):
             path = t[1]
             if path == Path('quit'):
-                sys.exit(0)
+                sys.exit(2)
             return path

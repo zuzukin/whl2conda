@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 import shutil
 from pathlib import Path
-from typing import Generator, List, Optional, Sequence
+from typing import Any, Generator, List, Optional, Sequence, Tuple
 
 # third party
 import pytest
@@ -64,10 +64,12 @@ class CliTestCase:
     expected_out_fmt: CondaPackageFormat = CondaPackageFormat.V2
     expected_overwrite: bool = False
     expected_keep_pip: bool = False
+    exoected_dependency_rename: Sequence[Tuple[str, str]] = ()
     expected_extra_dependencies: Sequence[str] = ()
     expected_interactive: bool = True
     expected_project_root: str = ""
     """Relative path from projects dir"""
+    expected_parser_error: str = ""
 
     expected_prompts: List[str]
     responses: List[str]
@@ -78,6 +80,7 @@ class CliTestCase:
 
     project_dir: Path
 
+    # pylint: disable=too-many-locals
     def __init__(
         self,
         args: Sequence[str],
@@ -91,6 +94,7 @@ class CliTestCase:
         interactive: Optional[bool] = None,
         expected_dry_run: bool = False,
         expected_package_name: str = "",
+        expected_parser_error: str = "",
         expected_out_fmt: CondaPackageFormat = CondaPackageFormat.V2,
         expected_overwrite: bool = False,
         expected_keep_pip: bool = False,
@@ -106,6 +110,7 @@ class CliTestCase:
         self.args = args
         self.interactive = is_interactive() if interactive is None else interactive
         self.expected_dry_run = expected_dry_run
+        self.expected_parser_error = expected_parser_error
         self.expected_package_name = expected_package_name
         self.expected_out_fmt = expected_out_fmt
         self.expected_overwrite = expected_overwrite
@@ -117,14 +122,13 @@ class CliTestCase:
         self.responses = []
 
         self.project_dir = tmp_path.joinpath("projects")
+        shutil.copytree(project_dir, self.project_dir)
 
     def run(self) -> None:
         """Run the test"""
 
-        expected_out = iter(self.expected_prompts)
+        prompts = iter(self.expected_prompts)
         responses = iter(self.responses)
-
-        shutil.copytree(project_dir, self.project_dir)
 
         # pylint: disable=unused-argument
         def fake_build_wheel(
@@ -137,7 +141,7 @@ class CliTestCase:
             return wheel_dir.joinpath("fake-1.0-py3-none-any.whl")
 
         def fake_input(prompt: str) -> str:
-            expected_prompt = next(expected_out)
+            expected_prompt = next(prompts)
             assert re.search(
                 expected_prompt, prompt
             ), f"'{expected_prompt}' does not match prompt '{prompt}'"
@@ -169,15 +173,27 @@ class CliTestCase:
                 monkeypatch_interactive(mp, self.interactive)
             mp.chdir(self.project_dir)
 
+            self.capsys.readouterr()
+
             # Run the command
+            exit_code: Any = None
             try:
                 main(self.args, "whl2conda")
-            finally:
-                pass
-            # except SystemExit as exex:
-            #     _caught_exit = exex
-            # except Exception as ex:  # pylint: disable=broad-exception-caught
-            #     _caught_exception = ex
+            except SystemExit as exit_err:
+                exit_code = exit_err.code
+
+            _out, err = self.capsys.readouterr()
+
+            if self.expected_parser_error:
+                if exit_code is None:
+                    pytest.fail(f"No parser error, but expected '{self.expected_parser_error}'")
+                assert re.search(self.expected_parser_error, err)
+            else:
+                assert err == ""
+                assert exit_code is None
+
+            assert not list(prompts)
+            assert not list(responses)
 
     def add_prompt(self, expected_prompt: str, response: str) -> CliTestCase:
         """Add a prompt/response pair
@@ -191,7 +207,6 @@ class CliTestCase:
 
     def validate_converter(self, converter: Wheel2CondaConverter) -> None:
         """Validate converter settings"""
-        # TODO check for expected settings
         assert converter.project_root == self.project_dir.joinpath(self.expected_project_root)
         assert converter.dry_run is self.expected_dry_run
         assert converter.package_name is self.expected_package_name
@@ -199,7 +214,7 @@ class CliTestCase:
         assert converter.overwrite is self.expected_overwrite
         assert converter.keep_pip_dependencies is self.expected_keep_pip
         assert converter.extra_dependencies == list(self.expected_extra_dependencies)
-        # assert converter.dependency_rename == list(self.exp)
+        assert converter.dependency_rename == list(self.exoected_dependency_rename)
 
 
 class CliTestCaseFactory:
@@ -286,11 +301,38 @@ def test_simple_default(test_case: CliTestCaseFactory) -> None:
     """
     Interactive mode run on project dir with no options.
     """
-    test_case(
+    case = test_case(
         ["simple"],
-        interactive=True,
+        interactive=False,
         expected_project_root="simple",
-    ).add_prompt(
+        expected_parser_error="No wheels found in directory",
+    )
+    case.run()
+
+    case.interactive = True
+    case.expected_parser_error = ""
+    case.add_prompt(
         r"\[build\] build wheel",
         "build",
-    ).run()
+    )
+    case.run()
+
+
+def test_parse_errors(test_case: CliTestCaseFactory) -> None:
+    """
+    Test cli parser errors
+    """
+    case = test_case(["does-not-exist"], expected_parser_error="'does-not-exist' does not exist")
+    case.run()
+
+    case.args = [str(Path(__file__).absolute())]
+    case.expected_parser_error = "does not have .whl suffix"
+    case.run()
+
+    case.args = ["simple", "--project-root", "simple"]
+    case.expected_parser_error = "project root as both positional and keyword"
+    case.run()
+
+    case.args = ["simple/simple"]
+    case.expected_parser_error = "No pyproject.toml"
+    case.run()
