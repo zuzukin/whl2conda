@@ -57,7 +57,7 @@ class CliTestCase:
     # Expected values
     #
 
-    args: Sequence[str]
+    args: List[str]
     interactive: bool
     expected_dry_run: bool = False
     expected_package_name: str = ""
@@ -107,7 +107,7 @@ class CliTestCase:
         self.monkeypatch = monkeypatch
         self.tmp_path = tmp_path
 
-        self.args = args
+        self.args = list(args)
         self.interactive = is_interactive() if interactive is None else interactive
         self.expected_dry_run = expected_dry_run
         self.expected_parser_error = expected_parser_error
@@ -138,6 +138,7 @@ class CliTestCase:
             no_deps: bool = False,
             dry_run: bool = False,
         ) -> Path:
+            # TODO validate no_deps, dry_run
             return wheel_dir.joinpath("fake-1.0-py3-none-any.whl")
 
         def fake_input(prompt: str) -> str:
@@ -166,6 +167,7 @@ class CliTestCase:
             return conda_pkg_path
 
         with self.monkeypatch.context() as mp:
+            # TODO monkeypatch for --test-install
             mp.setattr(Wheel2CondaConverter, "convert", fake_convert)
             mp.setattr("builtins.input", fake_input)
             mp.setattr("whl2conda.cli.do_build_wheel", fake_build_wheel)
@@ -207,7 +209,10 @@ class CliTestCase:
 
     def validate_converter(self, converter: Wheel2CondaConverter) -> None:
         """Validate converter settings"""
-        assert converter.project_root == self.project_dir.joinpath(self.expected_project_root)
+        if self.expected_project_root:
+            assert converter.project_root == self.project_dir.joinpath(self.expected_project_root)
+        else:
+            assert not converter.project_root
         assert converter.dry_run is self.expected_dry_run
         assert converter.package_name is self.expected_package_name
         assert converter.out_format is self.expected_out_fmt
@@ -335,4 +340,46 @@ def test_parse_errors(test_case: CliTestCaseFactory) -> None:
 
     case.args = ["simple/simple"]
     case.expected_parser_error = "No pyproject.toml"
+    case.run()
+
+    case.args = ["--project-root", "does-not-exist"]
+    case.expected_parser_error = "does not exist"
+    case.run()
+
+    not_a_dir = case.tmp_path.joinpath("not_a_dir")
+    not_a_dir.write_text("")
+    case.args = ["--project-root", str(not_a_dir.absolute())]
+    case.expected_parser_error = "is not a directory"
+    case.run()
+
+
+def test_out_format(test_case: CliTestCaseFactory) -> None:
+    """
+    Test --out-format
+    """
+
+    wheel_file = test_case.tmp_path.joinpath("fake-1.0.whl")
+    wheel_file.write_text("")
+
+    case = test_case(
+        [str(wheel_file), "--out-format", "V1"], expected_out_fmt=CondaPackageFormat.V1
+    )
+    case.run()
+
+    case.args[-1] = "tar.bz2"
+    case.run()
+
+    case.args[-1] = "V2"
+    case.expected_out_fmt = CondaPackageFormat.V2
+    case.run()
+
+    case.args[-1] = "conda"
+    case.run()
+
+    case.args[-1] = "tree"
+    case.expected_out_fmt = CondaPackageFormat.TREE
+    case.run()
+
+    case.args[-1] = "bogus"
+    case.expected_parser_error = "invalid choice"
     case.run()

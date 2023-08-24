@@ -2,7 +2,6 @@
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
-#  You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -106,13 +105,6 @@ def _existing_path(val: str) -> Path:
     path = Path(val)
     if not path.exists():
         raise argparse.ArgumentTypeError(f"path '{val}' does not exist")
-    return path
-
-
-def _existing_file(val: str) -> Path:
-    path = _existing_path(val)
-    if not path.is_file():
-        raise argparse.ArgumentTypeError(f"'{val}' is not a file")
     return path
 
 
@@ -484,9 +476,9 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
         out_dir = wheel_dir
 
     if fmtname := parsed.out_format:
-        if fmtname in ("v1", "tar.bz2"):
+        if fmtname in ("V1", "tar.bz2"):
             out_fmt = CondaPackageFormat.V1
-        elif fmtname in ("v2", "conda"):
+        elif fmtname in ("V2", "conda"):
             out_fmt = CondaPackageFormat.V2
         else:
             out_fmt = CondaPackageFormat.TREE
