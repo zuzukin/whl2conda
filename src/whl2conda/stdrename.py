@@ -121,9 +121,9 @@ def process_name_mapping_dict(mappings: DownloadedMappings) -> Dict[str, str]:
 
 
 def update_renames_file(
-    renames_file: Union[Path, str], *,
+    renames_file: Union[Path, str],
+    *,
     url: str = NAME_MAPPINGS_DOWNLOAD_URL,
-    to_file: Union[Path,str] = ""
 ) -> bool:
     """
     Update standard renames file from github if changed

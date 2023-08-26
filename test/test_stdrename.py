@@ -27,13 +27,12 @@ import pytest
 
 from whl2conda.stdrename import (
     NAME_MAPPINGS_DOWNLOAD_URL,
-    NameMapping,
     NotModified,
     download_mappings,
     load_std_renames,
-    process_name_mapping_dict,
     update_renames_file,
 )
+
 
 def test_download_mappings() -> None:
     """Unit test for download_mappings function"""
@@ -61,15 +60,15 @@ def test_download_mappings() -> None:
         assert "conda_name" in entry
 
     with pytest.raises(HTTPError) as exc_info:
-        download_mappings(url = NAME_MAPPINGS_DOWNLOAD_URL + "xxx")
+        download_mappings(url=NAME_MAPPINGS_DOWNLOAD_URL + "xxx")
 
-    assert exc_info.value.status == HTTPStatus.NOT_FOUND
+    assert exc_info.value.status == HTTPStatus.NOT_FOUND  # type: ignore
 
 
 def test_load_std_renames() -> None:
     """Unit test for load_std_renames function"""
     renames = load_std_renames()
-    assert isinstance(renames,dict)
+    assert isinstance(renames, dict)
     assert renames["torch"] == "pytorch"
     assert renames["numpy-quaternion"] == "quaternion"
     assert list(renames.keys()) == sorted(renames.keys())
@@ -96,7 +95,7 @@ def test_update_renames_file(tmp_path: Path) -> None:
     etag = renames["$etag"]
 
     assert len(renames) > 3
-    for key,val in renames.items():
+    for key, val in renames.items():
         if not key.startswith("$"):
             assert key != val
 
@@ -114,7 +113,5 @@ def test_update_renames_file(tmp_path: Path) -> None:
     with pytest.raises(HTTPError):
         update_renames_file(
             renames_file,
-            url = NAME_MAPPINGS_DOWNLOAD_URL + "xyz",
+            url=NAME_MAPPINGS_DOWNLOAD_URL + "xyz",
         )
-
-
