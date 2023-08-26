@@ -59,7 +59,7 @@ def load_std_renames() -> Dict[str, str]:
         dictionary of pypi to conda package name mappings
     """
     # pylint: disable=no-member
-    if sys.version_info >= (3, 9):
+    if sys.version_info >= (3, 9):  # pragma: no cover
         resources = importlib.resources.files('whl2conda')
         s = resources.joinpath('stdrename.json').read_text("utf8")
     else:
