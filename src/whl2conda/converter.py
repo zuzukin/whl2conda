@@ -43,6 +43,7 @@ __all__ = ["CondaPackageFormat", "Wheel2CondaConverter", "Wheel2CondaError"]
 from .__about__ import __version__
 from .prompt import bool_input
 from .pyproject import CondaPackageFormat
+from .stdrename import load_std_renames
 
 
 class Wheel2CondaError(RuntimeError):
@@ -112,6 +113,7 @@ class Wheel2CondaConverter:
 
     wheel_md: Optional[MetadataFromWheel] = None
     conda_pkg_path: Optional[Path] = None
+    std_renames: Dict[str, str]
 
     temp_dir: Optional[tempfile.TemporaryDirectory] = None
 
@@ -132,6 +134,8 @@ class Wheel2CondaConverter:
         self.dependency_rename = []
         self.extra_dependencies = []
         self.project_root = Path.cwd()
+        # TODO - option to ignore this
+        self.std_renames = load_std_renames()
 
     def __enter__(self):
         self.temp_dir = tempfile.TemporaryDirectory(prefix="whl2conda-")
@@ -343,10 +347,15 @@ class Wheel2CondaConverter:
             else:
                 conda_name = pip_name = m.group(1)
                 conda_ver = m.group(2)
+                # check manual renames first
+                renamed = False
                 for oldmatch, replacement in self.dependency_rename:
                     if m := re.fullmatch(oldmatch, pip_name):
                         conda_name = m.expand(replacement)
+                        renamed = True
                         break
+                if not renamed:
+                    conda_name = self.std_renames.get(pip_name, pip_name)
 
             if conda_name:
                 conda_dep = f"{conda_name} {conda_ver}"
