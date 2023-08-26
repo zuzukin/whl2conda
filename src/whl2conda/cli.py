@@ -368,6 +368,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     # TODO  - Way to run tests in test env?
     # TODO  - Do we need to remove package from conda-bld/pkgs cache
     #         if anything goes wrong with test?
+    # TODO - add option to update/generate stdrenames.json file.
 
     return parser
 

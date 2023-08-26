@@ -14,6 +14,16 @@
 #
 """
 Support for standard pypi to conda renames drawn from conda-forge.
+
+There are files generated automatically by conda-forge bots
+that include information about pypi/conda package names. These
+are available from:
+
+   https://github.com/regro/cf-graph-countyfair/blob/master/mappings/pypi
+
+This package provides utility functions for downlaading mappings
+from that site and extracting a standard pypi to conda name
+mapping dictionary.
 """
 
 from __future__ import annotations
@@ -28,9 +38,10 @@ from pathlib import Path
 from typing import Dict, NamedTuple, Sequence, TypedDict, Union
 from urllib.error import HTTPError
 
-# __all__ = [
-#
-# ]
+__all__ = [
+    "load_std_renames",
+    "update_renames_file",
+]
 
 MAPPINGS_URL = "https://github.com/regro/cf-graph-countyfair/blob/master/mappings/pypi"
 RAW_MAPPINGS_URL = (
@@ -109,18 +120,32 @@ def process_name_mapping_dict(mappings: DownloadedMappings) -> Dict[str, str]:
     return renames
 
 
-def update_renames(renames_file: Union[Path, str], url: str = NAME_MAPPINGS_DOWNLOAD_URL) -> bool:
+def update_renames_file(
+    renames_file: Union[Path, str], *,
+    url: str = NAME_MAPPINGS_DOWNLOAD_URL,
+    to_file: Union[Path,str] = ""
+) -> bool:
     """
     Update standard renames file from github if changed
 
+    This will open the `renames_file` if it exists, and
+    use its `$etag` entry when downlaading updates
+    from `url`. If the file has changed, it will generate
+    a new `to_file` (or overwrites `renames_file` if not
+    specified).
+
     Args:
-        renames_file: path to renames file
-        url: download URL
+        renames_file: path to renames file, which does not have to
+            exist initially
+        url: url of name mapping file to download. This file is
+            expected to contain a JSON array of dictionary
+            containing "pypi_name" and "conda_name" entries.
 
     Returns:
         True if file was updated
     """
     renames_path = Path(renames_file)
+
     etag = ""
     if renames_path.is_file():
         current_renames = json.loads(renames_path.read_text("utf8"))
