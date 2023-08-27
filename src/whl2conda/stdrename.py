@@ -38,10 +38,9 @@ from pathlib import Path
 from typing import Dict, NamedTuple, Sequence, TypedDict, Union
 from urllib.error import HTTPError
 
-__all__ = [
-    "load_std_renames",
-    "update_renames_file",
-]
+from platformdirs import user_cache_path
+
+__all__ = ["load_std_renames", "update_renames_file", "user_stdrenames_path"]
 
 MAPPINGS_URL = "https://github.com/regro/cf-graph-countyfair/blob/master/mappings/pypi"
 RAW_MAPPINGS_URL = (
@@ -49,6 +48,20 @@ RAW_MAPPINGS_URL = (
 )
 NAME_MAPPINGS_FILENAME = "name_mapping.json"
 NAME_MAPPINGS_DOWNLOAD_URL = f"{RAW_MAPPINGS_URL}/{NAME_MAPPINGS_FILENAME}"
+
+# TODO instead use platformdirs for cache file location
+
+
+def user_stdrenames_path() -> Path:
+    r"""Path to user's cached copy of standard pypi to conda renames file
+
+    The location of this file depends on the operating system:
+
+    * Linux: ~/.cache/whl2conda/stdrename.json
+    * MacOS: ~/Library/Caches/whl2conda/stdrename.json
+    * Windows: ~\AppData\Local\whl2conda\Cache\stdrename.json
+    """
+    return user_cache_path("whl2conda").joinpath("stdrename.json")
 
 
 def load_std_renames(
@@ -58,9 +71,9 @@ def load_std_renames(
     """
     Load standard pypi to conda package rename table.
 
-    A cached copy of this table is kept in the file
-    `~/.config/whl2conda/stdrename.json`. The table will
-    be read from that file, it it exists, otherwise the
+    A copy of this table is kept in a local a cache
+    file (see [user_stdrenames_path][whl2conda.stderename.user_stdrenames_path])
+    The table will be read from that file, it it exists, otherwise the
     table included in this package will be copied to the
     user cache file.
 
@@ -76,16 +89,14 @@ def load_std_renames(
         from which it was computed.
     """
     # Look for local copy of stdrenames
-    stdrename_filename = "stdrename.json"
-    config_dir = Path("~/.config/whl2conda").expanduser()
-    local_std_rename_file = config_dir.joinpath(stdrename_filename)
+    local_std_rename_file = user_stdrenames_path()
     if not local_std_rename_file.exists():
         # pylint: disable=no-member
         if sys.version_info >= (3, 9):  # pragma: no cover
             resources = importlib.resources.files('whl2conda')
-            s = resources.joinpath(stdrename_filename).read_text("utf8")
+            s = resources.joinpath("stdrename.json").read_text("utf8")
         else:
-            s = importlib.resources.read_text("whl2conda", stdrename_filename, "utf")
+            s = importlib.resources.read_text("whl2conda", "stdrename.json", "utf")
         local_std_rename_file.parent.mkdir(parents=True, exist_ok=True)
         local_std_rename_file.write_text(s, "utf8")
 
@@ -197,7 +208,7 @@ class NotModified(HTTPError):  # pylint: disable=too-many-ancestors
 
 
 def download_mappings(
-    url: str = NAME_MAPPINGS_DOWNLOAD_URL, *, etag: str = ""
+    url: str = NAME_MAPPINGS_DOWNLOAD_URL, *, etag: str = "", timeout: float = 10.0
 ) -> DownloadedMappings:
     """
     Download pypi to conda name mappings from github
@@ -205,13 +216,15 @@ def download_mappings(
     Args:
         url: download url of mappings file on github
         etag: ETag from previous download
+        timeout: max seconds to wait for connection
 
     Returns:
         Mapping table and HTTP headers.
 
     Raises:
         NotModified: if etag was specified and content has not changed
-        HttpError: other HTTP errors
+        HttpError: other HTTP errors (e.g. 404 etc)
+        URLError: connection errors
     """
 
     req = urllib.request.Request(url)
@@ -219,7 +232,7 @@ def download_mappings(
         req.add_header("If-None-Match", f'"{etag}"')
 
     try:
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
             headers = response.headers
             content = response.read()
             mappings = json.loads(content, encoding="utf8")

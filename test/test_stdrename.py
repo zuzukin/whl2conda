@@ -19,12 +19,14 @@ Unit tests for whl2conda.stdrename module
 from __future__ import annotations
 
 import json
+import os
 from http import HTTPStatus
 from pathlib import Path
 from typing import List
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 
 import pytest
+from platformdirs import user_cache_path
 
 from whl2conda.stdrename import (
     NAME_MAPPINGS_DOWNLOAD_URL,
@@ -32,6 +34,7 @@ from whl2conda.stdrename import (
     download_mappings,
     load_std_renames,
     update_renames_file,
+    user_stdrenames_path,
 )
 
 
@@ -39,7 +42,7 @@ def test_download_mappings() -> None:
     """Unit test for download_mappings function"""
     try:
         d = download_mappings()
-    except HTTPError as err:
+    except (HTTPError, URLError) as err:
         assert not isinstance(err, NotModified)
         pytest.skip(f"download url not accessible?: {err}")
 
@@ -74,6 +77,12 @@ def test_load_std_renames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
     assert Path("~").expanduser().absolute() == tmp_path
 
+    # Make sure the cache dir is in our fake home dir
+    local_renames_file = user_stdrenames_path()
+    assert os.path.pardir not in os.path.relpath(local_renames_file, tmp_path)
+    assert local_renames_file.relative_to(tmp_path)
+    assert not local_renames_file.exists()
+
     # Don't bother with actual update, just make sure it is called.
     fake_update_path: List[Path] = []
 
@@ -94,7 +103,6 @@ def test_load_std_renames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert "$source" in renames
     assert not fake_update_path
 
-    local_renames_file = tmp_path.joinpath(".config", "whl2conda", "stdrename.json")
     assert local_renames_file.is_file()
 
     renames2 = load_std_renames(update=True)
@@ -140,3 +148,15 @@ def test_update_renames_file(tmp_path: Path) -> None:
             renames_file,
             url=NAME_MAPPINGS_DOWNLOAD_URL + "xyz",
         )
+
+
+def test_user_stdrenames_path() -> None:
+    """Test user_stdrenames_path function"""
+    path = user_stdrenames_path()
+    assert isinstance(path, Path)
+
+    assert path.name == "stdrename.json"
+    assert path.parent == user_cache_path("whl2conda")
+
+    # cache should be under user's home directory
+    assert path.relative_to(Path("~").expanduser())
