@@ -51,19 +51,47 @@ NAME_MAPPINGS_FILENAME = "name_mapping.json"
 NAME_MAPPINGS_DOWNLOAD_URL = f"{RAW_MAPPINGS_URL}/{NAME_MAPPINGS_FILENAME}"
 
 
-def load_std_renames() -> Dict[str, str]:
+def load_std_renames(
+    *, update: bool = False,
+) -> Dict[str, str]:
     """
-    Load standard pypi to conda package rename table
+    Load standard pypi to conda package rename table.
+
+    A cached copy of this table is kept in the file
+    `~/.config/whl2conda/stdrename.json`. The table will
+    be read from that file, it it exists, otherwise the
+    table included in this package will be copied to the
+    user cache file.
+
+    Arguments:
+        update: if true, this will update the table from online
+            list generated from conda-forge and saves it as the
+            new cached copy.
 
     Returns:
-        dictionary of pypi to conda package name mappings
+        Dictionary of pypi to conda package name mappings. The
+        returned dictionary will also contain the entries "$etag",
+        "$date" and "$source" taken from the downloaded web file
+        from which it was computed.
     """
-    # pylint: disable=no-member
-    if sys.version_info >= (3, 9):  # pragma: no cover
-        resources = importlib.resources.files('whl2conda')
-        s = resources.joinpath('stdrename.json').read_text("utf8")
-    else:
-        s = importlib.resources.read_text("whl2conda", "stdrename.json", "utf")
+    # Look for local copy of stdrenames
+    stdrename_filename = "stdrename.json"
+    config_dir = Path("~/.config/whl2conda").expanduser()
+    local_std_rename_file = config_dir.joinpath(stdrename_filename)
+    if not local_std_rename_file.exists():
+        # pylint: disable=no-member
+        if sys.version_info >= (3, 9):  # pragma: no cover
+            resources = importlib.resources.files('whl2conda')
+            s = resources.joinpath(stdrename_filename).read_text("utf8")
+        else:
+            s = importlib.resources.read_text("whl2conda", stdrename_filename, "utf")
+        local_std_rename_file.parent.mkdir(parents=True, exist_ok=True)
+        local_std_rename_file.write_text(s, "utf8")
+
+    if update:
+        update_renames_file(local_std_rename_file)
+
+    s = local_std_rename_file.read_text("utf8")
     return json.loads(s)
 
 
