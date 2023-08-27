@@ -16,6 +16,7 @@ whl2conda command line interface
 
 from __future__ import annotations
 
+# standard lib
 import argparse
 import logging
 import subprocess
@@ -23,13 +24,19 @@ import sys
 import time
 import textwrap
 from dataclasses import dataclass
+from http.client import HTTPException
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import List, NoReturn, Optional, Sequence, Tuple
+from urllib.error import URLError
 
+# this package
 from .__about__ import __version__
 from .prompt import is_interactive, choose_wheel
 from .converter import Wheel2CondaConverter, CondaPackageFormat
 from .pyproject import read_pyproject, PyProjInfo
+from .stdrename import update_renames_file, user_stdrenames_path
+
+__all__ = ["main"]
 
 
 class MarkdownHelpFormatter(argparse.RawTextHelpFormatter):
@@ -95,6 +102,7 @@ class Whl2CondaArgs:
     test_install: bool
     test_prefix: Optional[Path]
     test_python: Optional[str]
+    update_std_renames: Optional[Path]
     verbose: int
     wheel_dir: Optional[Path]
     wheel_or_root: Optional[Path]
@@ -102,6 +110,16 @@ class Whl2CondaArgs:
 
 
 def _existing_path(val: str) -> Path:
+    """
+    Parses argument as existing file path.
+
+    For use as type of argparse argument.
+    Args:
+        val: input string
+
+    Returns:
+        Path after validating it exists.
+    """
     path = Path(val)
     if not path.exists():
         raise argparse.ArgumentTypeError(f"path '{val}' does not exist")
@@ -109,6 +127,16 @@ def _existing_path(val: str) -> Path:
 
 
 def _existing_dir(val: str) -> Path:
+    """
+    Parses argument as existing directory path.
+
+    For use as type of argparse argument.
+    Args:
+        val: input string
+
+    Returns:
+        Directory Path after validating it is a directory.
+    """
     path = _existing_path(val)
     if not path.is_dir():
         raise argparse.ArgumentTypeError(f"'{val}' is not a directory")
@@ -134,7 +162,13 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         add_help=False,
     )
 
+    # Sections
     input_opts = parser.add_argument_group("Input options")
+    output_opts = parser.add_argument_group("Output options")
+    override_opts = parser.add_argument_group("Override options")
+    config_opts = parser.add_argument_group("Configuration options")
+    test_opts = parser.add_argument_group("Test options")
+    info_opts = parser.add_argument_group("Help and debug options")
 
     input_opts.add_argument(
         "wheel_or_root",
@@ -182,8 +216,6 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         ),
     )
 
-    output_opts = parser.add_argument_group("Output options")
-
     output_opts.add_argument(
         "--out-dir",
         "--out",
@@ -215,8 +247,6 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         dest="out_format",
         help="Output package format (%(default)s)",
     )
-
-    override_opts = parser.add_argument_group("Override options")
 
     override_opts.add_argument(
         "--name",
@@ -277,7 +307,20 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         help="Set/override python dependency.",
     )
 
-    test_opts = parser.add_argument_group("Test options")
+    config_opts.add_argument(
+        "--update-std-renames",
+        nargs="?",
+        metavar="<file>",
+        const=user_stdrenames_path(),
+        type=Path,
+        help=dedent(
+            """
+            Update list of standard pypi to conda renames from internet and exit.
+            If a <file> is not named, the default copy will be updated at
+            %(const)s.
+            """
+        ),
+    )
 
     test_opts.add_argument(
         "--test-install",
@@ -310,8 +353,6 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         type=Path,
         help="Test environment prefix to create",
     )
-
-    info_opts = parser.add_argument_group("Help and debug options")
 
     info_opts.add_argument(
         "-n",
@@ -368,7 +409,6 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     # TODO  - Way to run tests in test env?
     # TODO  - Do we need to remove package from conda-bld/pkgs cache
     #         if anything goes wrong with test?
-    # TODO - add option to update/generate stdrenames.json file.
 
     return parser
 
@@ -409,6 +449,9 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
 
     build_wheel = False  # TODO add option for this
     build_no_deps = False  # pylint: disable=unused-variable
+
+    if parsed.update_std_renames:
+        update_std_renames(parsed.update_std_renames, dry_run=dry_run)
 
     wheel_or_root = parsed.wheel_or_root
     if not wheel_or_root:
@@ -547,6 +590,34 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
             env_name=parsed.test_env,
             env_prefix=parsed.test_prefix,
         )
+
+
+def update_std_renames(renames_file: Path, *, dry_run: bool) -> NoReturn:
+    """
+    Update user cached copy of standard pypi to conda renames
+
+    Exits program after update.
+
+    Args:
+        renames_file: file to update
+        dry_run: don't write file if true
+    """
+    print(f"Updating {renames_file}")
+    try:
+        if update_renames_file(
+            renames_file,
+            dry_run=dry_run,
+        ):
+            if dry_run:
+                print("Update available")
+            else:
+                print("Updated")
+        else:
+            print("No changes.")
+    except (HTTPException, URLError) as ex:
+        print(f"Cannot download update: {ex}", file=sys.stderr)
+        sys.exit(8)
+    sys.exit(0)
 
 
 def do_build_wheel(

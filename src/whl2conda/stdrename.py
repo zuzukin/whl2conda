@@ -40,16 +40,24 @@ from urllib.error import HTTPError
 
 from platformdirs import user_cache_path
 
-__all__ = ["load_std_renames", "update_renames_file", "user_stdrenames_path"]
+__all__ = [
+    "load_std_renames",
+    "update_renames_file",
+    "user_stdrenames_path",
+]
 
 MAPPINGS_URL = "https://github.com/regro/cf-graph-countyfair/blob/master/mappings/pypi"
+
 RAW_MAPPINGS_URL = (
     "https://raw.githubusercontent.com/regro/cf-graph-countyfair/master/mappings/pypi"
 )
-NAME_MAPPINGS_FILENAME = "name_mapping.json"
-NAME_MAPPINGS_DOWNLOAD_URL = f"{RAW_MAPPINGS_URL}/{NAME_MAPPINGS_FILENAME}"
 
-# TODO instead use platformdirs for cache file location
+NAME_MAPPINGS_FILENAME = "name_mapping.json"
+
+NAME_MAPPINGS_DOWNLOAD_URL = f"{RAW_MAPPINGS_URL}/{NAME_MAPPINGS_FILENAME}"
+"""
+URL from which automatically generated pypi to conda name mappings are downloaded.
+"""
 
 
 def user_stdrenames_path() -> Path:
@@ -161,9 +169,7 @@ def process_name_mapping_dict(mappings: DownloadedMappings) -> Dict[str, str]:
 
 
 def update_renames_file(
-    renames_file: Union[Path, str],
-    *,
-    url: str = NAME_MAPPINGS_DOWNLOAD_URL,
+    renames_file: Union[Path, str], *, url: str = NAME_MAPPINGS_DOWNLOAD_URL, dry_run: bool = False
 ) -> bool:
     """
     Update standard renames file from github if changed
@@ -180,11 +186,13 @@ def update_renames_file(
         url: url of name mapping file to download. This file is
             expected to contain a JSON array of dictionary
             containing "pypi_name" and "conda_name" entries.
+        dry_run: does not update the file, but still does download
+            and returns True if file would change
 
     Returns:
         True if file was updated
     """
-    renames_path = Path(renames_file)
+    renames_path = Path(renames_file).expanduser()
 
     etag = ""
     if renames_path.is_file():
@@ -196,10 +204,13 @@ def update_renames_file(
         return False
 
     new_renames = process_name_mapping_dict(downloaded)
-    renames_path.write_text(
-        json.dumps(new_renames, sort_keys=True, indent=2),
-        encoding="utf8",
-    )
+    if not dry_run:
+        renames_path.parent.mkdir(parents=True, exist_ok=True)
+        renames_path.write_text(
+            json.dumps(new_renames, sort_keys=True, indent=2),
+            encoding="utf8",
+        )
+
     return True
 
 

@@ -18,3 +18,6 @@ build/
 
 # Generated files
 doc/whl2conda-cli.md
+
+# git merge turd files
+*.orig
