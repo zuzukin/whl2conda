@@ -18,6 +18,8 @@ Unit tests for whl2conda command line interface
 
 from __future__ import annotations
 
+import argparse
+
 # standard
 import re
 import shutil
@@ -31,7 +33,7 @@ import pytest
 # this project
 from whl2conda.__about__ import __version__
 from whl2conda.converter import CondaPackageFormat, Wheel2CondaConverter
-from whl2conda.cli import main, update_std_renames
+from whl2conda.cli import main, do_build_wheel, update_std_renames
 from whl2conda.prompt import is_interactive
 from whl2conda.stdrename import user_stdrenames_path
 
@@ -40,7 +42,13 @@ from .test_prompt import monkeypatch_interactive
 this_dir = Path(__file__).parent
 project_dir = this_dir.joinpath("projects")
 
+__all__ = ["CliTestCase", "CliTestCaseFactory", "test_case"]
+
 # pylint: disable=redefined-outer-name
+
+#
+# Test case fixture
+#
 
 
 class CliTestCase:
@@ -268,6 +276,11 @@ def test_case(
     )
 
 
+#
+# Command line tests
+#
+
+
 def test_help(
     capsys: pytest.CaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -387,6 +400,7 @@ def test_out_format(test_case: CliTestCaseFactory) -> None:
     case.run()
 
 
+# pylint: disable=too-many-statements
 def test_update_std_renames(
     capsys: pytest.CaptureFixture,
     tmp_path: Path,
@@ -400,7 +414,7 @@ def test_update_std_renames(
 
     # pylint: disable=unused-argument
     def _fake_update(renames_file: Path, *, url: str = "", dry_run: bool = False) -> bool:
-        if fake_exception:
+        if fake_exception is not None:
             raise fake_exception
         assert dry_run is expected_dry_run
         return fake_update_result
@@ -487,6 +501,62 @@ def test_update_std_renames(
     assert exc_info.value.code == 0
     out, err = capsys.readouterr()
     assert not err
-    assert f"Updating here.json" in out
+    assert "Updating here.json" in out
 
 
+def test_build_wheel(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Unit test for internal do_build_wheel function"""
+    project_root = tmp_path
+    wheel_dir = project_root.joinpath("dist")
+    assert not wheel_dir.exists()
+
+    expected_project_root = project_root
+    expected_wheel_dir = wheel_dir
+    expected_no_deps = False
+    expected_no_build_isolation = False
+
+    def fake_call(cmd: Sequence[str], **_kwargs) -> None:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("pip", choices=["pip"])
+        parser.add_argument("cmd", choices=["wheel"])
+        parser.add_argument("root")
+        parser.add_argument("-w", "--wheel-dir")
+        parser.add_argument("--no-deps", action="store_true")
+        parser.add_argument("--no-build-isolation", action="store_true")
+        parsed = parser.parse_args(cmd)
+        assert parsed.root == str(expected_project_root)
+        assert parsed.wheel_dir == str(expected_wheel_dir)
+        assert parsed.no_deps is expected_no_deps
+        assert parsed.no_build_isolation is expected_no_build_isolation
+        wheel_file = Path(parsed.wheel_dir).joinpath("acme-1.2.3-py3-none-any.whl")
+        wheel_file.write_text("")
+
+    monkeypatch.setattr("subprocess.check_call", fake_call)
+
+    caplog.set_level("INFO")
+
+    wheel_file = do_build_wheel(project_root, wheel_dir, dry_run=True)
+    assert not wheel_dir.exists()
+    assert not wheel_file.exists()
+    assert wheel_file.parent == wheel_dir
+    assert wheel_file.name.startswith("dry-run-")
+
+    logs = caplog.records
+    assert logs[0].levelname == 'INFO'
+    assert logs[0].getMessage() == f"Building wheel for {project_root}"
+    assert logs[1].levelname == "INFO"
+    assert logs[1].getMessage().startswith("Running: ['pip'")
+
+    caplog.clear()
+
+    caplog.set_level("WARNING")
+    wheel_file = do_build_wheel(project_root, wheel_dir)
+    assert wheel_file.parent == wheel_dir
+    assert wheel_file.is_file()
+
+    expected_no_build_isolation = expected_no_deps = True
+    wheel_file = do_build_wheel(project_root, wheel_dir, no_deps=True)
