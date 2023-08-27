@@ -443,32 +443,50 @@ def test_update_std_renames(
     fake_exception = URLError("could not connect")
     with pytest.raises(SystemExit) as exc_info:
         update_std_renames(file, dry_run=False)
-    assert exc_info.value != 0
+    assert exc_info.value.code != 0
     out, err = capsys.readouterr()
     assert f"Updating {file}" in out
     assert "Cannot download" in err
 
-
-def test_update_std_renames_option(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Unit test for --update-std-renames option"""
-
-    expected_renames_file = user_stdrenames_path()
-    expected_dry_run = False
-
-    def _fake_update(renames_file: Path, *, dry_run: bool) -> None:
-        assert renames_file == expected_renames_file
-        assert dry_run == expected_dry_run
-        raise ValueError
-
-    monkeypatch.setattr("whl2conda.cli.update_std_renames", _fake_update)
-
-    with pytest.raises(ValueError):
-        main(["--update-std-renames"])
-
-    # FIXME - monkeypatch is not working after first call
-    # monkeypatch.undo()
-    # monkeypatch.setattr("whl2conda.cli.update_std_renames", _fake_update)
     #
-    # expected_dry_run = True
-    # with pytest.raises(ValueError):
-    #     main(["--update-std-renames", "--dry-run", "foo.whl"])
+    # test command line
+    #
+
+    for var in ["HOME", "USERPROFILE"]:
+        monkeypatch.setenv(var, str(tmp_path))
+
+    renames_file = user_stdrenames_path()
+    assert renames_file.relative_to(tmp_path)
+    assert not renames_file.exists()
+
+    fake_exception = None
+    expected_dry_run = False
+    fake_update_result = True
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--update-std-renames"])
+    assert exc_info.value.code == 0
+    out, err = capsys.readouterr()
+    assert not err
+    assert f"Updating {renames_file}" in out
+    assert "Updated" in out
+
+    fake_update_result = False
+    expected_dry_run = True
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--update-std-renames", "--dry-run"])
+    assert exc_info.value.code == 0
+    out, err = capsys.readouterr()
+    assert not err
+    assert f"Updating {renames_file}" in out
+    assert "No changes" in out
+
+    expected_dry_run = False
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--update-std-renames", "here.json"])
+    assert exc_info.value.code == 0
+    out, err = capsys.readouterr()
+    assert not err
+    assert f"Updating here.json" in out
+
+
