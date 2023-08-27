@@ -574,7 +574,7 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
         level = logging.INFO
     elif verbosity == 1:
         level = logging.DEBUG
-    elif verbosity >= 2:
+    else:  # verbosity >= 2:
         level = logging.DEBUG - 5
 
     logging.getLogger().setLevel(level)

@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 
 # standard
+import logging
 import re
 import shutil
 from pathlib import Path
@@ -336,6 +337,46 @@ def test_simple_default(test_case: CliTestCaseFactory) -> None:
         "build",
     )
     case.run()
+
+
+def test_simple_log_level(
+    test_case: CliTestCaseFactory,
+) -> None:
+    """
+    Test log level setting using simple project
+    """
+    root_logger = logging.getLogger()
+    wheel_file = test_case.tmp_path.joinpath("acme-1.0.whl")
+    wheel_file.write_text("")
+
+    case = test_case([str(wheel_file), "--dry-run"], expected_dry_run=True)
+    case.run()
+    assert root_logger.level == logging.DEBUG
+
+    case.args.append("-v")  # implied by dry run already
+    case.run()
+    assert root_logger.level == logging.DEBUG
+
+    case.args[-1] = "-q"
+    case.run()
+    assert root_logger.level == logging.INFO
+
+    case.args[-1] = "-qq"
+    case.run()
+    assert root_logger.level == logging.WARNING
+
+    case.args.append("--quiet")
+    case.run()
+    assert root_logger.level == logging.ERROR
+
+    case.args[2:] = ["-v", "--verbose"]
+    case.run()
+    assert root_logger.level < logging.DEBUG
+
+    case.args[1:] = []
+    case.expected_dry_run = False
+    case.run()
+    assert root_logger.level == logging.INFO
 
 
 def test_parse_errors(test_case: CliTestCaseFactory) -> None:
