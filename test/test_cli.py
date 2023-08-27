@@ -23,6 +23,7 @@ import re
 import shutil
 from pathlib import Path
 from typing import Any, Generator, List, Optional, Sequence, Tuple
+from urllib.error import URLError
 
 # third party
 import pytest
@@ -30,8 +31,9 @@ import pytest
 # this project
 from whl2conda.__about__ import __version__
 from whl2conda.converter import CondaPackageFormat, Wheel2CondaConverter
-from whl2conda.cli import main
+from whl2conda.cli import main, update_std_renames
 from whl2conda.prompt import is_interactive
+from whl2conda.stdrename import user_stdrenames_path
 
 from .test_prompt import monkeypatch_interactive
 
@@ -383,3 +385,90 @@ def test_out_format(test_case: CliTestCaseFactory) -> None:
     case.args[-1] = "bogus"
     case.expected_parser_error = "invalid choice"
     case.run()
+
+
+def test_update_std_renames(
+    capsys: pytest.CaptureFixture,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unit test for update_std_renames internal method"""
+
+    fake_update_result = False
+    expected_dry_run = True
+    fake_exception: Optional[Exception] = None
+
+    # pylint: disable=unused-argument
+    def _fake_update(renames_file: Path, *, url: str = "", dry_run: bool = False) -> bool:
+        if fake_exception:
+            raise fake_exception
+        assert dry_run is expected_dry_run
+        return fake_update_result
+
+    monkeypatch.setattr("whl2conda.stdrename.update_renames_file", _fake_update)
+    monkeypatch.setattr("whl2conda.cli.update_renames_file", _fake_update)
+
+    file = tmp_path.joinpath("stdrename.json")
+    with pytest.raises(SystemExit):
+        update_std_renames(file, dry_run=True)
+    out, err = capsys.readouterr()
+    assert not err
+    assert f"Updating {file}" in out
+    assert "No changes" in out
+
+    fake_update_result = True
+    with pytest.raises(SystemExit):
+        update_std_renames(file, dry_run=True)
+    out, err = capsys.readouterr()
+    assert not err
+    assert f"Updating {file}" in out
+    assert "Update available" in out
+
+    expected_dry_run = False
+    with pytest.raises(SystemExit):
+        update_std_renames(file, dry_run=False)
+    out, err = capsys.readouterr()
+    assert not err
+    assert f"Updating {file}" in out
+    assert "Updated" in out
+
+    fake_update_result = False
+    with pytest.raises(SystemExit):
+        update_std_renames(file, dry_run=False)
+    out, err = capsys.readouterr()
+    assert not err
+    assert f"Updating {file}" in out
+    assert "No changes" in out
+
+    fake_exception = URLError("could not connect")
+    with pytest.raises(SystemExit) as exc_info:
+        update_std_renames(file, dry_run=False)
+    assert exc_info.value != 0
+    out, err = capsys.readouterr()
+    assert f"Updating {file}" in out
+    assert "Cannot download" in err
+
+
+def test_update_std_renames_option(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unit test for --update-std-renames option"""
+
+    expected_renames_file = user_stdrenames_path()
+    expected_dry_run = False
+
+    def _fake_update(renames_file: Path, *, dry_run: bool) -> None:
+        assert renames_file == expected_renames_file
+        assert dry_run == expected_dry_run
+        raise ValueError
+
+    monkeypatch.setattr("whl2conda.cli.update_std_renames", _fake_update)
+
+    with pytest.raises(ValueError):
+        main(["--update-std-renames"])
+
+    # FIXME - monkeypatch is not working after first call
+    # monkeypatch.undo()
+    # monkeypatch.setattr("whl2conda.cli.update_std_renames", _fake_update)
+    #
+    # expected_dry_run = True
+    # with pytest.raises(ValueError):
+    #     main(["--update-std-renames", "--dry-run", "foo.whl"])

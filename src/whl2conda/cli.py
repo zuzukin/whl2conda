@@ -26,7 +26,7 @@ import textwrap
 from dataclasses import dataclass
 from http.client import HTTPException
 from pathlib import Path
-from typing import List, NoReturn, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 from urllib.error import URLError
 
 # this package
@@ -592,7 +592,7 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
         )
 
 
-def update_std_renames(renames_file: Path, *, dry_run: bool) -> NoReturn:
+def update_std_renames(renames_file: Path, *, dry_run: bool) -> None:
     """
     Update user cached copy of standard pypi to conda renames
 
