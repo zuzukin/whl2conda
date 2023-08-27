@@ -429,7 +429,7 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
             parser.error("Cannot specify project root as both positional and keyword argument.")
         project_root = parsed.project_root
 
-    pyproj_info = PyProjInfo.no_project()
+    pyproj_info = PyProjInfo()
     if project_root:
         try:
             pyproj_info = read_pyproject(project_root)

@@ -52,7 +52,8 @@ NAME_MAPPINGS_DOWNLOAD_URL = f"{RAW_MAPPINGS_URL}/{NAME_MAPPINGS_FILENAME}"
 
 
 def load_std_renames(
-    *, update: bool = False,
+    *,
+    update: bool = False,
 ) -> Dict[str, str]:
     """
     Load standard pypi to conda package rename table.

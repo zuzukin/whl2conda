@@ -76,10 +76,12 @@ def test_load_std_renames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
 
     # Don't bother with actual update, just make sure it is called.
     fake_update_path: List[Path] = []
+
     def fake_update(fpath: Path) -> bool:
         fake_update_path.clear()
         fake_update_path.append(fpath)
         return True
+
     monkeypatch.setattr("whl2conda.stdrename.update_renames_file", fake_update)
 
     renames = load_std_renames()
@@ -92,7 +94,7 @@ def test_load_std_renames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert "$source" in renames
     assert not fake_update_path
 
-    local_renames_file = tmp_path.joinpath(".config","whl2conda","stdrename.json")
+    local_renames_file = tmp_path.joinpath(".config", "whl2conda", "stdrename.json")
     assert local_renames_file.is_file()
 
     renames2 = load_std_renames(update=True)
