@@ -19,11 +19,12 @@ Support for reading pyproject.toml file
 from __future__ import annotations
 
 import enum
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
-import tomli
+import tomlkit
 
 __all__ = [
     "CondaPackageFormat",
@@ -64,8 +65,14 @@ class PyProjInfo:
     Information parsed from pyproject.toml file
     """
 
-    toml: Dict[str, Any]
-    """raw toml dictionar"""
+    project_dir: Optional[Path] = None
+    """Project root directory, if any."""
+
+    toml_file: Optional[Path] = None
+    """Path to pyproject.toml file, if any"""
+
+    toml: Optional[tomlkit.TOMLDocument] = None
+    """raw toml dictionary"""
 
     build_backend: str = ""
     """build-system.build-backend value"""
@@ -95,15 +102,27 @@ class PyProjInfo:
     """tool.whl2conda.extra-dependencies - additional conda dependencies
     """
 
-    @classmethod
-    def no_project(cls) -> PyProjInfo:
-        """Info object used when there is no project file"""
-        return PyProjInfo({})
+
+def warn_ignored_key(file: Path, key: str, msg: str) -> None:
+    """Warn about ignored key in pyproject.toml config"""
+    warnings.warn(
+        f"Ignoring pyproject key 'tool.whl2conda.{key}':\n {msg}\n from {file}", UserWarning
+    )
 
 
+def warn_ignored_value(file: Path, key: str, msg: str) -> None:
+    """Warn about ignored value in key in pyproject.toml config"""
+    warnings.warn(
+        f"Ignoring value in pyproject key 'tool.whl2conda.{key}':\n {msg}\n from {file}",
+        UserWarning,
+    )
+
+
+# pylint: disable=too-many-branches,too-many-locals
 def read_pyproject(path: Path) -> PyProjInfo:
     """
-    Reads information
+    Reads project information
+
     Args:
         path: a directory containing a `pyproject.toml` file or the file itself
 
@@ -111,23 +130,68 @@ def read_pyproject(path: Path) -> PyProjInfo:
         Parsed information from the pyproject file or else one with defaults.
     """
     if path.is_dir():
-        path = path.joinpath("pyproject.toml")
+        project_dir = path
+        toml_file = path.joinpath("pyproject.toml")
+    else:
+        toml_file = path
+        project_dir = path.parent
+        if toml_file.suffix != ".toml":
+            raise ValueError(f"'{path}' lacks .toml suffix")
 
-    toml = tomli.loads(path.read_text("utf8"))
-    pyproj = PyProjInfo(toml)
+    toml = tomlkit.loads(toml_file.read_text("utf8"))
+    pyproj = PyProjInfo(toml=toml, toml_file=toml_file, project_dir=project_dir)
 
-    # TODO validate - values
     pyproj.build_backend = str(toml.get("build-system", {}).get("build-backend", ""))
 
     whl2conda = toml.get("tool", {}).get("whl2conda", {})
-    pyproj.conda_name = whl2conda.get("conda-name", "")
-    if wheel_dir := whl2conda.get("wheel-dir"):
-        pyproj.wheel_dir = path.parent.joinpath(wheel_dir).absolute()
-    if out_dir := whl2conda.get("out-dir"):
-        pyproj.out_dir = path.parent.joinpath(out_dir).absolute()
-    pyproj.dependency_rename = whl2conda.get("dependency-rename", ())
-    pyproj.extra_dependencies = whl2conda.get("extra-dependencies", ())
-    if conda_format := whl2conda.get("conda-format"):
-        pyproj.conda_format = CondaPackageFormat(conda_format)
+
+    def _read_str(key: str) -> str:
+        s = whl2conda.get(key, "")
+        if isinstance(s, str):
+            return s
+        warn_ignored_key(toml_file, key, f"value is not a string: {s}")
+        return ""
+
+    pyproj.conda_name = _read_str("conda-name")
+
+    if wheel_dir := _read_str("wheel-dir"):
+        pyproj.wheel_dir = project_dir.joinpath(wheel_dir).absolute()
+
+    if out_dir := _read_str("out-dir"):
+        pyproj.out_dir = project_dir.joinpath(out_dir).absolute()
+
+    if renames := whl2conda.get("dependency-rename", ()):
+        _renames: List[Tuple[str, str]] = []
+        for entry in renames:
+            try:
+                k, v = entry
+                if isinstance(k, str) and isinstance(v, str):
+                    _renames.append((k, v))
+                    continue
+            except (TypeError, ValueError):
+                pass
+            warn_ignored_value(
+                toml_file, "dependency-rename", f"Expected pair of strings but got '{entry}'"
+            )
+        pyproj.dependency_rename = tuple(_renames)
+
+    if extra_deps := whl2conda.get("extra-dependencies", ()):
+        _extra_deps: List[str] = []
+        for dep in extra_deps:
+            if isinstance(dep, str):
+                _extra_deps.append(dep)
+            else:
+                warn_ignored_value(
+                    toml_file, "extra-dependencies", f"Expected string but got '{dep}'"
+                )
+        pyproj.extra_dependencies = tuple(_extra_deps)
+
+    if conda_format := _read_str("conda-format"):
+        try:
+            pyproj.conda_format = CondaPackageFormat.from_string(conda_format)
+        except ValueError:
+            warn_ignored_key(
+                toml_file, "conda-format", f"{conda_format} is not a valid conda output format"
+            )
 
     return pyproj

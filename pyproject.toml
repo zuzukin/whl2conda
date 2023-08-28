@@ -22,7 +22,9 @@ classifiers = [
 requires-python = ">=3.8"
 dependencies = [
     "conda-package-handling >=2.2",
-    "wheel >=0.41"
+    "platformdirs >=3.10",
+    "tomlkit >=0.12",
+    "wheel >=0.41",
 ]
 
 [project.scripts]
@@ -31,6 +33,7 @@ whl2conda = "whl2conda.cli:main"
 [tool.hatch.build]
 include = [
     "src/whl2conda/**/*.py",
+    "src/whl2conda/**/*.json",
     "src/whl2conda/py.typed",
     "src/whl2conda/VERSION"
 ]
