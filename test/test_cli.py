@@ -545,7 +545,7 @@ def test_update_std_renames(
     assert "Updating here.json" in out
 
 
-def test_build_wheel(
+def test_do_build_wheel(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

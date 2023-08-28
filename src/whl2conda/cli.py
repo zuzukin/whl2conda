@@ -83,6 +83,7 @@ class Whl2CondaArgs:
     Parsed arguments
     """
 
+    build_wheel: bool
     dep_renames: Sequence[Tuple[str, str]]
     dropped_deps: Sequence[str]
     dry_run: bool
@@ -247,6 +248,15 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         dest="out_format",
         help="Output package format (%(default)s)",
     )
+    output_opts.add_argument(
+        "--build-wheel",
+        action="store_true",
+        help=dedent(
+            """
+            Build wheel
+            """
+        ),
+    )
 
     override_opts.add_argument(
         "--name",
@@ -402,13 +412,10 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     )
     info_opts.add_argument("--version", action="version", version=__version__)
 
-    # TODO --override-pyproject - ignore [tool.whl2conda] pyproject settings
-    # TODO  --conda-bld - install in conda-bld and reindex (require tests first?)
+    # TODO --override-pyproject - ignore [tool.whl2conda] pyproject settings (#8)
+    # TODO  --conda-bld - install in conda-bld and reindex (#28)
     #
-    # TODO - Debug options for keeping work?
     # TODO  - Way to run tests in test env?
-    # TODO  - Do we need to remove package from conda-bld/pkgs cache
-    #         if anything goes wrong with test?
 
     return parser
 
@@ -447,7 +454,7 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
     wheel_file: Optional[Path] = None
     wheel_dir: Optional[Path] = parsed.wheel_dir
 
-    build_wheel = False  # TODO add option for this
+    build_wheel = parsed.build_wheel
     build_no_deps = False  # pylint: disable=unused-variable
 
     if parsed.update_std_renames:
@@ -552,6 +559,7 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
 
     converter = Wheel2CondaConverter(wheel_file, out_dir=out_dir)
     converter.dry_run = parsed.dry_run
+    # TODO use pyproj name (#29)
     converter.package_name = parsed.name or pyproj_info.conda_name
     converter.out_format = out_fmt
     converter.overwrite = parsed.overwrite
@@ -656,7 +664,7 @@ def do_build_wheel(
         wheel = wheel_dir.joinpath("dry-run-1.0-py3-none-any.whl")
     else:
         start = time.time()
-        # TODO capture/hide output in quiet mode
+        # TODO capture/hide output in quiet mode (#30)
         subprocess.check_call(cmd)
 
         wheels = sorted(

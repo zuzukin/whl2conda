@@ -255,7 +255,7 @@ class Wheel2CondaConverter:
                 if section_name in wheel_entry_points:
                     if section := wheel_entry_points[section_name]:
                         console_scripts.extend(f"{k}={v}" for k, v in section.items())
-        # TODO - check correct setting for gui scripts
+        # TODO - check correct setting for gui scripts (#20)
         conda_link_file.write_text(
             json.dumps(
                 dict(
@@ -273,7 +273,7 @@ class Wheel2CondaConverter:
     ) -> None:
         # info/index.json
         conda_index_file = conda_info_dir.joinpath("index.json")
-        # TODO allow build number override
+        # TODO allow build number override (#31)
         try:
             build_number = int(wheel_md.wheel_build_number)
         except ValueError:
@@ -321,7 +321,7 @@ class Wheel2CondaConverter:
                     classifiers=md.get("classifier"),
                     keywords=md.get("keywords"),
                     whl2conda_version=__version__,
-                    # TODO: add more about.json values
+                    # TODO: add more about.json values (#32)
                     # home
                     # dev_url
                     # doc_url
