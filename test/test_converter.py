@@ -174,7 +174,15 @@ def test_this(test_case: ConverterTestCaseFactory) -> None:
     """Test using this own project's wheel"""
     wheel_dir = test_case.tmp_path_factory.mktemp("test_this_wheel_dir")
     subprocess.check_call(
-        ["pip", "wheel", str(root_dir), "--no-deps", "--no-build-isolation", "-w", str(wheel_dir)]
+        [
+            "pip",
+            "wheel",
+            str(root_dir),
+            "--no-deps",
+            "--no-build-isolation",
+            "-w",
+            str(wheel_dir),
+        ]
     )
 
     wheel_path = list(wheel_dir.glob("*"))[0]

@@ -88,7 +88,9 @@ def choose_wheel(
     if not interactive:
         if choose_first or len(wheels) == 1:
             return wheels[0]
-        raise FileExistsError(f"Cannot choose from multiple wheels in directory '{wheel_dir}'")
+        raise FileExistsError(
+            f"Cannot choose from multiple wheels in directory '{wheel_dir}'"
+        )
 
     # key -> (label,Path)
     options: Dict[str, Tuple[str, Path]] = {

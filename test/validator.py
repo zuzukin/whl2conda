@@ -157,7 +157,9 @@ class PackageValidator:
         assert index['build_number'] == 0  # TODO support setting build #
         assert index["platform"] is None
         assert index["subdir"] == "noarch"
-        assert index.get("license") == wheel_md.get("license-expression", wheel_md.get("license"))
+        assert index.get("license") == wheel_md.get(
+            "license-expression", wheel_md.get("license")
+        )
 
         self._validate_dependencies(index["depends"])
 
@@ -185,7 +187,9 @@ class PackageValidator:
     def _validate_paths(self, info_dir: Path) -> None:
         rel_files = info_dir.joinpath("files").read_text().splitlines()
         pkg_dir = self._unpacked_conda
-        files: Set[Path] = set(pkg_dir.joinpath(rel_file.strip()) for rel_file in rel_files)
+        files: Set[Path] = set(
+            pkg_dir.joinpath(rel_file.strip()) for rel_file in rel_files
+        )
         for file in files:
             assert file.is_file()
 

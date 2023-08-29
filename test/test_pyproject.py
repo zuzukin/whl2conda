@@ -116,7 +116,9 @@ def test_read_pyproject(tmp_path: Path) -> None:
     # Test bad value warnings
     #
 
-    def test_ignored(key: str, value: Any, expected_warning: str, is_value: bool = False) -> None:
+    def test_ignored(
+        key: str, value: Any, expected_warning: str, is_value: bool = False
+    ) -> None:
         proj_file.write_text(
             dedent(
                 f"""
@@ -157,4 +159,6 @@ def test_read_pyproject(tmp_path: Path) -> None:
         is_value=True,
     )
 
-    test_ignored("extra-dependencies", ["one", 42], "Expected string but got.*42", is_value=True)
+    test_ignored(
+        "extra-dependencies", ["one", 42], "Expected string but got.*42", is_value=True
+    )

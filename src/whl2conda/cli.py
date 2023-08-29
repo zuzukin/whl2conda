@@ -420,7 +420,9 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     return parser
 
 
-def _parse_args(parser: argparse.ArgumentParser, args: Optional[Sequence[str]]) -> Whl2CondaArgs:
+def _parse_args(
+    parser: argparse.ArgumentParser, args: Optional[Sequence[str]]
+) -> Whl2CondaArgs:
     """Parse and return arguments"""
     return Whl2CondaArgs(**vars(parser.parse_args(args)))
 
@@ -476,7 +478,9 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
 
     if parsed.project_root:
         if project_root:
-            parser.error("Cannot specify project root as both positional and keyword argument.")
+            parser.error(
+                "Cannot specify project root as both positional and keyword argument."
+            )
         project_root = parsed.project_root
 
     pyproj_info = PyProjInfo()
@@ -489,7 +493,9 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
     if project_root:
         project_root = project_root.expanduser().absolute()
         if not _is_project_root(project_root):
-            parser.error(f"No pyproject.toml or setup.py in project root '{project_root}'")
+            parser.error(
+                f"No pyproject.toml or setup.py in project root '{project_root}'"
+            )
         if not wheel_dir:
             wheel_dir = pyproj_info.wheel_dir
             if not wheel_dir:
@@ -503,7 +509,10 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
         # find wheel in directory
         try:
             wheel_file = choose_wheel(
-                wheel_dir, interactive=interactive, choose_first=always_yes, can_build=can_build
+                wheel_dir,
+                interactive=interactive,
+                choose_first=always_yes,
+                can_build=can_build,
             )
             if wheel_file == Path('build'):
                 build_wheel = True
@@ -541,7 +550,8 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
     if parsed.test_install:
         try:
             subprocess.check_output(
-                ["conda", "run", "-n", "base", "conda-index", "-h"], stderr=subprocess.STDOUT
+                ["conda", "run", "-n", "base", "conda-index", "-h"],
+                stderr=subprocess.STDOUT,
             )
         except Exception:  # pylint: disable=broad-exception-caught
             parser.error(
@@ -673,7 +683,9 @@ def do_build_wheel(
             reverse=True,
         )
 
-        assert wheels and wheels[0].stat().st_ctime >= start, f"No wheel created in '{wheel_dir}'"
+        assert (
+            wheels and wheels[0].stat().st_ctime >= start
+        ), f"No wheel created in '{wheel_dir}'"
 
         wheel = wheels[0]
 

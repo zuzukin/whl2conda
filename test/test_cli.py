@@ -199,7 +199,9 @@ class CliTestCase:
 
             if self.expected_parser_error:
                 if exit_code is None:
-                    pytest.fail(f"No parser error, but expected '{self.expected_parser_error}'")
+                    pytest.fail(
+                        f"No parser error, but expected '{self.expected_parser_error}'"
+                    )
                 assert re.search(self.expected_parser_error, err)
             else:
                 assert err == ""
@@ -221,7 +223,9 @@ class CliTestCase:
     def validate_converter(self, converter: Wheel2CondaConverter) -> None:
         """Validate converter settings"""
         if self.expected_project_root:
-            assert converter.project_root == self.project_dir.joinpath(self.expected_project_root)
+            assert converter.project_root == self.project_dir.joinpath(
+                self.expected_project_root
+            )
         else:
             assert not converter.project_root
         assert converter.dry_run is self.expected_dry_run
@@ -383,7 +387,9 @@ def test_parse_errors(test_case: CliTestCaseFactory) -> None:
     """
     Test cli parser errors
     """
-    case = test_case(["does-not-exist"], expected_parser_error="'does-not-exist' does not exist")
+    case = test_case(
+        ["does-not-exist"], expected_parser_error="'does-not-exist' does not exist"
+    )
     case.run()
 
     case.args = [str(Path(__file__).absolute())]
@@ -454,7 +460,9 @@ def test_update_std_renames(
     fake_exception: Optional[Exception] = None
 
     # pylint: disable=unused-argument
-    def _fake_update(renames_file: Path, *, url: str = "", dry_run: bool = False) -> bool:
+    def _fake_update(
+        renames_file: Path, *, url: str = "", dry_run: bool = False
+    ) -> bool:
         if fake_exception is not None:
             raise fake_exception
         assert dry_run is expected_dry_run

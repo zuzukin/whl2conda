@@ -103,7 +103,8 @@ class PyProjInfo:
 def warn_ignored_key(file: Path, key: str, msg: str) -> None:
     """Warn about ignored key in pyproject.toml config"""
     warnings.warn(
-        f"Ignoring pyproject key 'tool.whl2conda.{key}':\n {msg}\n from {file}", UserWarning
+        f"Ignoring pyproject key 'tool.whl2conda.{key}':\n {msg}\n from {file}",
+        UserWarning,
     )
 
 
@@ -168,7 +169,9 @@ def read_pyproject(path: Path) -> PyProjInfo:
             except (TypeError, ValueError):
                 pass
             warn_ignored_value(
-                toml_file, "dependency-rename", f"Expected pair of strings but got '{entry}'"
+                toml_file,
+                "dependency-rename",
+                f"Expected pair of strings but got '{entry}'",
             )
         pyproj.dependency_rename = tuple(_renames)
 
@@ -188,7 +191,9 @@ def read_pyproject(path: Path) -> PyProjInfo:
             pyproj.conda_format = CondaPackageFormat.from_string(conda_format)
         except ValueError:
             warn_ignored_key(
-                toml_file, "conda-format", f"{conda_format} is not a valid conda output format"
+                toml_file,
+                "conda-format",
+                f"{conda_format} is not a valid conda output format",
             )
 
     return pyproj

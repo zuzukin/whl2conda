@@ -179,7 +179,9 @@ class Wheel2CondaConverter:
             self._write_link_file(conda_info_dir, wheel_md.wheel_info_dir)
             self._write_paths_file(conda_dir, rel_files)
 
-            conda_pkg_path = self._conda_package_path(wheel_md.package_name, wheel_md.version)
+            conda_pkg_path = self._conda_package_path(
+                wheel_md.package_name, wheel_md.version
+            )
             self._write_conda_package(conda_dir, conda_pkg_path)
 
             return conda_pkg_path
@@ -220,7 +222,9 @@ class Wheel2CondaConverter:
 
         if not self.dry_run:
             if self.out_format is CondaPackageFormat.TREE:
-                shutil.copytree(conda_dir, Path(self.out_dir).joinpath(conda_pkg_path.name))
+                shutil.copytree(
+                    conda_dir, Path(self.out_dir).joinpath(conda_pkg_path.name)
+                )
             else:
                 self.out_dir.mkdir(parents=True, exist_ok=True)
                 create_conda_pkg(conda_dir, None, conda_pkg_path.name, self.out_dir)
@@ -242,7 +246,9 @@ class Wheel2CondaConverter:
                     size_in_bytes=len(file_bytes),
                 )
             )
-        conda_paths_file.write_text(json.dumps(dict(paths=paths, paths_version=1), indent=2))
+        conda_paths_file.write_text(
+            json.dumps(dict(paths=paths, paths_version=1), indent=2)
+        )
 
     def _write_link_file(self, conda_info_dir: Path, wheel_info_dir: Path) -> None:
         # info/link.json
@@ -269,7 +275,10 @@ class Wheel2CondaConverter:
 
     # pylint: disable=too-many-arguments
     def _write_index(
-        self, conda_info_dir: Path, wheel_md: MetadataFromWheel, conda_dependencies: Sequence[str]
+        self,
+        conda_info_dir: Path,
+        wheel_md: MetadataFromWheel,
+        conda_dependencies: Sequence[str],
     ) -> None:
         # info/index.json
         conda_index_file = conda_info_dir.joinpath("index.json")
@@ -378,7 +387,9 @@ class Wheel2CondaConverter:
         conda_info_dir.mkdir()
         shutil.copytree(wheel_dir, conda_site_packages, dirs_exist_ok=True)
         rel_files = list(
-            str(f.relative_to(conda_dir)) for f in conda_site_packages.glob("**/*") if f.is_file()
+            str(f.relative_to(conda_dir))
+            for f in conda_site_packages.glob("**/*")
+            if f.is_file()
         )
         return rel_files
 
@@ -499,8 +510,12 @@ class Wheel2CondaConverter:
             test_channel = tmppath.joinpath("channel")
             test_channel_noarch = test_channel.joinpath("noarch")
             test_channel_noarch.mkdir(parents=True)
-            shutil.copyfile(conda_package, test_channel_noarch.joinpath(conda_package.name))
-            subprocess.check_call(["conda", "run", "-n", "base", "conda-index", str(test_channel)])
+            shutil.copyfile(
+                conda_package, test_channel_noarch.joinpath(conda_package.name)
+            )
+            subprocess.check_call(
+                ["conda", "run", "-n", "base", "conda-index", str(test_channel)]
+            )
             # create a test prefix
             create_cmd = ["conda", "create", "--yes"]
             create_cmd.extend(env_args)
