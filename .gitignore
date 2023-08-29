@@ -18,6 +18,7 @@ build/
 
 # Generated files
 doc/whl2conda-cli.md
+test/packages-with-renamed-dependencies.json
 
 # git merge turd files
 *.orig
