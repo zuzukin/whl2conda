@@ -178,13 +178,13 @@ class DownloadedMappings(NamedTuple):
 
         Max age in seconds from cache control header, or
         else difference between [expires][whl2conda.stdrename.expires]
-        and [date][whl2conda.stdrename.date] or selse -1.
+        and [date][whl2conda.stdrename.date] or else -1.
         """
         if cc := self.headers.get("Cache-Control", ""):
-            if m := re.match(r"max-age=(\d+)", cc):
+            if m := re.search(r"max-age=(\d+)", cc):
                 return int(m.group(1))
         if expires := self.expires:
-            date = self.date or datetime.datetime.now()
+            date = self.date or datetime.datetime.now(datetime.timezone.utc)
             return (expires - date).seconds
         return -1
 
@@ -249,13 +249,13 @@ def update_renames_file(
     if renames_path.is_file():
         # check expiration information from existing file
         current_renames = json.loads(renames_path.read_text("utf8"))
-        if date := parse_datetime("$date"):
+        if date := parse_datetime(current_renames.get("$date", "")):
             try:
                 max_age = int(current_renames.get("$max-age", 0))
             except Exception:  # pylint: disable=broad-exception-caught
                 max_age = 0
             max_age = max(min_expiration, max_age)
-            if (date.timestamp() + max_age) < time.time():
+            if (date.timestamp() + max_age) > time.time():
                 # Not expired yet
                 return False
         etag = current_renames.get("$etag")

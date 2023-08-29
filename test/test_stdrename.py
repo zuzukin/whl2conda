@@ -18,8 +18,10 @@ Unit tests for whl2conda.stdrename module
 
 from __future__ import annotations
 
+import email.utils
 import json
 import os
+import time
 from email.utils import parsedate_to_datetime
 from http import HTTPStatus
 from pathlib import Path
@@ -36,6 +38,7 @@ from whl2conda.stdrename import (
     load_std_renames,
     update_renames_file,
     user_stdrenames_path,
+    DownloadedMappings,
 )
 
 
@@ -70,6 +73,24 @@ def test_download_mappings() -> None:
         download_mappings(url=NAME_MAPPINGS_DOWNLOAD_URL + "xxx")
 
     assert exc_info.value.status == HTTPStatus.NOT_FOUND  # type: ignore
+
+    # Test properties
+    del d.headers["Etag"]
+    assert d.etag == ""
+    del d.headers["Cache-Control"]
+    assert d.max_age == (d.expires - d.date).seconds
+    now = email.utils.localtime()
+    del d.headers["Date"]
+    later = email.utils.localtime()
+    assert (d.expires - later).seconds <= d.max_age <= (d.expires - now).seconds
+    del d.headers["Expires"]
+    assert d.max_age == -1
+    d.headers.add_header("Cache-Control", "max-age=42")
+    assert d.max_age == 42
+    d.headers.replace_header("Cache-Control", "something, s-max-age=23")
+    assert d.max_age == 23
+    d.headers.replace_header("Cache-Control", "no-cache")
+    assert d.max_age == -1
 
 
 def test_load_std_renames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -112,8 +133,8 @@ def test_load_std_renames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert renames == renames2
     assert fake_update_path[0] == local_renames_file
 
-
-def test_update_renames_file(tmp_path: Path) -> None:
+# pylint: disable=too-many-statements,too-many-locals
+def test_update_renames_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Unit test for update_renames_file function"""
     renames_file = tmp_path.joinpath("renames.json")
     try:
@@ -135,6 +156,11 @@ def test_update_renames_file(tmp_path: Path) -> None:
         if not key.startswith("$"):
             assert key != val
 
+    datestr = renames["$date"]
+    # temporarily remove date to force use of etags
+    del renames["$date"]
+    renames_file.write_text(json.dumps(renames, indent=2), "utf8")
+
     # nothing changed (unless we got really unlucky)
     mod_time = renames_file.stat().st_mtime_ns
     if update_renames_file(renames_file):
@@ -146,11 +172,45 @@ def test_update_renames_file(tmp_path: Path) -> None:
     else:
         assert renames_file.stat().st_mtime_ns == mod_time
 
-    with pytest.raises(HTTPError):
-        update_renames_file(
-            renames_file,
-            url=NAME_MAPPINGS_DOWNLOAD_URL + "xyz",
-        )
+    renames["$date"] = datestr
+    renames_file.write_text(json.dumps(renames, indent=2), "utf8")
+
+    download_invoked = False
+    expected_etag = etag
+    expected_url = NAME_MAPPINGS_DOWNLOAD_URL
+
+    def fake_download(*, url: str, etag: str):
+        assert etag == expected_etag
+        assert url == expected_url
+        nonlocal download_invoked
+        download_invoked = True
+        return DownloadedMappings(url=url, headers=email.message.EmailMessage(), mappings=())
+
+    monkeypatch.setattr("whl2conda.stdrename.download_mappings", fake_download)
+
+    renames["$max-age"] = 99999999
+    renames_file.write_text(json.dumps(renames, indent=2), "utf8")
+    assert not update_renames_file(renames_file)
+    assert not download_invoked
+
+    renames["$date"] = email.utils.formatdate(usegmt=True)
+    del renames["$max-age"]
+    renames_file.write_text(json.dumps(renames, indent=2), "utf8")
+    assert not update_renames_file(renames_file)
+    assert not download_invoked
+
+    renames["$max-age"] = "bogus"
+    renames_file.write_text(json.dumps(renames, indent=2), "utf8")
+    assert not update_renames_file(renames_file)
+    assert not download_invoked
+
+    renames["$date"] = email.utils.formatdate(time.time() - 99999, usegmt=True)
+    renames_file.write_text(json.dumps(renames, indent=2), "utf8")
+    assert update_renames_file(renames_file, dry_run=True)
+    assert download_invoked
+
+    # dry run - file not changed
+    assert renames == json.loads(renames_file.read_text("utf8"))
 
 
 def test_user_stdrenames_path() -> None:

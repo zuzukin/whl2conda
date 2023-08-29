@@ -211,3 +211,14 @@ def test_pypi_zstandard(test_case: ConverterTestCaseFactory):
     """
     with pytest.raises(Wheel2CondaError, match="not pure python"):
         test_case("pypi:zstandard").run()
+
+
+def test_pypi_colorama(test_case: ConverterTestCaseFactory):
+    """
+    Test colorama package
+    """
+    test_case(
+        "pypi:colorama",
+    ).run()
+    # TODO run --test-install and run test suite
+    #   pytest --pyargs colorama.tests
