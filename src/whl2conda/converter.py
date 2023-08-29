@@ -483,8 +483,11 @@ class Wheel2CondaConverter:
         if not python_version:
             python_version = ".".join(str(x) for x in sys.version_info[:2])
 
-        print(f"Test installing package in python {python_version} environment")
+        self._info(f"Test installing package in python {python_version} environment")
         with tempfile.TemporaryDirectory(prefix="whl2conda-test-install-") as tmpdir:
+            # build a temporary local channel with package and install from there
+            # this seems to be necessary to get the package dependencies
+            # (TODO is there a way to run conda-install with package to get dependencies?)
             tmppath = Path(tmpdir)
             if env_prefix is not None:
                 env_args = ["-p", str(env_prefix)]

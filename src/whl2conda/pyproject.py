@@ -26,10 +26,7 @@ from typing import List, Optional, Sequence, Tuple
 
 import tomlkit
 
-__all__ = [
-    "CondaPackageFormat",
-    "read_pyproject",
-]
+__all__ = ["CondaPackageFormat", "read_pyproject", "PyProjInfo"]
 
 
 class CondaPackageFormat(enum.Enum):
