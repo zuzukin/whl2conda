@@ -84,6 +84,7 @@ class CliTestCase:
 
     expected_prompts: List[str]
     responses: List[str]
+    from_dir: Path
 
     #
     # Other test state
@@ -112,6 +113,7 @@ class CliTestCase:
         expected_extra_dependencies: Sequence[str] = (),
         expected_interactive: bool = True,
         expected_project_root: str = "",
+        from_dir: str = "",
     ):
         self.caplog = caplog
         self.capsys = capsys
@@ -133,6 +135,9 @@ class CliTestCase:
         self.responses = []
 
         self.project_dir = tmp_path.joinpath("projects")
+        self.from_dir = (
+            self.project_dir.joinpath(from_dir) if from_dir else self.project_dir
+        )
         shutil.copytree(project_dir, self.project_dir)
 
     def run(self) -> None:
@@ -184,7 +189,7 @@ class CliTestCase:
             mp.setattr("whl2conda.cli.do_build_wheel", fake_build_wheel)
             if self.interactive is not is_interactive():
                 monkeypatch_interactive(mp, self.interactive)
-            mp.chdir(self.project_dir)
+            mp.chdir(self.from_dir)
 
             self.capsys.readouterr()
 
@@ -340,6 +345,15 @@ def test_simple_default(test_case: CliTestCaseFactory) -> None:
         r"\[build\] build wheel",
         "build",
     )
+    case.run()
+
+    # run from project root dir without any positional args
+    case.from_dir = case.project_dir.joinpath("simple")
+    case.args = []
+    case.run()
+
+    case.from_dir = case.project_dir
+    case.args = ["--project-root", str(case.project_dir.joinpath("simple"))]
     case.run()
 
 

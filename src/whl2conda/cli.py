@@ -463,11 +463,13 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
         update_std_renames(parsed.update_std_renames, dry_run=dry_run)
 
     wheel_or_root = parsed.wheel_or_root
+    saw_positional_root = False
     if not wheel_or_root:
         project_root = Path.cwd()
     else:
         if wheel_or_root.is_dir():
             project_root = wheel_or_root
+            saw_positional_root = True
         else:
             wheel_file = wheel_or_root
             if wheel_file.suffix != ".whl":
@@ -477,7 +479,7 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
                 project_root = pr
 
     if parsed.project_root:
-        if project_root:
+        if saw_positional_root:
             parser.error(
                 "Cannot specify project root as both positional and keyword argument."
             )
