@@ -28,14 +28,18 @@ mapping dictionary.
 
 from __future__ import annotations
 
+import datetime
 import email.message
 import importlib.resources
 import json
+import re
 import urllib.request
 import sys
+import time
+from email.utils import formatdate, parsedate_to_datetime
 from http import HTTPStatus
 from pathlib import Path
-from typing import Dict, NamedTuple, Sequence, TypedDict, Union
+from typing import Dict, NamedTuple, Optional, Sequence, TypedDict, Union
 from urllib.error import HTTPError
 
 from platformdirs import user_cache_path
@@ -58,6 +62,22 @@ NAME_MAPPINGS_DOWNLOAD_URL = f"{RAW_MAPPINGS_URL}/{NAME_MAPPINGS_FILENAME}"
 """
 URL from which automatically generated pypi to conda name mappings are downloaded.
 """
+
+DEFAULT_MIN_EXPIRATION = 300
+"""
+Default minimum expiration in seconds for cached renames
+"""
+
+
+def parse_datetime(s: str) -> Optional[datetime.datetime]:
+    """Parse datetime string from HTTP header
+
+    Returns None if string is empty or time is malformed.
+    """
+    try:
+        return parsedate_to_datetime(s)
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
 
 
 def user_stdrenames_path() -> Path:
@@ -133,7 +153,12 @@ class DownloadedMappings(NamedTuple):
     mappings: Sequence[NameMapping]
 
     @property
-    def date(self) -> str:
+    def date(self) -> Optional[datetime.datetime]:
+        """Date from header"""
+        return parse_datetime(self.datestr)
+
+    @property
+    def datestr(self) -> str:
         """Date string from header"""
         return self.headers.get("Date", "")
 
@@ -141,6 +166,27 @@ class DownloadedMappings(NamedTuple):
     def etag(self) -> str:
         """ETag string from header"""
         return self.headers.get("ETag", "").strip('"')
+
+    @property
+    def expires(self) -> Optional[datetime.datetime]:
+        """Expires date string frome header"""
+        return parse_datetime(self.headers.get("Expires", ""))
+
+    @property
+    def max_age(self) -> int:
+        """Max age from Cache-Control header
+
+        Max age in seconds from cache control header, or
+        else difference between [expires][whl2conda.stdrename.expires]
+        and [date][whl2conda.stdrename.date] or selse -1.
+        """
+        if cc := self.headers.get("Cache-Control", ""):
+            if m := re.match(r"max-age=(\d+)", cc):
+                return int(m.group(1))
+        if expires := self.expires:
+            date = self.date or datetime.datetime.now()
+            return (expires - date).seconds
+        return -1
 
 
 def process_name_mapping_dict(mappings: DownloadedMappings) -> Dict[str, str]:
@@ -157,8 +203,9 @@ def process_name_mapping_dict(mappings: DownloadedMappings) -> Dict[str, str]:
     """
     renames: Dict[str, str] = {
         "$source": mappings.url,
-        "$date": mappings.date,
+        "$date": mappings.datestr or formatdate(usegmt=True),
         "$etag": mappings.etag,
+        "$max-age": str(max(mappings.max_age, DEFAULT_MIN_EXPIRATION)),
     }
     for entry in mappings.mappings:
         pypi_name = entry.get("pypi_name")
@@ -169,16 +216,17 @@ def process_name_mapping_dict(mappings: DownloadedMappings) -> Dict[str, str]:
 
 
 def update_renames_file(
-    renames_file: Union[Path, str], *, url: str = NAME_MAPPINGS_DOWNLOAD_URL, dry_run: bool = False
+    renames_file: Union[Path, str],
+    *,
+    url: str = NAME_MAPPINGS_DOWNLOAD_URL,
+    min_expiration: int = DEFAULT_MIN_EXPIRATION,
+    dry_run: bool = False,
 ) -> bool:
     """
     Update standard renames file from github if changed
 
-    This will open the `renames_file` if it exists, and
-    use its `$etag` entry when downlaading updates
-    from `url`. If the file has changed, it will generate
-    a new `to_file` (or overwrites `renames_file` if not
-    specified).
+    This will only download new data if the existing
+    data has passed its expiration.
 
     Args:
         renames_file: path to renames file, which does not have to
@@ -186,18 +234,32 @@ def update_renames_file(
         url: url of name mapping file to download. This file is
             expected to contain a JSON array of dictionary
             containing "pypi_name" and "conda_name" entries.
+        min_expiration: minimum seconds before existing data expires.
+            Default is 5 minutes.
         dry_run: does not update the file, but still does download
             and returns True if file would change
 
     Returns:
-        True if file was updated
+        True if file was updated. False if file has not expired yet
+        or upstream data has not changed.
     """
     renames_path = Path(renames_file).expanduser()
 
     etag = ""
     if renames_path.is_file():
+        # check expiration information from existing file
         current_renames = json.loads(renames_path.read_text("utf8"))
+        if date := parse_datetime("$date"):
+            try:
+                max_age = int(current_renames.get("$max-age", 0))
+            except Exception:  # pylint: disable=broad-exception-caught
+                max_age = 0
+            max_age = max(min_expiration, max_age)
+            if (date.timestamp() + max_age) < time.time():
+                # Not expired yet
+                return False
         etag = current_renames.get("$etag")
+
     try:
         downloaded = download_mappings(url=url, etag=etag)
     except NotModified:
@@ -219,7 +281,10 @@ class NotModified(HTTPError):  # pylint: disable=too-many-ancestors
 
 
 def download_mappings(
-    url: str = NAME_MAPPINGS_DOWNLOAD_URL, *, etag: str = "", timeout: float = 10.0
+    url: str = NAME_MAPPINGS_DOWNLOAD_URL,
+    *,
+    etag: str = "",
+    timeout: float = 10.0,
 ) -> DownloadedMappings:
     """
     Download pypi to conda name mappings from github

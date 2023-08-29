@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+from email.utils import parsedate_to_datetime
 from http import HTTPStatus
 from pathlib import Path
 from typing import List
@@ -50,8 +51,10 @@ def test_download_mappings() -> None:
     assert d.url == NAME_MAPPINGS_DOWNLOAD_URL
     assert d.etag
     assert d.date
-    assert d.date == d.headers["Date"]
+    assert d.date == parsedate_to_datetime(d.headers["Date"])
     assert d.etag == d.headers["ETag"].strip('"')
+    assert d.expires == parsedate_to_datetime(d.headers["Expires"])
+    assert d.max_age > 0
 
     with pytest.raises(NotModified):
         download_mappings(etag=d.etag)
