@@ -471,6 +471,7 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
             project_root = wheel_or_root
             saw_positional_root = True
         else:
+            # TODO - also support "pypi:<name> <version>" ?
             wheel_file = wheel_or_root
             if wheel_file.suffix != ".whl":
                 parser.error(f"Input file '{wheel_file} does not have .whl suffix")

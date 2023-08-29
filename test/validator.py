@@ -29,6 +29,8 @@ import conda_package_handling.api as cphapi
 import pytest
 from wheel.wheelfile import WheelFile
 
+from whl2conda.converter import RequiresDistEntry
+
 
 class PackageValidator:
     """
@@ -45,6 +47,7 @@ class PackageValidator:
     _wheel_md: Dict[str, Any]
     _override_name: str
     _renamed_dependencies: Dict[str, Any]
+    _std_renames: Dict[str, Any]
     _extra_dependencies: Sequence[str]
 
     def __init__(self, tmp_dir: Path) -> None:
@@ -60,11 +63,13 @@ class PackageValidator:
         *,
         name: str = "",
         renamed: Optional[Dict[str, str]] = None,
+        std_renames: Optional[Dict[str, str]] = None,
         extra: Sequence[str] = (),
     ) -> None:
         """Validate conda package against wheel from which it was generated"""
         self._override_name = name
         self._renamed_dependencies = renamed or {}
+        self._std_renames = std_renames or {}
         self._extra_dependencies = extra
 
         wheel_dir = self._unpack_wheel(wheel)
@@ -171,18 +176,30 @@ class PackageValidator:
         if python_ver := wheel_md.get("requires-python"):
             expected_depends.add(f"python {python_ver}")
         for dep in wheel_md.get("requires-dist", []):
-            if dep_m := re.fullmatch(r"([\w._-]+)\b\s*\(?(.*?)\)?", dep):
-                name = dep_m.group(1)
-                version = dep_m.group(2)
-                for pat, template in self._renamed_dependencies.items():
-                    if m := re.fullmatch(name, pat):
-                        name = m.expand(template)
-                if name:
-                    expected_depends.add(f"{name} {version}")
+            entry = RequiresDistEntry.parse(dep)
+            if entry.marker:
+                continue
+            name = entry.name
+            version = entry.version
+            renamed = False
+            for pat, template in self._renamed_dependencies.items():
+                if m := re.fullmatch(name, pat):
+                    name = m.expand(template)
+                    renamed = True
+                    break
+            if not renamed:
+                name = self._std_renames.get(name, name)
+            if name:
+                expected_depends.add(f"{name} {version}")
 
         expected_depends.update(self._extra_dependencies)
 
-        assert output_depends == expected_depends
+        if not output_depends == expected_depends:
+            pytest.fail(
+                "Dependencies don't match\n"
+                + f"Unexpected entries: {output_depends - expected_depends}\n"
+                + f"Missing entries: {expected_depends - output_depends}"
+            )
 
     def _validate_paths(self, info_dir: Path) -> None:
         rel_files = info_dir.joinpath("files").read_text().splitlines()

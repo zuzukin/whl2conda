@@ -38,12 +38,60 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 from wheel.wheelfile import WheelFile
 from conda_package_handling.api import create as create_conda_pkg
 
-__all__ = ["CondaPackageFormat", "Wheel2CondaConverter", "Wheel2CondaError"]
-
 from .__about__ import __version__
 from .prompt import bool_input
 from .pyproject import CondaPackageFormat
 from .stdrename import load_std_renames
+
+__all__ = ["CondaPackageFormat", "Wheel2CondaConverter", "Wheel2CondaError"]
+
+
+def __compile_requires_dist_re() -> re.Pattern:
+    name_re = r"(?P<name>[a-zA-Z0-9_.-]+)"
+    extra_re = r"(?:\[(?P<extra>.+?)\])?"
+    version_re = r"(?:\(?(?P<version>.*?)\)?)?"
+    marker_re = r"(?:;\s*(?P<marker>.*?)\s*)?"
+    space = r"\s*"
+    return re.compile(
+        name_re + space + extra_re + space + version_re + space + marker_re
+    )
+
+
+_requires_dist_re = __compile_requires_dist_re()
+
+
+@dataclass
+class RequiresDistEntry:
+    """
+    Requires-Dist metadata entry parsed from wheel
+    """
+
+    # see https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
+    # and https://peps.python.org/pep-0508/
+    name: str
+    extras: Sequence[str] = ()
+    version: str = ""
+    marker: str = ""
+
+    @classmethod
+    def parse(cls, raw: str) -> RequiresDistEntry:
+        """
+        Parse entry from raw string read from "Requires-Dist" or related header.
+
+        Raises:
+            SyntaxError: if entry is not properly formatted.
+        """
+        m = _requires_dist_re.fullmatch(raw)
+        if not m:
+            raise SyntaxError(f"Cannot parse Requires-Dist entry: {repr(raw)}")
+        entry = RequiresDistEntry(name=m.group("name"))
+        if extra := m.group("extra"):
+            entry.extras = tuple(re.split(r"\s*,\s*", extra))
+        if version := m.group("version"):
+            entry.version = version
+        if marker := m.group("marker"):
+            entry.marker = marker
+        return entry
 
 
 class Wheel2CondaError(RuntimeError):
@@ -325,7 +373,8 @@ class Wheel2CondaConverter:
         conda_about_file.write_text(
             json.dumps(
                 NonNoneDict(
-                    description=md.get("description"),
+                    description=md.get("description", ""),
+                    summary=md.get("summary", ""),  # is this correct?
                     license=license or None,
                     classifiers=md.get("classifier"),
                     keywords=md.get("keywords"),
@@ -335,7 +384,6 @@ class Wheel2CondaConverter:
                     # dev_url
                     # doc_url
                     # license_url
-                    # summary - get from body of METADATA
                     # authors, maintainers
                 ),
                 indent=2,
@@ -345,29 +393,35 @@ class Wheel2CondaConverter:
     def _compute_conda_dependencies(self, dependencies: Sequence[str]) -> List[str]:
         conda_dependencies: List[str] = []
         for dep in dependencies:
-            m = re.fullmatch(r"([a-zA-Z0-9_.-]+)\b\s*\(?(.*?)\)?", dep.strip())
-            conda_name = ""
-            conda_ver = ""
-            pip_name = ""
-            if m is None:
-                # Should this be an error? What should we do?
-                # How does user work around if this happens?
-                self._warn("Cannot parse dependency '%s'", dep)
-            else:
-                conda_name = pip_name = m.group(1)
-                conda_ver = m.group(2)
-                # check manual renames first
-                renamed = False
-                for oldmatch, replacement in self.dependency_rename:
-                    if m := re.fullmatch(oldmatch, pip_name):
-                        conda_name = m.expand(replacement)
-                        renamed = True
-                        break
-                if not renamed:
-                    conda_name = self.std_renames.get(pip_name, pip_name)
+            try:
+                entry = RequiresDistEntry.parse(dep)
+            except SyntaxError as err:
+                self._warn(str(err))
+                continue
+
+            if marker := entry.marker:
+                if "extra" in marker:
+                    self._debug("Skipping extra dependency: %s", dep)
+                else:
+                    self._warn("Skipping dependency with environment marker: %s", dep)
+                continue
+
+            conda_name = pip_name = entry.name
+            version = entry.version
+            # TODO - do something with extras
+            #   download target pip package and its extra dependencies
+            # check manual renames first
+            renamed = False
+            for oldmatch, replacement in self.dependency_rename:
+                if m := re.fullmatch(oldmatch, pip_name):
+                    conda_name = m.expand(replacement)
+                    renamed = True
+                    break
+            if not renamed:
+                conda_name = self.std_renames.get(pip_name, pip_name)
 
             if conda_name:
-                conda_dep = f"{conda_name} {conda_ver}"
+                conda_dep = f"{conda_name} {version}"
                 if conda_name == pip_name:
                     self._debug("Dependency copied: '%s'", conda_dep)
                 else:
@@ -435,7 +489,13 @@ class Wheel2CondaConverter:
             # Turn requirements into optional extra requirements
             if requires:
                 for require in requires:
-                    md_msg.add_header("Requires-Dist", f"{require}: extra == 'original")
+                    if ';' not in require:
+                        md_msg.add_header(
+                            "Requires-Dist", f"{require}; extra == 'original"
+                        )
+                    else:
+                        # FIXME: check for extra vs environment marker
+                        md_msg.add_header("Requires-Dist", require)
                 md_msg.add_header("Provides-Extra", "original")
             wheel_md_file.write_text(md_msg.as_string())
         package_name = self.package_name or str(md.get("name"))

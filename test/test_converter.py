@@ -21,7 +21,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Generator, Sequence, Tuple, Union
+from typing import Generator, Optional, Sequence, Tuple, Union
 
 # third party
 import pytest
@@ -50,11 +50,18 @@ class ConverterTestCase:
     package_name: str
     tmp_dir: Path
 
+    _converter: Optional[Wheel2CondaConverter] = None
     _source_dir: Path
     _wheel_path: Path
     _out_dir: Path
     _validator_dir: Path
     _validator: PackageValidator
+
+    @property
+    def converter(self) -> Wheel2CondaConverter:
+        """Converter instance. Only valid after run() is called"""
+        assert self._converter is not None
+        return self._converter
 
     def __init__(
         self,
@@ -83,12 +90,13 @@ class ConverterTestCase:
         self._validator_dir.mkdir()
         self._validator = PackageValidator(self._validator_dir)
 
-    def run(self, out_format: CondaPackageFormat = CondaPackageFormat.V2) -> None:
+    def run(self, out_format: CondaPackageFormat = CondaPackageFormat.V2) -> Path:
         """Run the test case"""
         self._clean()
         wheel_path = self._get_wheel()
         package_path = self._convert(wheel_path, out_format=out_format)
         self._validate(wheel_path, package_path)
+        return package_path
 
     def _clean(self) -> None:
         shutil.rmtree(self._source_dir, ignore_errors=True)
@@ -102,7 +110,7 @@ class ConverterTestCase:
         converter.extra_dependencies = list(self.extra_dependencies)
         converter.package_name = self.package_name
         converter.out_format = out_format
-
+        self._converter = converter
         return converter.convert()
 
     def _get_wheel(self) -> Path:
@@ -127,7 +135,9 @@ class ConverterTestCase:
         return self._wheel_path
 
     def _validate(self, wheel_path: Path, package_path: Path) -> None:
-        self._validator(wheel_path, package_path)
+        converter = self._converter
+        assert converter is not None
+        self._validator(wheel_path, package_path, std_renames=converter.std_renames)
 
 
 class ConverterTestCaseFactory:
@@ -230,3 +240,18 @@ def test_pypi_colorama(test_case: ConverterTestCaseFactory):
     ).run()
     # TODO run --test-install and run test suite
     #   pytest --pyargs colorama.tests
+
+
+def test_pypi_orix(test_case: ConverterTestCaseFactory) -> None:
+    """
+    Test orix package
+    """
+    case = test_case("pypi:orix")
+    orix_pkg = case.run()
+    assert orix_pkg.is_file()
+
+    prefix = Path(case.converter.temp_dir.name).joinpath("test-env")  # type: ignore
+
+    case.converter.test_install(
+        orix_pkg, env_prefix=prefix, python_version="3.10", channels=['conda-forge']
+    )
