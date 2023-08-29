@@ -413,7 +413,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     info_opts.add_argument("--version", action="version", version=__version__)
 
     # TODO --override-pyproject - ignore [tool.whl2conda] pyproject settings (#8)
-    # TODO  --conda-bld - install in conda-bld and reindex (#28)
+    # TODO  --conda-bld - install in conda-bld and reindex (#10)
     #
     # TODO  - Way to run tests in test env?
 
