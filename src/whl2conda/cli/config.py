@@ -1,0 +1,112 @@
+#  Copyright 2023 Christopher Barber
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+"""
+whl2conda config subcommand implementation
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from http.client import HTTPException
+from pathlib import Path
+from typing import Optional, Sequence
+from urllib.error import URLError
+
+from whl2conda.stdrename import update_renames_file
+from .common import dedent, MarkdownHelp
+from ..stdrename import user_stdrenames_path
+
+__all__ = ["config_main"]
+
+
+def config_main(
+    args: Optional[Sequence[str]] = None,
+    prog: Optional[str] = None,
+) -> None:
+    """Main routine for `whl2conda config` subcommand"""
+
+    parser = argparse.ArgumentParser(
+        description=dedent(
+            """
+            whl2conda configuration
+            """
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+        prog=prog,
+    )
+
+    parser.add_argument(
+        "--update-std-renames",
+        nargs="?",
+        metavar="<file>",
+        const=user_stdrenames_path(),
+        type=Path,
+        help=dedent(
+            """
+            Update list of standard pypi to conda renames from internet and exit.
+            If a <file> is not named, the default copy will be updated at
+            %(const)s.
+            """
+        ),
+    )
+    parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Do not write any files.",
+    )
+    parser.add_argument(
+        "--markdown-help",
+        action=MarkdownHelp,
+        help=argparse.SUPPRESS,  # For internal use, do not show help
+    )
+
+    parsed = parser.parse_args(args)
+
+    if parsed.update_std_renames:
+        update_std_renames(parsed.update_std_renames, dry_run=parsed.dry_run)
+
+
+def update_std_renames(renames_file: Path, *, dry_run: bool) -> None:
+    """
+    Update user cached copy of standard pypi to conda renames
+
+    Exits program after update.
+
+    Args:
+        renames_file: file to update
+        dry_run: don't write file if true
+    """
+    print(f"Updating {renames_file}")
+    try:
+        if update_renames_file(
+            renames_file,
+            dry_run=dry_run,
+        ):
+            if dry_run:
+                print("Update available")
+            else:
+                print("Updated")
+        else:
+            print("No changes.")
+    except (HTTPException, URLError) as ex:
+        print(f"Cannot download update: {ex}", file=sys.stderr)
+        sys.exit(8)
+    sys.exit(0)
+
+
+if __name__ == "__main__":  # pragma: no cover
+    config_main()

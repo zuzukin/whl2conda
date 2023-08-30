@@ -20,20 +20,15 @@ from __future__ import annotations
 import argparse
 import logging
 import subprocess
-import sys
 import time
 from dataclasses import dataclass
-from http.client import HTTPException
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
-from urllib.error import URLError
 
 # this project
-from ..__about__ import __version__
 from ..prompt import is_interactive, choose_wheel
 from ..converter import Wheel2CondaConverter, CondaPackageFormat
 from ..pyproject import read_pyproject, PyProjInfo
-from ..stdrename import update_renames_file, user_stdrenames_path
 from .common import (
     dedent,
     MarkdownHelp,
@@ -70,7 +65,6 @@ class Whl2CondaArgs:
     test_install: bool
     test_prefix: Optional[Path]
     test_python: Optional[str]
-    update_std_renames: Optional[Path]
     verbose: int
     wheel_dir: Optional[Path]
     wheel_or_root: Optional[Path]
@@ -105,7 +99,6 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     input_opts = parser.add_argument_group("Input options")
     output_opts = parser.add_argument_group("Output options")
     override_opts = parser.add_argument_group("Override options")
-    config_opts = parser.add_argument_group("Configuration options")
     test_opts = parser.add_argument_group("Test options")
     info_opts = parser.add_argument_group("Help and debug options")
 
@@ -255,21 +248,6 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         help="Set/override python dependency.",
     )
 
-    config_opts.add_argument(
-        "--update-std-renames",
-        nargs="?",
-        metavar="<file>",
-        const=user_stdrenames_path(),
-        type=Path,
-        help=dedent(
-            """
-            Update list of standard pypi to conda renames from internet and exit.
-            If a <file> is not named, the default copy will be updated at
-            %(const)s.
-            """
-        ),
-    )
-
     test_opts.add_argument(
         "--test-install",
         action="store_true",
@@ -390,9 +368,6 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
 
     build_wheel = parsed.build_wheel
     build_no_deps = False  # pylint: disable=unused-variable
-
-    if parsed.update_std_renames:
-        update_std_renames(parsed.update_std_renames, dry_run=dry_run)
 
     wheel_or_root = parsed.wheel_or_root
     saw_positional_root = False
@@ -543,34 +518,6 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
             env_name=parsed.test_env,
             env_prefix=parsed.test_prefix,
         )
-
-
-def update_std_renames(renames_file: Path, *, dry_run: bool) -> None:
-    """
-    Update user cached copy of standard pypi to conda renames
-
-    Exits program after update.
-
-    Args:
-        renames_file: file to update
-        dry_run: don't write file if true
-    """
-    print(f"Updating {renames_file}")
-    try:
-        if update_renames_file(
-            renames_file,
-            dry_run=dry_run,
-        ):
-            if dry_run:
-                print("Update available")
-            else:
-                print("Updated")
-        else:
-            print("No changes.")
-    except (HTTPException, URLError) as ex:
-        print(f"Cannot download update: {ex}", file=sys.stderr)
-        sys.exit(8)
-    sys.exit(0)
 
 
 def do_build_wheel(

@@ -21,7 +21,6 @@ import argparse
 from typing import Optional, Sequence
 
 from ..__about__ import __version__
-from .build import build_main
 from .common import dedent, Subcommands, MarkdownHelp
 
 __all__ = ["main"]
@@ -47,7 +46,14 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None) -> No
 
     subcmds = Subcommands(parser)
     subcmds.add_subcommand(
-        "build", build_main, "builds a conda package from a python wheel"
+        "build",
+        "whl2conda.cli.build.build_main",
+        "builds a conda package from a python wheel",
+    )
+    subcmds.add_subcommand(
+        "config",
+        "whl2conda.cli.config.config_main",
+        "configure whl2conda",
     )
 
     parser.add_argument(

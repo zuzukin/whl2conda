@@ -18,10 +18,11 @@ CLI utility functions
 from __future__ import annotations
 
 import argparse
+import importlib
 import sys
 import textwrap
 from pathlib import Path
-from typing import Any, Optional, Callable, Sequence
+from typing import Any, Optional, Sequence
 
 __all__ = [
     "MarkdownHelpFormatter",
@@ -42,7 +43,7 @@ class MarkdownHelpFormatter(argparse.RawTextHelpFormatter):
         super().__init__(prog, max_help_position=12, width=80)
 
     def add_usage(self, usage, actions, groups, prefix=None):
-        self.add_text(f"## {usage.split()[0]}")
+        self.add_text(f"## {self._prog}")
         self.start_section("Usage")
         super().add_usage(usage, actions, groups, prefix)
         self.end_section()
@@ -162,7 +163,7 @@ class Subcommands:
     def add_subcommand(
         self,
         cmd: str,
-        main_func: Callable,
+        main_func: str,
         help: str,
         *,
         aliases: Sequence[str] = (),
@@ -172,14 +173,22 @@ class Subcommands:
 
         Args:
             cmd: the command word
-            main_func: main function implementing the subcommand
+            main_func: fully qualified name of main function
+                e.g. "whl2conda.cli.build.build_main"
             help: help string
             aliases: optional aliases for subcommand
         """
         subparser = self._subcmds.add_parser(
             cmd, help=help, add_help=False, aliases=aliases
         )
-        subparser.main = main_func  # type: ignore
+        modulename, func = main_func.rsplit(".", maxsplit=1)
+
+        def _main(args: Sequence[str], prog: str):
+            module = importlib.import_module(modulename)
+            real_main = getattr(module, func)
+            real_main(args, prog)
+
+        subparser.main = _main
         return subparser
 
     def run(self, parsed: argparse.Namespace) -> None:

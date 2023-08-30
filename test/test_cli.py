@@ -34,7 +34,9 @@ import pytest
 # this project
 from whl2conda.__about__ import __version__
 from whl2conda.converter import CondaPackageFormat, Wheel2CondaConverter
-from whl2conda.cli.build import build_main, do_build_wheel, update_std_renames
+from whl2conda.cli import main
+from whl2conda.cli.build import do_build_wheel
+from whl2conda.cli.config import update_std_renames
 from whl2conda.prompt import is_interactive
 from whl2conda.stdrename import user_stdrenames_path
 
@@ -186,7 +188,7 @@ class CliTestCase:
             # TODO monkeypatch for --test-install
             mp.setattr(Wheel2CondaConverter, "convert", fake_convert)
             mp.setattr("builtins.input", fake_input)
-            mp.setattr("whl2conda.cli.do_build_wheel", fake_build_wheel)
+            mp.setattr("whl2conda.cli.build.do_build_wheel", fake_build_wheel)
             if self.interactive is not is_interactive():
                 monkeypatch_interactive(mp, self.interactive)
             mp.chdir(self.from_dir)
@@ -196,7 +198,7 @@ class CliTestCase:
             # Run the command
             exit_code: Any = None
             try:
-                build_main(self.args, "whl2conda")
+                main(["build"] + self.args, "whl2conda")
             except SystemExit as exit_err:
                 exit_code = exit_err.code
 
@@ -296,32 +298,49 @@ def test_help(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Unit test for --help flag"""
+
     with pytest.raises(SystemExit):
-        build_main(["--help"], "whl2conda2")
+        main(["--help"], "whl2conda2")
     out, err = capsys.readouterr()
     assert not err
     assert "usage: whl2conda2" in out
     assert "--markdown-help" not in out
 
-    monkeypatch.setattr("sys.argv", ["whl2conda3", "--help"])
-    with pytest.raises(SystemExit):
-        build_main()
-    out, err = capsys.readouterr()
-    assert not err
-    assert "usage: whl2conda3" in out
+    subcmds = ["build", "config"]
+    for subcmd in subcmds:
+        assert re.search(rf"^\s+{subcmd}\s+\w+", out, flags=re.MULTILINE)
 
-    with pytest.raises(SystemExit):
-        build_main(["--markdown-help"])
-    out, err = capsys.readouterr()
-    assert not err
-    assert "### Usage" in out
-    assert "usage: whl2conda3" in out
+    def _check_subcmd(subcmd: str):
+        with monkeypatch.context() as ctx:
+            with pytest.raises(SystemExit):
+                main(f"{subcmd} --help".split(), "whl2conda2")
+            out, err = capsys.readouterr()
+            assert not err
+            assert "usage: whl2conda2" in out
+            assert "--markdown-help" not in out
+
+            ctx.setattr("sys.argv", f"whl2conda3 {subcmd} --help".split())
+            with pytest.raises(SystemExit):
+                main()
+            out, err = capsys.readouterr()
+            assert not err
+            assert "usage: whl2conda3" in out
+
+            with pytest.raises(SystemExit):
+                main(f"{subcmd} --markdown-help".split())
+            out, err = capsys.readouterr()
+            assert not err
+            assert "### Usage" in out
+            assert "usage: whl2conda3" in out
+
+    for subcmd in subcmds:
+        _check_subcmd(subcmd)
 
 
 def test_version(capsys: pytest.CaptureFixture):
     """Unit test for --version flag"""
     with pytest.raises(SystemExit):
-        build_main(["--version"])
+        main(["--version"])
     out, err = capsys.readouterr()
     assert not err
     assert out.strip() == __version__
@@ -483,7 +502,7 @@ def test_update_std_renames(
         return fake_update_result
 
     monkeypatch.setattr("whl2conda.stdrename.update_renames_file", _fake_update)
-    monkeypatch.setattr("whl2conda.cli.update_renames_file", _fake_update)
+    monkeypatch.setattr("whl2conda.cli.config.update_renames_file", _fake_update)
 
     file = tmp_path.joinpath("stdrename.json")
     with pytest.raises(SystemExit):
@@ -541,7 +560,7 @@ def test_update_std_renames(
     fake_update_result = True
 
     with pytest.raises(SystemExit) as exc_info:
-        build_main(["--update-std-renames"])
+        main(["config", "--update-std-renames"])
     assert exc_info.value.code == 0
     out, err = capsys.readouterr()
     assert not err
@@ -551,7 +570,7 @@ def test_update_std_renames(
     fake_update_result = False
     expected_dry_run = True
     with pytest.raises(SystemExit) as exc_info:
-        build_main(["--update-std-renames", "--dry-run"])
+        main(["config", "--update-std-renames", "--dry-run"])
     assert exc_info.value.code == 0
     out, err = capsys.readouterr()
     assert not err
@@ -560,7 +579,7 @@ def test_update_std_renames(
 
     expected_dry_run = False
     with pytest.raises(SystemExit) as exc_info:
-        build_main(["--update-std-renames", "here.json"])
+        main(["config", "--update-std-renames", "here.json"])
     assert exc_info.value.code == 0
     out, err = capsys.readouterr()
     assert not err
