@@ -92,13 +92,19 @@ open-coverage: htmlcov/index.html
 # Documentation targets
 #
 
-doc/whl2conda-cli.md: src/whl2conda/cli.py
+CLI_SUBCMDS := build
+CLI_DOCS := doc/cli/whl2conda.md $(foreach subcmd,$(CLI_SUBCMDS),doc/cli/whl2conda-$(subcmd).md)
+
+doc/cli/whl2conda.md: src/whl2conda/cli.py
 	$(CONDA_RUN) whl2conda --markdown-help > $@
 
-doc: doc/whl2conda-cli.md
+doc/cli/whl2conda-%.md: src/whl2conda/cli.py
+	$(CONDA_RUN) whl2conda $* --markdown-help > $@
+
+doc: $(CLI_DOCS) mkdocs.yml
 	$(CONDA_RUN) mkdocs build
 
-serve-doc: doc/whl2conda-cli.md
+serve-doc: $(CLI_DOCS)
 	$(CONDA_RUN) mkdocs serve
 
 open-doc: doc/whl2conda-cli.md

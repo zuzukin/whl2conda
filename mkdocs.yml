@@ -5,13 +5,15 @@ docs_dir: doc
 site_dir: site
 site_author: Christopher Barber
 repo_name: GitHub
-#edit_uri: edit/main/docs
+#edit_uri: edit/build_main/docs
 copyright: Copyright &copy; 2023 Christopher Barber
 
 nav:
   - User Guide: index.md
   - Reference:
-      - Command line: whl2conda-cli.md
+      - Command line:
+        - wl2conda: cli/whl2conda.md
+        - whl2conda build: cli/whl2conda-build.md
 
 # TODO:
 #   - Links:

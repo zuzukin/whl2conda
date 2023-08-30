@@ -34,7 +34,7 @@ import pytest
 # this project
 from whl2conda.__about__ import __version__
 from whl2conda.converter import CondaPackageFormat, Wheel2CondaConverter
-from whl2conda.cli import main, do_build_wheel, update_std_renames
+from whl2conda.cli import build_main, do_build_wheel, update_std_renames
 from whl2conda.prompt import is_interactive
 from whl2conda.stdrename import user_stdrenames_path
 
@@ -196,7 +196,7 @@ class CliTestCase:
             # Run the command
             exit_code: Any = None
             try:
-                main(self.args, "whl2conda")
+                build_main(self.args, "whl2conda")
             except SystemExit as exit_err:
                 exit_code = exit_err.code
 
@@ -297,7 +297,7 @@ def test_help(
 ) -> None:
     """Unit test for --help flag"""
     with pytest.raises(SystemExit):
-        main(["--help"], "whl2conda2")
+        build_main(["--help"], "whl2conda2")
     out, err = capsys.readouterr()
     assert not err
     assert "usage: whl2conda2" in out
@@ -305,13 +305,13 @@ def test_help(
 
     monkeypatch.setattr("sys.argv", ["whl2conda3", "--help"])
     with pytest.raises(SystemExit):
-        main()
+        build_main()
     out, err = capsys.readouterr()
     assert not err
     assert "usage: whl2conda3" in out
 
     with pytest.raises(SystemExit):
-        main(["--markdown-help"])
+        build_main(["--markdown-help"])
     out, err = capsys.readouterr()
     assert not err
     assert "### Usage" in out
@@ -321,7 +321,7 @@ def test_help(
 def test_version(capsys: pytest.CaptureFixture):
     """Unit test for --version flag"""
     with pytest.raises(SystemExit):
-        main(["--version"])
+        build_main(["--version"])
     out, err = capsys.readouterr()
     assert not err
     assert out.strip() == __version__
@@ -541,7 +541,7 @@ def test_update_std_renames(
     fake_update_result = True
 
     with pytest.raises(SystemExit) as exc_info:
-        main(["--update-std-renames"])
+        build_main(["--update-std-renames"])
     assert exc_info.value.code == 0
     out, err = capsys.readouterr()
     assert not err
@@ -551,7 +551,7 @@ def test_update_std_renames(
     fake_update_result = False
     expected_dry_run = True
     with pytest.raises(SystemExit) as exc_info:
-        main(["--update-std-renames", "--dry-run"])
+        build_main(["--update-std-renames", "--dry-run"])
     assert exc_info.value.code == 0
     out, err = capsys.readouterr()
     assert not err
@@ -560,7 +560,7 @@ def test_update_std_renames(
 
     expected_dry_run = False
     with pytest.raises(SystemExit) as exc_info:
-        main(["--update-std-renames", "here.json"])
+        build_main(["--update-std-renames", "here.json"])
     assert exc_info.value.code == 0
     out, err = capsys.readouterr()
     assert not err

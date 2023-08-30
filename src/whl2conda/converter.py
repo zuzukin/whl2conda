@@ -370,11 +370,12 @@ class Wheel2CondaConverter:
         # * info/about.json
         license = md.get("license-expression") or md.get("license")
         conda_about_file = conda_info_dir.joinpath("about.json")
+        # TODO description can come from METADATA message body
         conda_about_file.write_text(
             json.dumps(
                 NonNoneDict(
                     description=md.get("description", ""),
-                    summary=md.get("summary", ""),  # is this correct?
+                    summary=md.get("summary", ""),
                     license=license or None,
                     classifiers=md.get("classifier"),
                     keywords=md.get("keywords"),
@@ -384,6 +385,7 @@ class Wheel2CondaConverter:
                     # dev_url
                     # doc_url
                     # license_url
+                    # extra
                     # authors, maintainers
                 ),
                 indent=2,

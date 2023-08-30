@@ -255,3 +255,12 @@ def test_pypi_orix(test_case: ConverterTestCaseFactory) -> None:
     case.converter.test_install(
         orix_pkg, env_prefix=prefix, python_version="3.10", channels=['conda-forge']
     )
+
+    # subprocess.check_call(
+    #     ["conda", "install", "-p", str(prefix), "pytest", "--yes"]
+    # )
+    # subprocess.check_call(
+    #     ["conda", "run", "-p", str(prefix), "pytest", "--pyargs", "orix.tests"
+    #      "-k", "not test_restrict_to_fundamental_sector"
+    #      ]
+    # )

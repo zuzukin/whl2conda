@@ -26,7 +26,7 @@ import textwrap
 from dataclasses import dataclass
 from http.client import HTTPException
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Sequence, Tuple, Callable
 from urllib.error import URLError
 
 # this package
@@ -36,7 +36,7 @@ from .converter import Wheel2CondaConverter, CondaPackageFormat
 from .pyproject import read_pyproject, PyProjInfo
 from .stdrename import update_renames_file, user_stdrenames_path
 
-__all__ = ["main"]
+__all__ = ["build_main"]
 
 
 class MarkdownHelpFormatter(argparse.RawTextHelpFormatter):
@@ -76,6 +76,27 @@ def dedent(text: str) -> str:
     return textwrap.dedent(text).strip()
 
 
+class MarkdownHelp(argparse.Action):
+    """Print out help in markdown format and exit"""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.nargs = 0
+        self.default = argparse.SUPPRESS
+        self.dest = argparse.SUPPRESS
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Any,
+        option_string: Optional[str] = None,
+    ):
+        parser.formatter_class = MarkdownHelpFormatter
+        parser.print_help()
+        sys.exit(0)
+
+
 # pylint: disable=too-many-instance-attributes
 @dataclass
 class Whl2CondaArgs:
@@ -90,7 +111,6 @@ class Whl2CondaArgs:
     extra_deps: List[str]
     interactive: bool
     keep_pip_deps: bool
-    markdown_help: bool
     name: str
     out_dir: Optional[Path]
     out_format: str
@@ -151,7 +171,12 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     Whl2CondaArgs
     """
     parser = argparse.ArgumentParser(
-        usage="%(prog)s [<wheel-or-root>] [options]",
+        usage=dedent(
+            """
+            %(prog)s <wheel> [options]
+                   %(prog)s [<project-root>] [options]
+            """
+        ),
         prog=prog,
         description=dedent(
             """
@@ -174,7 +199,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     input_opts.add_argument(
         "wheel_or_root",
         nargs="?",
-        metavar="<wheel-or-root>",
+        metavar="[<wheel> | <project-root>]",
         type=_existing_path,
         help=dedent(
             """
@@ -407,7 +432,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     )
     info_opts.add_argument(
         "--markdown-help",
-        action="store_true",
+        action=MarkdownHelp,
         help=argparse.SUPPRESS,  # For internal use, do not show help
     )
     info_opts.add_argument("--version", action="version", version=__version__)
@@ -432,18 +457,13 @@ def _is_project_root(path: Path) -> bool:
 
 
 # pylint: disable=too-many-statements,too-many-branches,too-many-locals
-def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
+def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
     """
     Main command line interface
     """
 
     parser = _create_argparser(prog)
     parsed = _parse_args(parser, args)
-
-    if parsed.markdown_help:
-        parser.formatter_class = MarkdownHelpFormatter
-        parser.print_help()
-        sys.exit(0)
 
     interactive = parsed.interactive
     always_yes = parsed.yes
@@ -695,5 +715,90 @@ def do_build_wheel(
     return wheel
 
 
+class SubcommandParser(argparse.ArgumentParser):
+    """Parser for subcommands"""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.main = lambda args, prog=None: 0
+
+    def parse_known_args(self, args=None, namespace=None):
+        """Puts all arguments into args attribute, and copies main to main attribute."""
+        if namespace is None:
+            namespace = argparse.Namespace()
+        setattr(namespace, 'args', args)
+        setattr(namespace, 'main', self.main)
+        return namespace, []
+
+
+def add_subcommand(
+    subparsers: argparse._SubParsersAction,  # pylint: disable=protected-access
+    cmd: str,
+    main_func: Callable,
+    command_help: str,
+    *,
+    aliases: Sequence[str] = (),
+) -> argparse.ArgumentParser:
+    """Create an ArgumentParser for subcommands
+
+    Args:
+        subparsers: subparsers object returned by `add_subcommand_parser` function.
+        cmd: the subcommand
+        main_func: is procedure that will be invoked to process the subcommand
+            and its arguments. This should be a standard main() method that accepts a `prog`
+            keyword, which it should use to construct its ArgumentParser
+        command_help: help to display for subcommand,
+        aliases: optional aliases for `cmd`
+
+    Returns:
+        ArgumentParser: parser for subcommand
+    """
+    subparser = subparsers.add_parser(
+        cmd, help=command_help, add_help=False, aliases=aliases
+    )
+    subparser.main = main_func  # type: ignore
+    return subparser
+
+
+def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None) -> None:
+    """
+    Main command line interface for whl2conda
+    """
+    parser = argparse.ArgumentParser(
+        prog=prog,
+        usage="%(prog)s [options] <command> ...",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=dedent(
+            """
+            Utility for building and testing conda package generated
+            directly from a python wheel.
+            
+            See `%(prog)s build --help` for more information.
+            """
+        ),
+    )
+
+    subcmds = parser.add_subparsers(
+        title="Commands",
+        dest="subcmd",
+        metavar="<command>",
+        required=True,
+        parser_class=SubcommandParser,
+    )
+    add_subcommand(
+        subcmds, "build", build_main, "builds a conda package from a python wheel"
+    )
+
+    parser.add_argument(
+        "--markdown-help",
+        action=MarkdownHelp,
+        help=argparse.SUPPRESS,  # For internal use, do not show help
+    )
+    parser.add_argument("--version", action="version", version=__version__)
+
+    parsed = parser.parse_args(args)
+    parsed.main(parsed.args, prog=f'{parser.prog} {parsed.subcmd}')
+
+
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    build_main()
