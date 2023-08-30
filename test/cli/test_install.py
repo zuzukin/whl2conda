@@ -26,38 +26,41 @@ from whl2conda.cli import main
 
 
 def test_errors(capsys: pytest.CaptureFixture, tmp_path: Path):
+    """Test parser errors in whl2conda install"""
     with pytest.raises(SystemExit):
         main(["install"])
-    out, err = capsys.readouterr()
+    _out, err = capsys.readouterr()
     assert re.search(r"required.*<package-file>", err)
 
     with pytest.raises(SystemExit):
         main(["install", "does-not-exist.conda"])
-    out, err = capsys.readouterr()
+    _out, err = capsys.readouterr()
     assert "does not exist" in err
 
     pkg_file = tmp_path.joinpath("my-package.conda")
     pkg_file.write_text("", "utf8")
     with pytest.raises(SystemExit):
         main(["install", str(pkg_file)])
-    out, err = capsys.readouterr()
+    _out, err = capsys.readouterr()
     assert re.search("one of.*--conda-bld.*is required", err)
 
     not_pkg_file = tmp_path.joinpath("foo.not-conda")
     not_pkg_file.write_text("", "utf8")
     with pytest.raises(SystemExit):
         main(["install", str(not_pkg_file), "-n", "foo"])
-    out, err = capsys.readouterr()
+    _out, err = capsys.readouterr()
     assert "unsupported suffix" in err
 
     with pytest.raises(SystemExit):
         main(["install", str(pkg_file), "-n", "foo"])
-    out, err = capsys.readouterr()
+    _out, err = capsys.readouterr()
     assert "Cannot extract" in err
 
 
 def test_bld_install_whitebox(
-    capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    capsys: pytest.CaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """
     Monkey patched whitebox test of --conda-bld install.
@@ -69,21 +72,24 @@ def test_bld_install_whitebox(
     bld_path: str = ""
     croot: str = str(conda_bld_dir)
 
-    def fake_check_output(cmd: Sequence[str], enconding: str = ""):
+    # pylint: disable=unused-argument
+    def fake_check_output(cmd: Sequence[str], encoding: str = ""):
         assert cmd[0] == "conda"
         if cmd[1] == "config":
             assert "--show" in cmd
             assert "--json" in cmd
             return json.dumps(dict(bld_path=bld_path, croot=croot))
-        else:
-            assert cmd[1] == "index"
-            assert cmd[2] == str(conda_bld_dir)
-            subdir_index = cmd.index("--subdir")
-            assert subdir_index > 0
-            assert cmd[subdir_index] == "noarch"
+
+        assert cmd[1] == "index"
+        assert cmd[2] == str(conda_bld_dir)
+        subdir_index = cmd.index("--subdir")
+        assert subdir_index > 0
+        assert cmd[subdir_index] == "noarch"
+        return None
 
     monkeypatch.setattr("subprocess.check_call", fake_check_output)
     monkeypatch.setattr("subprocess.check_output", fake_check_output)
 
     # pkg_file = tmp_path.joinpath("conda-pkg.conda")
     # main(["install", str(pkg_file), "--conda-bld", "--dry-run"])
+    capsys.readouterr()

@@ -27,6 +27,7 @@ from urllib.error import URLError
 
 from whl2conda.stdrename import update_renames_file
 from .common import add_markdown_help, dedent
+from ..pyproject import add_defaults
 from ..stdrename import user_stdrenames_path
 
 __all__ = ["config_main"]
@@ -46,6 +47,25 @@ def config_main(
         ),
         formatter_class=argparse.RawTextHelpFormatter,
         prog=prog,
+    )
+
+    parser.add_argument(
+        "--generate-pyproject",
+        metavar="<dir-or-toml>",
+        nargs='?',
+        const='out',
+        help=dedent(
+            """
+            Add default whl2conda tool entries to a pyproject file. 
+            If argument is a directory entries will be added to 
+            `pyproject.toml` in that directory. If argument ends
+            with suffix '.toml', that file will be updated. If
+            the argument is `out` the generated entry will be written
+            to stdout. Other values will result in an error.
+            This will create file if it does not already exist.
+            It will not overwrite existing entires.
+            """
+        ),
     )
 
     parser.add_argument(
@@ -74,6 +94,9 @@ def config_main(
 
     if parsed.update_std_renames:
         update_std_renames(parsed.update_std_renames, dry_run=parsed.dry_run)
+
+    if parsed.generate_pyproject:
+        add_defaults(parsed.generate_pyproject)
 
 
 def update_std_renames(renames_file: Path, *, dry_run: bool) -> None:
