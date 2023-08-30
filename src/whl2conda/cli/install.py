@@ -42,6 +42,7 @@ class InstallArgs:
     create: bool
     conda_bld: bool
     dry_run: bool
+    use_mamba: bool
     name: str
     package_file: Path
     prefix: Optional[Path]
@@ -128,6 +129,13 @@ def install_main(
         help="Add a channel to use for install",
     )
 
+    env_options.add_argument(
+        "--mamba",
+        dest="use_mamba",
+        action="store_true",
+        help="Use mamba instead of conda for install actions",
+    )
+
     common_opts = parser.add_argument_group("Common options")
 
     common_opts.add_argument(
@@ -207,7 +215,8 @@ def conda_env_install(parsed: InstallArgs, dependencies: List[str]):
     if parsed.dry_run:
         common_opts.append("--dry-run")
 
-    install_deps_cmd = ["conda"]
+    conda = "mamba" if parsed.use_mamba else "conda"
+    install_deps_cmd = [conda]
     if parsed.create:
         install_deps_cmd.append("create")
     else:
@@ -219,7 +228,7 @@ def conda_env_install(parsed: InstallArgs, dependencies: List[str]):
 
     subprocess.check_call(install_deps_cmd)
 
-    install_pkg_cmd = ["conda", "install"]
+    install_pkg_cmd = [conda, "install"]
     install_pkg_cmd.extend(common_opts)
     install_pkg_cmd.append(str(parsed.package_file))
 
