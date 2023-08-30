@@ -12,6 +12,19 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 """
 Unit tests for whl2conda command line interface
 """
@@ -40,7 +53,7 @@ from whl2conda.cli.config import update_std_renames
 from whl2conda.prompt import is_interactive
 from whl2conda.stdrename import user_stdrenames_path
 
-from .test_prompt import monkeypatch_interactive
+from test_prompt import monkeypatch_interactive
 
 this_dir = Path(__file__).parent
 project_dir = this_dir.joinpath("projects")
@@ -136,7 +149,7 @@ class CliTestCase:
         self.expected_prompts = []
         self.responses = []
 
-        self.project_dir = tmp_path.joinpath("projects")
+        self.project_dir = tmp_path.joinpath("../projects")
         self.from_dir = (
             self.project_dir.joinpath(from_dir) if from_dir else self.project_dir
         )
