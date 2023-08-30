@@ -22,79 +22,26 @@ import logging
 import subprocess
 import sys
 import time
-import textwrap
 from dataclasses import dataclass
 from http.client import HTTPException
 from pathlib import Path
-from typing import Any, List, Optional, Sequence, Tuple, Callable
+from typing import List, Optional, Sequence, Tuple
 from urllib.error import URLError
 
-# this package
-from .__about__ import __version__
-from .prompt import is_interactive, choose_wheel
-from .converter import Wheel2CondaConverter, CondaPackageFormat
-from .pyproject import read_pyproject, PyProjInfo
-from .stdrename import update_renames_file, user_stdrenames_path
+# this project
+from ..__about__ import __version__
+from ..prompt import is_interactive, choose_wheel
+from ..converter import Wheel2CondaConverter, CondaPackageFormat
+from ..pyproject import read_pyproject, PyProjInfo
+from ..stdrename import update_renames_file, user_stdrenames_path
+from .common import (
+    dedent,
+    MarkdownHelp,
+    existing_path,
+    existing_dir,
+)
 
 __all__ = ["build_main"]
-
-
-class MarkdownHelpFormatter(argparse.RawTextHelpFormatter):
-    """
-    Format help in markdown format for use in docs
-    """
-
-    def __init__(self, prog: str):
-        super().__init__(prog, max_help_position=12, width=80)
-
-    def add_usage(self, usage, actions, groups, prefix=None):
-        self.add_text(f"## {usage.split()[0]}")
-        self.start_section("Usage")
-        super().add_usage(usage, actions, groups, prefix)
-        self.end_section()
-
-    def start_section(self, heading):
-        self._indent()
-        section = self._Section(self, self._current_section, argparse.SUPPRESS)
-
-        def add_heading() -> str:
-            return f"### {heading}\n```text" if section.items else ''
-
-        self._add_item(add_heading, [])
-        self._add_item(section.format_help, [])
-        self._current_section = section
-
-    def end_section(self) -> None:
-        show = bool(self._current_section.items)
-        super().end_section()
-        if show:
-            self.add_text("```")
-
-
-def dedent(text: str) -> str:
-    """Deindent help string"""
-    return textwrap.dedent(text).strip()
-
-
-class MarkdownHelp(argparse.Action):
-    """Print out help in markdown format and exit"""
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.nargs = 0
-        self.default = argparse.SUPPRESS
-        self.dest = argparse.SUPPRESS
-
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        values: Any,
-        option_string: Optional[str] = None,
-    ):
-        parser.formatter_class = MarkdownHelpFormatter
-        parser.print_help()
-        sys.exit(0)
 
 
 # pylint: disable=too-many-instance-attributes
@@ -128,40 +75,6 @@ class Whl2CondaArgs:
     wheel_dir: Optional[Path]
     wheel_or_root: Optional[Path]
     yes: bool
-
-
-def _existing_path(val: str) -> Path:
-    """
-    Parses argument as existing file path.
-
-    For use as type of argparse argument.
-    Args:
-        val: input string
-
-    Returns:
-        Path after validating it exists.
-    """
-    path = Path(val)
-    if not path.exists():
-        raise argparse.ArgumentTypeError(f"path '{val}' does not exist")
-    return path
-
-
-def _existing_dir(val: str) -> Path:
-    """
-    Parses argument as existing directory path.
-
-    For use as type of argparse argument.
-    Args:
-        val: input string
-
-    Returns:
-        Directory Path after validating it is a directory.
-    """
-    path = _existing_path(val)
-    if not path.is_dir():
-        raise argparse.ArgumentTypeError(f"'{val}' is not a directory")
-    return path
 
 
 def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
@@ -200,7 +113,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         "wheel_or_root",
         nargs="?",
         metavar="[<wheel> | <project-root>]",
-        type=_existing_path,
+        type=existing_path,
         help=dedent(
             """
         Either path to a wheel file to convert or a project root
@@ -214,7 +127,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         "--root",
         dest="project_root",
         metavar="<dir>",
-        type=_existing_dir,
+        type=existing_dir,
         help=dedent(
             """
             Project root directory. This is a directory containing either a
@@ -233,7 +146,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         "-w",
         "--wheel-dir",
         metavar="<dir>",
-        type=_existing_dir,
+        type=existing_dir,
         help=dedent(
             """
             Location of wheel directory. Defaults to dist/ subdirectory of 
@@ -435,7 +348,6 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         action=MarkdownHelp,
         help=argparse.SUPPRESS,  # For internal use, do not show help
     )
-    info_opts.add_argument("--version", action="version", version=__version__)
 
     # TODO --override-pyproject - ignore [tool.whl2conda] pyproject settings (#8)
     # TODO  --conda-bld - install in conda-bld and reindex (#10)
@@ -713,91 +625,6 @@ def do_build_wheel(
         wheel = wheels[0]
 
     return wheel
-
-
-class SubcommandParser(argparse.ArgumentParser):
-    """Parser for subcommands"""
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.main = lambda args, prog=None: 0
-
-    def parse_known_args(self, args=None, namespace=None):
-        """Puts all arguments into args attribute, and copies main to main attribute."""
-        if namespace is None:
-            namespace = argparse.Namespace()
-        setattr(namespace, 'args', args)
-        setattr(namespace, 'main', self.main)
-        return namespace, []
-
-
-def add_subcommand(
-    subparsers: argparse._SubParsersAction,  # pylint: disable=protected-access
-    cmd: str,
-    main_func: Callable,
-    command_help: str,
-    *,
-    aliases: Sequence[str] = (),
-) -> argparse.ArgumentParser:
-    """Create an ArgumentParser for subcommands
-
-    Args:
-        subparsers: subparsers object returned by `add_subcommand_parser` function.
-        cmd: the subcommand
-        main_func: is procedure that will be invoked to process the subcommand
-            and its arguments. This should be a standard main() method that accepts a `prog`
-            keyword, which it should use to construct its ArgumentParser
-        command_help: help to display for subcommand,
-        aliases: optional aliases for `cmd`
-
-    Returns:
-        ArgumentParser: parser for subcommand
-    """
-    subparser = subparsers.add_parser(
-        cmd, help=command_help, add_help=False, aliases=aliases
-    )
-    subparser.main = main_func  # type: ignore
-    return subparser
-
-
-def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None) -> None:
-    """
-    Main command line interface for whl2conda
-    """
-    parser = argparse.ArgumentParser(
-        prog=prog,
-        usage="%(prog)s [options] <command> ...",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=dedent(
-            """
-            Utility for building and testing conda package generated
-            directly from a python wheel.
-            
-            See `%(prog)s build --help` for more information.
-            """
-        ),
-    )
-
-    subcmds = parser.add_subparsers(
-        title="Commands",
-        dest="subcmd",
-        metavar="<command>",
-        required=True,
-        parser_class=SubcommandParser,
-    )
-    add_subcommand(
-        subcmds, "build", build_main, "builds a conda package from a python wheel"
-    )
-
-    parser.add_argument(
-        "--markdown-help",
-        action=MarkdownHelp,
-        help=argparse.SUPPRESS,  # For internal use, do not show help
-    )
-    parser.add_argument("--version", action="version", version=__version__)
-
-    parsed = parser.parse_args(args)
-    parsed.main(parsed.args, prog=f'{parser.prog} {parsed.subcmd}')
 
 
 if __name__ == "__main__":  # pragma: no cover

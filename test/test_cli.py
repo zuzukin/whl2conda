@@ -34,7 +34,7 @@ import pytest
 # this project
 from whl2conda.__about__ import __version__
 from whl2conda.converter import CondaPackageFormat, Wheel2CondaConverter
-from whl2conda.cli import build_main, do_build_wheel, update_std_renames
+from whl2conda.cli.build import build_main, do_build_wheel, update_std_renames
 from whl2conda.prompt import is_interactive
 from whl2conda.stdrename import user_stdrenames_path
 

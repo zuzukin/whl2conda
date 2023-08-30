@@ -84,7 +84,7 @@ max-statements = 50
 min-public-methods = 1
 
 [tool.pylint.variables]
-allowed-redefined-builtins = ["license"]
+allowed-redefined-builtins = ["help", "license"]
 
 [tool.pylint."messages control"]
 disable = [
