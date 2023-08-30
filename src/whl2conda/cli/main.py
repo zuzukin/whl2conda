@@ -21,7 +21,7 @@ import argparse
 from typing import Optional, Sequence
 
 from ..__about__ import __version__
-from .common import dedent, Subcommands, MarkdownHelp
+from .common import dedent, Subcommands, add_markdown_help
 
 __all__ = ["main"]
 
@@ -55,12 +55,13 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None) -> No
         "whl2conda.cli.config.config_main",
         "configure whl2conda",
     )
-
-    parser.add_argument(
-        "--markdown-help",
-        action=MarkdownHelp,
-        help=argparse.SUPPRESS,  # For internal use, do not show help
+    subcmds.add_subcommand(
+        "install",
+        "whl2conda.cli.install.install_main",
+        "install conda package file with dependencies",
     )
+
+    add_markdown_help(parser)
     parser.add_argument("--version", action="version", version=__version__)
 
     parsed = parser.parse_args(args)

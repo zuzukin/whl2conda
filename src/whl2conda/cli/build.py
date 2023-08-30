@@ -30,8 +30,8 @@ from ..prompt import is_interactive, choose_wheel
 from ..converter import Wheel2CondaConverter, CondaPackageFormat
 from ..pyproject import read_pyproject, PyProjInfo
 from .common import (
+    add_markdown_help,
     dedent,
-    MarkdownHelp,
     existing_path,
     existing_dir,
 )
@@ -90,7 +90,6 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
             Generates a conda package from a pure python wheel
             """
         ),
-        # formatter_class=MarkdownHelpFormatter,
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )
@@ -321,11 +320,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         action="help",
         help="Show usage and exit.",
     )
-    info_opts.add_argument(
-        "--markdown-help",
-        action=MarkdownHelp,
-        help=argparse.SUPPRESS,  # For internal use, do not show help
-    )
+    add_markdown_help(info_opts)
 
     # TODO --override-pyproject - ignore [tool.whl2conda] pyproject settings (#8)
     # TODO  --conda-bld - install in conda-bld and reindex (#10)
@@ -382,6 +377,8 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
             wheel_file = wheel_or_root
             if wheel_file.suffix != ".whl":
                 parser.error(f"Input file '{wheel_file} does not have .whl suffix")
+            if not wheel_dir:
+                wheel_dir = wheel_file.parent
             # Look for project root in wheel's parent directories
             if any((pr := p) for p in wheel_file.parents if _is_project_root(p)):
                 project_root = pr

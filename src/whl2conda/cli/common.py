@@ -25,8 +25,7 @@ from pathlib import Path
 from typing import Any, Optional, Sequence
 
 __all__ = [
-    "MarkdownHelpFormatter",
-    "MarkdownHelp",
+    "add_markdown_help",
     "Subcommands",
     "dedent",
     "existing_path",
@@ -90,6 +89,15 @@ class MarkdownHelp(argparse.Action):
         parser.formatter_class = MarkdownHelpFormatter
         parser.print_help()
         sys.exit(0)
+
+
+def add_markdown_help(parser: argparse._ActionsContainer) -> None:
+    """Adds --markdown-help option"""
+    parser.add_argument(
+        "--markdown-help",
+        action=MarkdownHelp,
+        help=argparse.SUPPRESS,  # For internal use, do not show help
+    )
 
 
 def existing_path(val: str) -> Path:

@@ -26,7 +26,7 @@ from typing import Optional, Sequence
 from urllib.error import URLError
 
 from whl2conda.stdrename import update_renames_file
-from .common import dedent, MarkdownHelp
+from .common import add_markdown_help, dedent
 from ..stdrename import user_stdrenames_path
 
 __all__ = ["config_main"]
@@ -68,11 +68,7 @@ def config_main(
         action="store_true",
         help="Do not write any files.",
     )
-    parser.add_argument(
-        "--markdown-help",
-        action=MarkdownHelp,
-        help=argparse.SUPPRESS,  # For internal use, do not show help
-    )
+    add_markdown_help(parser)
 
     parsed = parser.parse_args(args)
 

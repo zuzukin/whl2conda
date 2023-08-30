@@ -12,6 +12,8 @@ site/
 build/
 *.egg-info
 *.whl
+*.conda
+*.tar.bz2
 
 # test files
 .coverage*

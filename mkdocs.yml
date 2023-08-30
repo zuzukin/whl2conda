@@ -14,6 +14,8 @@ nav:
       - Command line:
         - wl2conda: cli/whl2conda.md
         - whl2conda build: cli/whl2conda-build.md
+        - whl2conda config: cli/whl2conda-config.md
+        - whl2conda install: cli/whl2conda-install.md
 
 # TODO:
 #   - Links:
