@@ -31,6 +31,7 @@ from .common import dedent, existing_path, add_markdown_help
 
 __all__ = ["install_main"]
 
+
 # pylint: disable=too-many-locals
 def install_main(
     args: Optional[Sequence[str]] = None,
@@ -71,6 +72,7 @@ def install_main(
     env_opts.add_argument(
         "-n", "--name", metavar="<env-name>", help="Name of target conda enviroment"
     )
+    # TODO: install in conda-bld and reindex (#10)
     # env_opts.add_argument(
     #     "--conda-bld",
     #     action="store_true",

@@ -60,11 +60,6 @@ class Whl2CondaArgs:
     project_root: Optional[Path]
     python: str
     quiet: int
-    test_env: Optional[str]
-    test_channels: Sequence[str]
-    test_install: bool
-    test_prefix: Optional[Path]
-    test_python: Optional[str]
     verbose: int
     wheel_dir: Optional[Path]
     wheel_or_root: Optional[Path]
@@ -98,7 +93,6 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     input_opts = parser.add_argument_group("Input options")
     output_opts = parser.add_argument_group("Output options")
     override_opts = parser.add_argument_group("Override options")
-    test_opts = parser.add_argument_group("Test options")
     info_opts = parser.add_argument_group("Help and debug options")
 
     input_opts.add_argument(
@@ -247,38 +241,6 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         help="Set/override python dependency.",
     )
 
-    test_opts.add_argument(
-        "--test-install",
-        action="store_true",
-        help="Test installation into a temporary environment",
-    )
-    test_opts.add_argument(
-        "--test-channel",
-        metavar="<channel>",
-        action="append",
-        dest="test_channels",
-        default=[],
-        help="Add an extra channel for use in test install.",
-    )
-    test_opts.add_argument(
-        "--test-python",
-        metavar="<version>",
-        default="",
-        help="Version of python to use for test install. (Default is current version).",
-    )
-    test_env_opts = test_opts.add_mutually_exclusive_group()
-    test_env_opts.add_argument(
-        "--test-env",
-        metavar="<name>",
-        help="Test environment name to create",
-    )
-    test_env_opts.add_argument(
-        "--test-prefix",
-        metavar="<prefix>",
-        type=Path,
-        help="Test environment prefix to create",
-    )
-
     info_opts.add_argument(
         "-n",
         "--dry-run",
@@ -323,9 +285,6 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     add_markdown_help(info_opts)
 
     # TODO --override-pyproject - ignore [tool.whl2conda] pyproject settings (#8)
-    # TODO  --conda-bld - install in conda-bld and reindex (#10)
-    #
-    # TODO  - Way to run tests in test env?
 
     return parser
 
@@ -454,17 +413,6 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
     else:
         out_fmt = CondaPackageFormat.V2
 
-    if parsed.test_install:
-        try:
-            subprocess.check_output(
-                ["conda", "run", "-n", "base", "conda-index", "-h"],
-                stderr=subprocess.STDOUT,
-            )
-        except Exception:  # pylint: disable=broad-exception-caught
-            parser.error(
-                "--test-install requires that conda-index be installed in the base channel"
-            )
-
     if not wheel_file:
         if build_wheel:
             assert project_root and wheel_dir
@@ -505,16 +453,7 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
     logging.getLogger().setLevel(level)
     logging.basicConfig(level=level, format="%(message)s")
 
-    conda_package = converter.convert()
-
-    if conda_package.is_file() and not dry_run and parsed.test_install:
-        converter.test_install(
-            conda_package,
-            channels=parsed.test_channels,
-            python_version=parsed.test_python,
-            env_name=parsed.test_env,
-            env_prefix=parsed.test_prefix,
-        )
+    _conda_package = converter.convert()
 
 
 def do_build_wheel(

@@ -60,6 +60,7 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None) -> No
         "whl2conda.cli.install.install_main",
         "install conda package file with dependencies",
     )
+    # TODO subcommand for clean/fixup of conda-bld or pkgs cache
 
     add_markdown_help(parser)
     parser.add_argument("--version", action="version", version=__version__)
