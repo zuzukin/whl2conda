@@ -51,13 +51,19 @@ help:
 # Environment management
 #
 
+DEV_INSTALL := $(CONDA_RUN) pip install -e . --no-deps --no-build-isolation
+
 createdev:
 	conda env create -f environment.yml -n $(DEV_ENV) --yes
-	$(CONDA_RUN) pip install -e . --no-deps --no-build-isolation
+	$(DEV_INSTALL)
+
 
 updatedev:
 	conda env update -f environment.yml -n $(DEV_ENV)
-	$(CONDA_RUN) pip install -e . --no-deps --no-build-isolation
+	$(DEV_INSTALL)
+
+dev-install:
+	$(DEV_INSTALL)
 
 #
 # Test and lint targets
