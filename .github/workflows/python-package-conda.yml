@@ -24,9 +24,18 @@ jobs:
     - name: Dev install whl2conda
       run: |
         conda run -n whl2conda-dev pip install -e . --no-deps --no-build-isolation
-    - name: Lint with pylint, mypy and black
+    - name: pylint
       run: |
-        make lint
+        make pylint
+    - name: mypy
+      if: success() || failure()
+      run: |
+        make: mypy
+    - name: check black formatting
+      if: success() || failure()
+      run: |
+        make black
     - name: Test with pytest
+      if: success() || failure()
       run: |
         make coverage
