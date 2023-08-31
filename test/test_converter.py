@@ -32,6 +32,7 @@ from whl2conda.converter import (
     Wheel2CondaError,
     CondaPackageFormat,
 )
+from whl2conda.cli.install import install_main
 from .validator import PackageValidator
 
 this_dir = Path(__file__).parent.absolute()
@@ -59,7 +60,7 @@ class ConverterTestCase:
 
     @property
     def converter(self) -> Wheel2CondaConverter:
-        """Converter instance. Only valid after run() is called"""
+        """Converter instance. Only valid after build() is called"""
         assert self._converter is not None
         return self._converter
 
@@ -90,13 +91,18 @@ class ConverterTestCase:
         self._validator_dir.mkdir()
         self._validator = PackageValidator(self._validator_dir)
 
-    def run(self, out_format: CondaPackageFormat = CondaPackageFormat.V2) -> Path:
-        """Run the test case"""
+    def build(self, out_format: CondaPackageFormat = CondaPackageFormat.V2) -> Path:
+        """Run the build test case"""
         self._clean()
         wheel_path = self._get_wheel()
         package_path = self._convert(wheel_path, out_format=out_format)
         self._validate(wheel_path, package_path)
         return package_path
+
+    def install(self, pkg_file: Path) -> Path:
+        test_env = self.tmp_dir.joinpath("test-env")
+        install_main([str(pkg_file), "-p", str(test_env), "--yes", "--create"])
+        return test_env
 
     def _clean(self) -> None:
         shutil.rmtree(self._source_dir, ignore_errors=True)
@@ -201,26 +207,26 @@ def test_this(test_case: ConverterTestCaseFactory) -> None:
     case = test_case(wheel_path)
 
     for fmt in CondaPackageFormat:
-        case.run(fmt)
+        case.build(fmt)
 
 
 # TODO support building wheel in test
 # def test_simple(test_case: ConverterTestCaseFactory):
-#     test_case(projects_dir.joinpath("simple")).run()
+#     test_case(projects_dir.joinpath("simple")).build()
 
 
 def test_pypi_tomlkit(test_case: ConverterTestCaseFactory):
     """
     Test tomlkit package from pypi
     """
-    test_case("pypi:tomlkit").run()
+    test_case("pypi:tomlkit").build()
 
 
 def test_pypi_sphinx(test_case: ConverterTestCaseFactory):
     """
     Test sphinx package from pypi
     """
-    test_case("pypi:sphinx").run()
+    test_case("pypi:sphinx").build()
 
 
 def test_pypi_zstandard(test_case: ConverterTestCaseFactory):
@@ -228,7 +234,7 @@ def test_pypi_zstandard(test_case: ConverterTestCaseFactory):
     Test zstandard package - not pure python
     """
     with pytest.raises(Wheel2CondaError, match="not pure python"):
-        test_case("pypi:zstandard").run()
+        test_case("pypi:zstandard").build()
 
 
 def test_pypi_colorama(test_case: ConverterTestCaseFactory):
@@ -237,9 +243,7 @@ def test_pypi_colorama(test_case: ConverterTestCaseFactory):
     """
     test_case(
         "pypi:colorama",
-    ).run()
-    # TODO run `whl2conda install` and run test suite, e.g.:
-    #   pytest --pyargs colorama.tests
+    ).build()
 
 
 def test_pypi_orix(test_case: ConverterTestCaseFactory) -> None:
@@ -247,7 +251,23 @@ def test_pypi_orix(test_case: ConverterTestCaseFactory) -> None:
     Test orix package
     """
     case = test_case("pypi:orix")
-    orix_pkg = case.run()
+    orix_pkg = case.build()
     assert orix_pkg.is_file()
 
-    # TODO - install in test env and run tests
+    test_env = case.install(orix_pkg)
+
+    subprocess.check_call(["conda", "install", "-p", str(test_env), "pytest", "--yes"])
+
+    subprocess.check_call(
+        [
+            "conda",
+            "run",
+            "-p",
+            str(test_env),
+            "pytest",
+            "--pyargs",
+            "orix.tests",
+            "-k",
+            "not test_restrict_to_fundamental_sector",
+        ]
+    )

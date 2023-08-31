@@ -311,7 +311,7 @@ def download_mappings(
         with urllib.request.urlopen(req, timeout=timeout) as response:
             headers = response.headers
             content = response.read()
-            mappings = json.loads(content, encoding="utf8")
+            mappings = json.loads(content)
     except HTTPError as err:
         if err.status == HTTPStatus.NOT_MODIFIED:  # type: ignore
             raise NotModified(
