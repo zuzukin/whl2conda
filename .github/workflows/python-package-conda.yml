@@ -10,11 +10,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - uses: goanpeca/setup-miniconda@v1
+    - uses: goanpeca/setup-miniconda@v2.2.0
       with:
-        activate-environment: whl2conda-dev
+        miniforge-variant: Mambaforge-pypy3
+        conda-build-version: ">=3.26"
         environment-file: environment.yml
+        activate-environment: whl2conda-dev
         python-version: 3.10
+        auto-update-conda: true
 #          condarc-file: etc/example-condarc.yml
         auto-activate-base: true
     - name: Lint with pylint, mypy and black
