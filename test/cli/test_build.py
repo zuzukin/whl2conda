@@ -35,7 +35,7 @@ from whl2conda.cli import main
 from whl2conda.cli.build import do_build_wheel
 from whl2conda.impl.prompt import is_interactive
 
-from ..test_prompt import monkeypatch_interactive
+from ..impl.test_prompt import monkeypatch_interactive
 
 this_dir = Path(__file__).parent.absolute()
 project_dir = this_dir.parent.joinpath("projects")
