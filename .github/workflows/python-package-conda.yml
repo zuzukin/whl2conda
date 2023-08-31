@@ -18,7 +18,7 @@ jobs:
         activate-environment: whl2conda-dev
         python-version: "3.10"
         auto-update-conda: true
-#          condarc-file: etc/example-condarc.yml
+        condarc-file: github-condarc.yml
         auto-activate-base: true
         use-mamba: true
     - name: Lint with pylint, mypy and black
