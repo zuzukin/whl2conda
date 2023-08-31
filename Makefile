@@ -81,12 +81,12 @@ mypy:
 lint: pylint mypy black-check
 
 pytest:
-	$(CONDA_RUN) pytest test
+	$(CONDA_RUN) pytest -s -ra test
 
 test: pytest
 
 coverage:
-	$(CONDA_RUN) pytest --cov=src --cov-report=html --cov-report=term test
+	$(CONDA_RUN) pytest -s -ra --cov=src --cov-report=html --cov-report=term test
 
 htmlcov/index.html:
 	$(MAKE) coverage
