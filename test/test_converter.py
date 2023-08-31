@@ -100,6 +100,7 @@ class ConverterTestCase:
         return package_path
 
     def install(self, pkg_file: Path) -> Path:
+        """Install conda package file into new conda environment in test-env/ subdir"""
         test_env = self.tmp_dir.joinpath("test-env")
         install_main([str(pkg_file), "-p", str(test_env), "--yes", "--create"])
         return test_env
