@@ -7,7 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 5
-
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
     steps:
     - uses: actions/checkout@v3
     - uses: goanpeca/setup-miniconda@v2.2.0
@@ -16,7 +17,7 @@ jobs:
         conda-build-version: ">=3.26"
         environment-file: environment.yml
         activate-environment: whl2conda-dev
-        python-version: "3.10"
+        python-version: ${{ matrix.python-version }}
         auto-update-conda: true
         condarc-file: github-condarc.yml
         auto-activate-base: true
