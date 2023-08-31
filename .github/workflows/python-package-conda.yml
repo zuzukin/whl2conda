@@ -21,6 +21,9 @@ jobs:
         condarc-file: github-condarc.yml
         auto-activate-base: true
         use-mamba: true
+    - name: Dev install whl2conda
+      run: |
+        conda run -n whl2conda-dev pip install -e . --no-deps --no-build-isolation
     - name: Lint with pylint, mypy and black
       run: |
         make lint
