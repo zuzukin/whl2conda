@@ -10,18 +10,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v3
+    - uses: goanpeca/setup-miniconda@v1
       with:
-        python-version: '3.10'
-    - name: Add conda to system path
-      run: |
-        # $CONDA is an environment variable pointing to the root of the miniconda directory
-        echo $CONDA/bin >> $GITHUB_PATH
-    - name: Create whl2conda-dev conda environment
-      run: |
-        conda env update --file environment.yml
-        conda activate whl2conda-dev
+        activate-environment: whl2conda-dev
+        environment-file: environment.yml
+        python-version: 3.10
+#          condarc-file: etc/example-condarc.yml
+        auto-activate-base: true
     - name: Lint with pylint, mypy and black
       run: |
         make lint
