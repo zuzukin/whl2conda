@@ -30,11 +30,11 @@ jobs:
     - name: mypy
       if: success() || failure()
       run: |
-        make: mypy
+        make mypy
     - name: check black formatting
       if: success() || failure()
       run: |
-        make black
+        make black-check
     - name: Test with pytest
       if: success() || failure()
       run: |
