@@ -16,6 +16,7 @@
 Unit tests for whl2conda.prompt module
 """
 
+import time
 from collections import deque
 from pathlib import Path
 from typing import Deque, Iterator, Tuple
@@ -96,6 +97,7 @@ def test_choose_wheel(
     assert choose_wheel(tmp_path) == wheel1
     assert choose_wheel(tmp_path, interactive=True, choose_first=True) == wheel1
 
+    time.sleep(0.1)  # wait to ensure mod time is later
     wheel2 = tmp_path.joinpath("wheel2.whl")
     wheel2.write_bytes(b'')
 
