@@ -247,6 +247,7 @@ def test_pypi_colorama(test_case: ConverterTestCaseFactory):
     ).build()
 
 
+@pytest.mark.slow
 def test_pypi_orix(test_case: ConverterTestCaseFactory) -> None:
     """
     Test orix package
