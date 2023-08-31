@@ -23,7 +23,7 @@ jobs:
         use-mamba: true
     - name: Dev install whl2conda
       run: |
-        pip install -e . --no-deps --no-build-isoloation
+        pip install -e . --no-deps --no-build-isolation
     - name: Lint with pylint, mypy and black
       run: |
         make lint
