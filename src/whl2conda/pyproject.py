@@ -26,7 +26,12 @@ from typing import List, Optional, Sequence, Tuple, Union
 
 import tomlkit
 
-__all__ = ["CondaPackageFormat", "read_pyproject", "PyProjInfo"]
+__all__ = [
+    "CondaPackageFormat",
+    "PyProjInfo",
+    "add_pyproject_defaults",
+    "read_pyproject",
+]
 
 
 class CondaPackageFormat(enum.Enum):
@@ -169,7 +174,7 @@ TOOL_DEFAULTS = {
 }
 
 
-def add_defaults(path: Union[Path, str]) -> None:
+def add_pyproject_defaults(path: Union[Path, str]) -> None:
     """
     Add default tool.whl2conda entries to pyproject
 
@@ -187,17 +192,17 @@ def add_defaults(path: Union[Path, str]) -> None:
         pyproj_file = Path(path)
         if pyproj_file.is_dir():
             pyproj_file = pyproj_file.joinpath("pyproject.toml")
-            if pyproj_file.suffix != ".toml":
-                raise ValueError(f"Cannot write to non .toml file {pyproj_file}")
-            if pyproj_file.is_file():
-                toml = tomlkit.loads(pyproj_file.read_text("utf8"))
+        if pyproj_file.suffix != ".toml":
+            raise ValueError(f"Cannot write to non .toml file {pyproj_file}")
+        if pyproj_file.is_file():
+            toml = tomlkit.loads(pyproj_file.read_text("utf8"))
 
     tool = toml.setdefault("tool", tomlkit.table())
     whl2conda = tool.setdefault("whl2conda", tomlkit.table())
     for k, v in TOOL_DEFAULTS.items():
-        if k not in whl2conda:
+        if k not in whl2conda:  # pragma: no branch
             comments = v.get("comment")  # type: ignore
-            if comments:
+            if comments:  # pragma: no branch
                 for comment in comments:
                     whl2conda.add(tomlkit.comment(comment))
             whl2conda.add(k, v.get("default"))  # type: ignore

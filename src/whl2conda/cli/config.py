@@ -27,7 +27,7 @@ from urllib.error import URLError
 
 from whl2conda.stdrename import update_renames_file
 from .common import add_markdown_help, dedent
-from ..pyproject import add_defaults
+from ..pyproject import add_pyproject_defaults
 from ..stdrename import user_stdrenames_path
 
 __all__ = ["config_main"]
@@ -96,7 +96,7 @@ def config_main(
         update_std_renames(parsed.update_std_renames, dry_run=parsed.dry_run)
 
     if parsed.generate_pyproject:
-        add_defaults(parsed.generate_pyproject)
+        add_pyproject_defaults(parsed.generate_pyproject)
 
 
 def update_std_renames(renames_file: Path, *, dry_run: bool) -> None:

@@ -20,13 +20,18 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import pytest
 import tomlkit
 from textwrap import dedent
 
-from whl2conda.pyproject import CondaPackageFormat, read_pyproject
+from whl2conda.pyproject import (
+    CondaPackageFormat,
+    read_pyproject,
+    add_pyproject_defaults,
+    PyProjInfo,
+)
 
 
 def test_conda_package_format():
@@ -162,3 +167,59 @@ def test_read_pyproject(tmp_path: Path) -> None:
     test_ignored(
         "extra-dependencies", ["one", 42], "Expected string but got.*42", is_value=True
     )
+
+
+def test_add_pyproject_defaults(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """Unit test for add_pyproject_defaults functions="""
+
+    add_pyproject_defaults('out')
+    out, err = capsys.readouterr()
+    assert not err
+
+    out_file = tmp_path.joinpath("out.toml")
+    out_file.write_text(out)
+
+    pyproj_out = read_pyproject(out_file)
+
+    def _assert_all_defaults(pyproj: PyProjInfo):
+        assert not pyproj.conda_name
+        assert not pyproj.out_dir
+        assert pyproj.wheel_dir == tmp_path.joinpath("dist")
+        assert pyproj.conda_format == CondaPackageFormat.V2
+        assert not pyproj.dependency_rename
+        assert not pyproj.extra_dependencies
+
+        section = pyproj.toml["tool"]["whl2conda"]  # type: ignore
+        assert isinstance(section, Mapping)
+        assert "conda-name" in section
+        assert "wheel-dir" in section
+        assert "out-dir" in section
+        assert "conda-format" in section
+        assert "dependency-rename" in section
+        assert "extra-dependencies" in section
+
+    _assert_all_defaults(pyproj_out)
+
+    add_pyproject_defaults(tmp_path)
+    pyproj_file = tmp_path.joinpath("pyproject.toml")
+    assert pyproj_file.is_file()
+
+    pyproj2 = read_pyproject(pyproj_file)
+    _assert_all_defaults(pyproj2)
+
+    assert pyproj2.toml is not None
+    pyproj2.toml["tool"]["whl2conda"]["conda-name"] = "foobar"  # type: ignore
+    del pyproj2.toml["tool"]["whl2conda"]["wheel-dir"]  # type: ignore
+    pyproj_file.write_text(tomlkit.dumps(pyproj2.toml))
+
+    pyproj3 = read_pyproject(pyproj_file)
+    assert pyproj3.conda_name == "foobar"
+    assert not pyproj3.wheel_dir
+
+    add_pyproject_defaults(str(pyproj_file))
+    pyproj4 = read_pyproject(pyproj_file)
+    assert pyproj4.conda_name == "foobar"
+    assert pyproj4.wheel_dir == tmp_path.joinpath("dist")
+
+    with pytest.raises(ValueError):
+        add_pyproject_defaults("foo.not-toml")
