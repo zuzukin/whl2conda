@@ -18,9 +18,10 @@ jobs:
       run: |
         # $CONDA is an environment variable pointing to the root of the miniconda directory
         echo $CONDA/bin >> $GITHUB_PATH
-    - name: Install dependencies
+    - name: Create whl2conda-dev conda environment
       run: |
-        conda env update --file environment.yml --name base
+        conda env update --file environment.yml
+        conda activate whl2conda-dev
     - name: Lint with pylint, mypy and black
       run: |
         make lint
