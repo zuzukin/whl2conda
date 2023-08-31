@@ -124,7 +124,11 @@ def load_std_renames(
             resources = importlib.resources.files('whl2conda')
             s = resources.joinpath("stdrename.json").read_text("utf8")
         else:
-            s = importlib.resources.read_text("whl2conda.api", "stdrename.json", "utf")
+            s = importlib.resources.read_text(
+                "whl2conda.api",
+                "stdrename.json",
+                encoding="utf",
+            )
         local_std_rename_file.parent.mkdir(parents=True, exist_ok=True)
         local_std_rename_file.write_text(s, "utf8")
 
