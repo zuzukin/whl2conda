@@ -492,7 +492,7 @@ def do_build_wheel(
         wheel = wheel_dir.joinpath("dry-run-1.0-py3-none-any.whl")
     else:
         start = time.time()
-        time.sleep(0.01) # wait to avoid time resolution issues
+        time.sleep(0.01)  # wait to avoid time resolution issues
 
         # TODO capture/hide output in quiet mode (#30)
         subprocess.check_call(cmd)
