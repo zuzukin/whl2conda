@@ -17,4 +17,5 @@ Static project info
 
 import importlib.resources as res
 
+# FIXME use res.files if python 3.9 or greater
 __version__ = res.read_text(__name__.rsplit('.', maxsplit=1)[0], "VERSION").strip()
