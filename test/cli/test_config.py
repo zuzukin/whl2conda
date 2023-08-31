@@ -25,7 +25,7 @@ import pytest
 
 from whl2conda.cli import main
 from whl2conda.cli.config import update_std_renames
-from whl2conda.stdrename import user_stdrenames_path
+from whl2conda.api.stdrename import user_stdrenames_path
 
 
 # pylint: disable=too-many-statements
@@ -49,7 +49,7 @@ def test_update_std_renames(
         assert dry_run is expected_dry_run
         return fake_update_result
 
-    monkeypatch.setattr("whl2conda.stdrename.update_renames_file", _fake_update)
+    monkeypatch.setattr("whl2conda.api.stdrename.update_renames_file", _fake_update)
     monkeypatch.setattr("whl2conda.cli.config.update_renames_file", _fake_update)
 
     file = tmp_path.joinpath("stdrename.json")

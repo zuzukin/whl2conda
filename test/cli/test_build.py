@@ -30,10 +30,10 @@ from typing import Any, Generator, List, Optional, Sequence, Tuple
 import pytest
 
 # this project
-from whl2conda.converter import CondaPackageFormat, Wheel2CondaConverter
+from whl2conda.api.converter import CondaPackageFormat, Wheel2CondaConverter
 from whl2conda.cli import main
 from whl2conda.cli.build import do_build_wheel
-from whl2conda.prompt import is_interactive
+from whl2conda.impl.prompt import is_interactive
 
 from ..test_prompt import monkeypatch_interactive
 

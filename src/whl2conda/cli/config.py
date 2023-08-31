@@ -25,10 +25,10 @@ from pathlib import Path
 from typing import Optional, Sequence
 from urllib.error import URLError
 
-from whl2conda.stdrename import update_renames_file
+from ..api.stdrename import update_renames_file
 from .common import add_markdown_help, dedent
-from ..pyproject import add_pyproject_defaults
-from ..stdrename import user_stdrenames_path
+from ..impl.pyproject import add_pyproject_defaults
+from ..api.stdrename import user_stdrenames_path
 
 __all__ = ["config_main"]
 

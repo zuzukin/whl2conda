@@ -36,9 +36,9 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from wheel.wheelfile import WheelFile
 from conda_package_handling.api import create as create_conda_pkg
 
-from .__about__ import __version__
-from .prompt import bool_input
-from .pyproject import CondaPackageFormat
+from ..__about__ import __version__
+from ..impl.prompt import bool_input
+from ..impl.pyproject import CondaPackageFormat
 from .stdrename import load_std_renames
 
 __all__ = ["CondaPackageFormat", "Wheel2CondaConverter", "Wheel2CondaError"]

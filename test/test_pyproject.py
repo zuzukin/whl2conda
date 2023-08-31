@@ -26,7 +26,7 @@ import pytest
 import tomlkit
 from textwrap import dedent
 
-from whl2conda.pyproject import (
+from whl2conda.impl.pyproject import (
     CondaPackageFormat,
     read_pyproject,
     add_pyproject_defaults,

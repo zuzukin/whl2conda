@@ -27,7 +27,7 @@ from typing import Generator, Optional, Sequence, Tuple, Union
 import pytest
 
 # this package
-from whl2conda.converter import (
+from whl2conda.api.converter import (
     Wheel2CondaConverter,
     Wheel2CondaError,
     CondaPackageFormat,

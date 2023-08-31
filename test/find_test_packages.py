@@ -21,7 +21,7 @@ from pathlib import Path
 import urllib.request
 from typing import Any, Dict
 
-from whl2conda.stdrename import load_std_renames
+from whl2conda.api.stdrename import load_std_renames
 
 REPODATA_URL = "https://conda.anaconda.org/conda-forge/noarch/repodata.json"
 

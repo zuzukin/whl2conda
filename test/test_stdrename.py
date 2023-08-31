@@ -31,7 +31,7 @@ from urllib.error import HTTPError, URLError
 import pytest
 from platformdirs import user_cache_path
 
-from whl2conda.stdrename import (
+from whl2conda.api.stdrename import (
     NAME_MAPPINGS_DOWNLOAD_URL,
     NotModified,
     download_mappings,
@@ -115,7 +115,7 @@ def test_load_std_renames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
         fake_update_path.append(fpath)
         return True
 
-    monkeypatch.setattr("whl2conda.stdrename.update_renames_file", fake_update)
+    monkeypatch.setattr("whl2conda.api.stdrename.update_renames_file", fake_update)
 
     renames = load_std_renames()
     assert isinstance(renames, dict)
@@ -189,7 +189,7 @@ def test_update_renames_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
             url=url, headers=email.message.EmailMessage(), mappings=()
         )
 
-    monkeypatch.setattr("whl2conda.stdrename.download_mappings", fake_download)
+    monkeypatch.setattr("whl2conda.api.stdrename.download_mappings", fake_download)
 
     renames["$max-age"] = 99999999
     renames_file.write_text(json.dumps(renames, indent=2), "utf8")

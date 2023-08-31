@@ -26,9 +26,9 @@ from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
 # this project
-from ..prompt import is_interactive, choose_wheel
-from ..converter import Wheel2CondaConverter, CondaPackageFormat
-from ..pyproject import read_pyproject, PyProjInfo
+from ..impl.prompt import is_interactive, choose_wheel
+from ..api.converter import Wheel2CondaConverter, CondaPackageFormat
+from ..impl.pyproject import read_pyproject, PyProjInfo
 from .common import (
     add_markdown_help,
     dedent,

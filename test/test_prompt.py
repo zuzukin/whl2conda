@@ -23,7 +23,7 @@ from typing import Deque, Iterator, Tuple
 
 import pytest
 
-from whl2conda.prompt import is_interactive, bool_input, choose_wheel
+from whl2conda.impl.prompt import is_interactive, bool_input, choose_wheel
 
 __all__ = ["monkeypatch_interactive"]
 

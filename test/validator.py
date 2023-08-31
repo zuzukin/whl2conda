@@ -29,7 +29,7 @@ import conda_package_handling.api as cphapi
 import pytest
 from wheel.wheelfile import WheelFile
 
-from whl2conda.converter import RequiresDistEntry
+from whl2conda.api.converter import RequiresDistEntry
 
 
 class PackageValidator:
