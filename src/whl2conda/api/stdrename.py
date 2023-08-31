@@ -124,7 +124,7 @@ def load_std_renames(
             resources = importlib.resources.files('whl2conda')
             s = resources.joinpath("stdrename.json").read_text("utf8")
         else:
-            s = importlib.resources.read_text("whl2conda", "stdrename.json", "utf")
+            s = importlib.resources.read_text("whl2conda.api", "stdrename.json", "utf")
         local_std_rename_file.parent.mkdir(parents=True, exist_ok=True)
         local_std_rename_file.write_text(s, "utf8")
 
@@ -177,8 +177,8 @@ class DownloadedMappings(NamedTuple):
         """Max age from Cache-Control header
 
         Max age in seconds from cache control header, or
-        else difference between [expires][whl2conda.stdrename.expires]
-        and [date][whl2conda.stdrename.date] or else -1.
+        else difference between [expires][whl2conda.api.stdrename.expires]
+        and [date][whl2conda.api.stdrename.date] or else -1.
         """
         if cc := self.headers.get("Cache-Control", ""):
             if m := re.search(r"max-age=(\d+)", cc):
