@@ -37,7 +37,7 @@ from .validator import PackageValidator
 
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent.parent
-projects_dir = this_dir.joinpath("projects")
+projects_dir = root_dir.joinpath("test-projects")
 
 
 class ConverterTestCase:

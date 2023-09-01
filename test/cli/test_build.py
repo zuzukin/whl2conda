@@ -38,7 +38,8 @@ from whl2conda.impl.prompt import is_interactive
 from ..impl.test_prompt import monkeypatch_interactive
 
 this_dir = Path(__file__).parent.absolute()
-project_dir = this_dir.parent.joinpath("projects")
+root_dir = this_dir.parent.parent
+project_dir = root_dir.joinpath("test-projects")
 
 __all__ = ["CliTestCase", "CliTestCaseFactory", "test_case"]
 
