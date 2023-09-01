@@ -132,7 +132,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         "-w",
         "--wheel-dir",
         metavar="<dir>",
-        type=existing_dir,
+        type=Path,
         help=dedent(
             """
             Location of wheel directory. Defaults to dist/ subdirectory of 
@@ -321,7 +321,7 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
     wheel_dir: Optional[Path] = parsed.wheel_dir
 
     build_wheel = parsed.build_wheel
-    build_no_deps = False  # pylint: disable=unused-variable
+    build_no_deps = True  # pylint: disable=unused-variable
 
     wheel_or_root = parsed.wheel_or_root
     saw_positional_root = False
@@ -417,7 +417,10 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
         if build_wheel:
             assert project_root and wheel_dir
             wheel_file = do_build_wheel(
-                project_root, wheel_dir, no_deps=build_no_deps, dry_run=dry_run
+                project_root,
+                wheel_dir,
+                no_deps=build_no_deps,
+                dry_run=dry_run,
             )
 
     assert wheel_file
@@ -460,7 +463,8 @@ def do_build_wheel(
     project_root: Path,
     wheel_dir: Path,
     *,
-    no_deps: bool = False,
+    no_deps: bool = True,
+    no_build_isolation: bool = False,
     dry_run: bool = False,
 ) -> Path:
     """Build wheel for project
@@ -468,7 +472,8 @@ def do_build_wheel(
     Arguments:
         project_root: directory containing pyproject.toml or setup.py
         wheel_dir: target output directory, created as needed
-        no_deps: build with --no-deps --no-build-isolation
+        no_deps: build with --no-deps
+        no_build_isolation: build with --no-build-isolation
         dry_run: just log, don't actually run anything
 
     Returns:
@@ -486,7 +491,9 @@ def do_build_wheel(
         str(wheel_dir),
     ]
     if no_deps:
-        cmd.extend(["--no-deps", "--no-build-isolation"])
+        cmd.append("--no-deps")
+    if no_build_isolation:
+        cmd.append("--no-build-isolation")
     logger.info("Running: %s", cmd)
     if dry_run:
         wheel = wheel_dir.joinpath("dry-run-1.0-py3-none-any.whl")

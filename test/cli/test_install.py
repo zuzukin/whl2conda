@@ -56,7 +56,7 @@ def test_errors(capsys: pytest.CaptureFixture, tmp_path: Path):
     _out, err = capsys.readouterr()
     assert "Cannot extract" in err
 
-
+# pylint: disable=unused-argument
 def test_bld_install_whitebox(
     capsys: pytest.CaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -91,5 +91,9 @@ def test_bld_install_whitebox(
     monkeypatch.setattr("subprocess.check_output", fake_check_output)
 
     # pkg_file = tmp_path.joinpath("conda-pkg.conda")
+    # pkg_file.write_text("")
+    #
     # main(["install", str(pkg_file), "--conda-bld", "--dry-run"])
-    capsys.readouterr()
+    # capsys.readouterr()
+
+

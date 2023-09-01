@@ -44,6 +44,7 @@ class InstallArgs:
     dry_run: bool
     use_mamba: bool
     name: str
+    only_deps: bool
     package_file: Path
     prefix: Optional[Path]
     yes: bool
@@ -127,6 +128,12 @@ def install_main(
         action="append",
         default=[],
         help="Add a channel to use for install",
+    )
+
+    env_options.add_argument(
+        "--only-deps",
+        action="store_true",
+        help="Only install package dependencies, not the package itself.",
     )
 
     env_options.add_argument(
@@ -228,8 +235,9 @@ def conda_env_install(parsed: InstallArgs, dependencies: List[str]):
 
     subprocess.check_call(install_deps_cmd)
 
-    install_pkg_cmd = [conda, "install"]
-    install_pkg_cmd.extend(common_opts)
-    install_pkg_cmd.append(str(parsed.package_file))
+    if not parsed.only_deps:
+        install_pkg_cmd = [conda, "install"]
+        install_pkg_cmd.extend(common_opts)
+        install_pkg_cmd.append(str(parsed.package_file))
 
-    subprocess.check_call(install_pkg_cmd)
+        subprocess.check_call(install_pkg_cmd)

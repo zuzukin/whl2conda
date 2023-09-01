@@ -437,7 +437,7 @@ def test_do_build_wheel(
 
     expected_project_root = project_root
     expected_wheel_dir = wheel_dir
-    expected_no_deps = False
+    expected_no_deps = True
     expected_no_build_isolation = False
 
     def fake_call(cmd: Sequence[str], **_kwargs) -> None:
@@ -479,5 +479,12 @@ def test_do_build_wheel(
     assert wheel_file.parent == wheel_dir
     assert wheel_file.is_file()
 
-    expected_no_build_isolation = expected_no_deps = True
+    expected_no_build_isolation = False
+    expected_no_deps = True
     wheel_file = do_build_wheel(project_root, wheel_dir, no_deps=True)
+
+    expected_no_build_isolation = True
+    expected_no_deps = False
+    wheel_file = do_build_wheel(
+        project_root, wheel_dir, no_deps=False, no_build_isolation=True
+    )
