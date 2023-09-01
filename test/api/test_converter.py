@@ -216,6 +216,7 @@ def test_this(test_case: ConverterTestCaseFactory) -> None:
 #     test_case(projects_dir.joinpath("simple")).build()
 
 
+@pytest.mark.external
 def test_pypi_tomlkit(test_case: ConverterTestCaseFactory):
     """
     Test tomlkit package from pypi
@@ -223,6 +224,7 @@ def test_pypi_tomlkit(test_case: ConverterTestCaseFactory):
     test_case("pypi:tomlkit").build()
 
 
+@pytest.mark.external
 def test_pypi_sphinx(test_case: ConverterTestCaseFactory):
     """
     Test sphinx package from pypi
@@ -230,6 +232,7 @@ def test_pypi_sphinx(test_case: ConverterTestCaseFactory):
     test_case("pypi:sphinx").build()
 
 
+@pytest.mark.external
 def test_pypi_zstandard(test_case: ConverterTestCaseFactory):
     """
     Test zstandard package - not pure python
@@ -238,6 +241,7 @@ def test_pypi_zstandard(test_case: ConverterTestCaseFactory):
         test_case("pypi:zstandard").build()
 
 
+@pytest.mark.external
 def test_pypi_colorama(test_case: ConverterTestCaseFactory):
     """
     Test colorama package
@@ -247,7 +251,7 @@ def test_pypi_colorama(test_case: ConverterTestCaseFactory):
     ).build()
 
 
-@pytest.mark.slow
+@pytest.mark.external
 def test_pypi_orix(test_case: ConverterTestCaseFactory) -> None:
     """
     Test orix package

@@ -15,7 +15,7 @@
 """
 Custom configuration for pytest
 
-Don't run tests marked with @pytest.mark.slow unless --run-slow
+Don't run tests marked with @pytest.mark.external unless --run-external
 is given.
 """
 
@@ -29,25 +29,27 @@ def pytest_addoption(parser):
     Add option to pytest CLI
     """
     parser.addoption(
-        "--runslow", action="store_true", default=False, help="run slow tests"
+        "--run-external", action="store_true", default=False, help="run external tests"
     )
 
 
 def pytest_configure(config):
     """
-    Add slow marker to pytest configuration
+    Add external marker to pytest configuration
     """
-    config.addinivalue_line("markers", "slow: mark test as slow to run")
+    config.addinivalue_line(
+        "markers", "external: mark test as depending on extenral pypi package to run"
+    )
 
 
 def pytest_collection_modifyitems(config, items):
     """
-    Skip slow tests unless --runsloc
+    Skip slow tests unless --run-external
     """
-    if config.getoption("--runslow"):
-        # --runslow given in cli: do not skip slow tests
+    if config.getoption("--run-external"):
+        # --run-external given in cli: do not skip slow tests
         return
-    skip_slow = pytest.mark.skip(reason="need --runslow option to run")
+    skip_slow = pytest.mark.skip(reason="need --run-external option to run")
     for item in items:
-        if "slow" in item.keywords:
+        if "external" in item.keywords:
             item.add_marker(skip_slow)
