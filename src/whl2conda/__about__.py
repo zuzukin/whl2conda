@@ -18,7 +18,7 @@ Static project info
 import importlib.resources as res
 import sys
 
-# FIXME use res.files if python 3.9 or greater
+# pylint: disable=no-member
 if sys.version_info >= (3, 9):  # pragma: no cover
     __version__ = res.files('whl2conda').joinpath("VERSION").read_text().strip()
 else:
