@@ -17,7 +17,7 @@ Unit tests for `whl2conda install` subcommand
 """
 import re
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, List, Sequence
 
 import pytest
 
@@ -194,3 +194,76 @@ def test_env_install(
     packages_by_name = {p["name"]: p for p in packages}
     assert "quaternion" in packages_by_name
     assert "simple" not in packages_by_name
+
+
+def test_env_install_whitebox(
+    simple_conda_package: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """
+    monkeypatch whitebox test for whl2conda install
+    """
+    prefix = tmp_path.joinpath("prefix")
+
+    call_args: List[List[str]] = []
+
+    def fake_call(cmd: Sequence[str]) -> Any:
+        call_args.append(list(cmd))
+
+    monkeypatch.setattr("subprocess.check_call", fake_call)
+    monkeypatch.setattr("subprocess.check_output", fake_call)
+
+    cmd_start = ["install", str(simple_conda_package)]
+
+    main(cmd_start + ["--prefix", str(prefix), "--yes"])
+
+    assert len(call_args) == 2
+    call1 = call_args[0]
+    assert call1[0] == "conda"
+    assert call1[1] == "install"
+    assert call1[call1.index("--prefix") + 1] == str(prefix)
+    assert "--yes" in call1
+    assert "--dry-run" not in call1
+    assert any(arg.startswith("quaternion") for arg in call1)
+
+    call2 = call_args[1]
+    assert call2[0] == "conda"
+    assert call2[1] == "install"
+    assert str(simple_conda_package) in call2
+    assert call2[call2.index("--prefix") + 1] == str(prefix)
+
+    call_args.clear()
+
+    main(cmd_start + ["--name", "test-env", "--create", "--mamba"])
+    assert len(call_args) == 2
+    call1 = call_args[0]
+    call2 = call_args[1]
+    assert call1[:2] == ["mamba", "create"]
+    assert call2[:2] == ["mamba", "install"]
+    assert call1[call1.index("--name") + 1] == "test-env"
+    assert call2[call2.index("--name") + 1] == "test-env"
+
+    call_args.clear()
+    main(cmd_start + ["-n", "foo", "--only-deps", "--extra", "-c", "channel"])
+    assert len(call_args) == 1
+    call1 = call_args[0]
+    assert call1[:2] == ["conda", "install"]
+    assert call1[call1.index("--name") + 1] == "foo"
+    assert call1[call1.index("-c") + 1] == "channel"
+
+    out, err = capsys.readouterr()
+    assert not out
+    assert not err
+
+    call_args.clear()
+    main(cmd_start + ["-p", str(prefix), "--dry-run"])
+    assert len(call_args) == 1
+    call1 = call_args[0]
+    assert call1[:2] == ["conda", 'install']
+    assert any(arg.startswith("quaternion") for arg in call1)
+    assert "--dry-run" in call1
+
+    out, err = capsys.readouterr()
+    assert "Running" in out
