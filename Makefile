@@ -45,7 +45,9 @@ help:
 	"doc         - build documentation\n" \
 	"open-doc    - open documentation index.html\n" \
 	"serve-doc   - serve documentation in temporary web server\n" \
-	"clean-doc   - remove generated documentation files"
+	"clean-doc   - remove generated documentation files" \
+	"--- distribute ---\n" \
+	"build       - build wheel and conda package in dist/"
 
 #
 # Environment management
@@ -118,6 +120,15 @@ serve-doc: $(CLI_DOCS)
 
 open-doc: doc/whl2conda-cli.md
 	$(OPEN) site/index.html
+
+#
+# Distribution targets
+#
+
+# TODO - add targets from version
+build:
+	# Use tool to build itself!
+	$(CONDA_RUN) whl2conda build --build-wheel
 
 #
 # Cleanup targets
