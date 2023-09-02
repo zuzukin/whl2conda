@@ -92,7 +92,7 @@ def test_read_pyproject(tmp_path: Path) -> None:
             wheel-dir = "mydist"
             out-dir = "conda-dist"
             dependency-rename = [
-                ["acme-(.*)", "acme.\\1"]
+                ["acme-(.*)", "acme.$1"]
             ]
             extra-dependencies = [ "conda-only" ]
             conda-format = ".tar.bz2"
@@ -111,11 +111,9 @@ def test_read_pyproject(tmp_path: Path) -> None:
     assert pyproj3.conda_name == "pywidget"
     assert pyproj3.wheel_dir == tmp_path.joinpath("mydist")
     assert pyproj3.out_dir == tmp_path.joinpath("conda-dist")
-    assert pyproj3.dependency_rename == (("acme-(.*)", r"acme.\1"),)
+    assert pyproj3.dependency_rename == (("acme-(.*)", r"acme.$1"),)
     assert pyproj3.extra_dependencies == ("conda-only",)
     assert pyproj3.conda_format is CondaPackageFormat.V1
-
-    assert re.sub(*pyproj3.dependency_rename[0], "acme-frob") == "acme.frob"
 
     #
     # Test bad value warnings

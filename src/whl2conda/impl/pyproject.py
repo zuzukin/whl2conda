@@ -164,7 +164,7 @@ TOOL_DEFAULTS = {
             'or is a Python regular expression that will match the full name,'
             'and where <conda-name> can contain subsitution expression,',
             'For example, to rename all `acme-<foo>` packages to `acme.<foo>`:',
-            '   ["acme-(.*)", "acme.\\1]',
+            '   ["acme-(.*)", "acme.$1"]',
         ],
     },
     "extra-dependencies": {

@@ -382,8 +382,19 @@ class Wheel2CondaConverter:
             )
         )
 
+    # pylint: disable=too-many-locals
     def _compute_conda_dependencies(self, dependencies: Sequence[str]) -> List[str]:
         conda_dependencies: List[str] = []
+
+        # compile renames
+        rename_patterns: List[Tuple[re.Pattern, str]] = []
+        for oldmatch, replacement in self.dependency_rename:
+            pat = re.compile(oldmatch)
+            # support $1, ${name} style replacement patterns
+            replacement = re.sub(r"\$(\d+)", r"\\\1", replacement)
+            replacement = re.sub(r"\$\{(\w+)}", r"\\g<\1>", replacement)
+            rename_patterns.append((pat, replacement))
+
         for dep in dependencies:
             try:
                 entry = RequiresDistEntry.parse(dep)
@@ -404,8 +415,8 @@ class Wheel2CondaConverter:
             #   download target pip package and its extra dependencies
             # check manual renames first
             renamed = False
-            for oldmatch, replacement in self.dependency_rename:
-                if m := re.fullmatch(oldmatch, pip_name):
+            for pat, replacement in rename_patterns:
+                if m := pat.fullmatch(pip_name):
                     conda_name = m.expand(replacement)
                     renamed = True
                     break

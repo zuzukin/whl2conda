@@ -19,6 +19,7 @@ from __future__ import annotations
 # standard lib
 import argparse
 import logging
+import re
 import subprocess
 import time
 from dataclasses import dataclass
@@ -381,6 +382,25 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
 
     can_build = project_root is not None
 
+    # assemble rename patterns and verify regular expression can be compiled
+    renames: List[Tuple[str, str]] = []
+    for pat, repl in pyproj_info.dependency_rename:
+        try:
+            re.compile(pat)
+        except re.error as re_err:
+            parser.error(
+                f"Bad regular expression '{pat}' in {pyproj_info.toml_file}:\n{re_err}"
+            )
+        renames.append((pat, repl))
+    for pat, repl in parsed.dep_renames:
+        try:
+            re.compile(pat)
+        except re.error as re_err:
+            parser.error(f"Bad regular expression '{pat}': {re_err}")
+        renames.append((pat, repl))
+    for dropname in parsed.dropped_deps:
+        renames.append((dropname, ""))
+
     if not wheel_file and wheel_dir and not build_wheel:
         # find wheel in directory
         try:
@@ -448,10 +468,7 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
     converter.extra_dependencies.extend(parsed.extra_deps)
     converter.interactive = interactive
 
-    converter.dependency_rename.extend(pyproj_info.dependency_rename)
-    for dropname in parsed.dropped_deps:
-        converter.dependency_rename.append((dropname, ""))
-    converter.dependency_rename.extend(parsed.dep_renames)
+    converter.dependency_rename.extend(renames)
 
     if verbosity < -1:
         level = logging.ERROR
