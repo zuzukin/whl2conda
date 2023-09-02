@@ -60,8 +60,8 @@ def config_main(
             If argument is a directory entries will be added to 
             `pyproject.toml` in that directory. If argument ends
             with suffix '.toml', that file will be updated. If
-            the argument is `out` the generated entry will be written
-            to stdout. Other values will result in an error.
+            the argument is omitted or set to `out` the generated entry 
+            will be written to stdout. Other values will result in an error.
             This will create file if it does not already exist.
             It will not overwrite existing entires.
             """
@@ -96,7 +96,10 @@ def config_main(
         update_std_renames(parsed.update_std_renames, dry_run=parsed.dry_run)
 
     if parsed.generate_pyproject:
-        add_pyproject_defaults(parsed.generate_pyproject)
+        try:
+            add_pyproject_defaults(parsed.generate_pyproject)
+        except Exception as ex:
+            parser.error(str(ex))
 
 
 def update_std_renames(renames_file: Path, *, dry_run: bool) -> None:

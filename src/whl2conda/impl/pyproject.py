@@ -189,7 +189,7 @@ def add_pyproject_defaults(path: Union[Path, str]) -> None:
     if path in {"out", "stdout"}:
         pyproj_file = None
     else:
-        pyproj_file = Path(path)
+        pyproj_file = Path(path).expanduser()
         if pyproj_file.is_dir():
             pyproj_file = pyproj_file.joinpath("pyproject.toml")
         if pyproj_file.suffix != ".toml":

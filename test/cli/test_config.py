@@ -132,3 +132,52 @@ def test_update_std_renames(
     out, err = capsys.readouterr()
     assert not err
     assert "Updating here.json" in out
+
+
+def test_generate_pyproject(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """Unit test for whl2conda config --generate-pyproject
+
+    More detailed tests of the output are in test_pyproject
+    """
+    main(["config"])  # does nothing
+
+    main(["config", "--generate-pyproject"])
+    out, err = capsys.readouterr()
+    assert '[tool.whl2conda]' in out
+    assert not err
+
+    main(["config", "--generate-pyproject", "out"])
+    out, err = capsys.readouterr()
+    assert '[tool.whl2conda]' in out
+    assert not err
+
+    main(["config", "--generate-pyproject", "stdout"])
+    out, err = capsys.readouterr()
+    assert '[tool.whl2conda]' in out
+    assert not err
+
+    main(["config", "--generate-pyproject", str(tmp_path)])
+    pyproj_file = tmp_path.joinpath("pyproject.toml")
+    assert pyproj_file.is_file()
+    contents = pyproj_file.read_text("utf8")
+    assert '[tool.whl2conda]' in contents
+    out, err = capsys.readouterr()
+    assert not out
+    assert not err
+
+    alt_toml = tmp_path.joinpath("alt.toml")
+    main(["config", "--generate-pyproject", str(alt_toml)])
+    assert alt_toml.is_file()
+    contents = alt_toml.read_text("utf8")
+    assert '[tool.whl2conda]' in contents
+    out, err = capsys.readouterr()
+    assert not out
+    assert not err
+
+    with pytest.raises(SystemExit):
+        main(["config", "--generate-pyproject", "foo.txt"])
+    out, err = capsys.readouterr()
+    assert "Cannot write to non .toml file" in err
