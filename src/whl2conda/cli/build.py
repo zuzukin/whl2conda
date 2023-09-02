@@ -34,6 +34,7 @@ from .common import (
     dedent,
     existing_path,
     existing_dir,
+    maybe_existing_dir,
 )
 
 __all__ = ["build_main"]
@@ -51,6 +52,7 @@ class Whl2CondaArgs:
     dropped_deps: Sequence[str]
     dry_run: bool
     extra_deps: List[str]
+    ignore_pyproject: bool
     interactive: bool
     keep_pip_deps: bool
     name: str
@@ -132,7 +134,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         "-w",
         "--wheel-dir",
         metavar="<dir>",
-        type=Path,
+        type=maybe_existing_dir,
         help=dedent(
             """
             Location of wheel directory. Defaults to dist/ subdirectory of 
@@ -141,12 +143,18 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         ),
     )
 
+    input_opts.add_argument(
+        "--ignore-pyproject",
+        action="store_true",
+        help="Ignore settings from pyproject.toml file, if any",
+    )
+
     output_opts.add_argument(
         "--out-dir",
         "--out",
         dest="out_dir",
         metavar="<dir>",
-        type=Path,
+        type=maybe_existing_dir,
         help=dedent(
             """
             Output directory for conda package. Defaults to wheel directory
@@ -284,8 +292,6 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     )
     add_markdown_help(info_opts)
 
-    # TODO --override-pyproject - ignore [tool.whl2conda] pyproject settings (#8)
-
     return parser
 
 
@@ -350,7 +356,7 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
         project_root = parsed.project_root
 
     pyproj_info = PyProjInfo()
-    if project_root:
+    if project_root and not parsed.ignore_pyproject:
         try:
             pyproj_info = read_pyproject(project_root)
         except FileNotFoundError:
@@ -368,6 +374,10 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
                 # Use dist directory of project
                 # TODO - check for build system specific alternate dist (#23)
                 wheel_dir = project_root.joinpath("dist")
+
+    # TODO - rearrange logic to make this more obvious?
+    assert wheel_dir is not None
+    wheel_dir = wheel_dir.expanduser().absolute()
 
     can_build = project_root is not None
 
@@ -398,6 +408,8 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
     out_dir: Optional[Path] = None
     if parsed.out_dir:
         out_dir = parsed.out_dir.expanduser().absolute()
+    elif pyproj_info.out_dir:
+        out_dir = pyproj_info.out_dir
     else:
         out_dir = wheel_dir
 

@@ -21,8 +21,10 @@ import argparse
 
 # standard
 import logging
+import os
 import re
 import shutil
+import time
 from pathlib import Path
 from typing import Any, Generator, List, Optional, Sequence, Tuple
 
@@ -37,9 +39,10 @@ from whl2conda.impl.prompt import is_interactive
 
 from ..impl.test_prompt import monkeypatch_interactive
 
+from ..test_packages import simple_wheel  # pylint: disable=unused-import
+
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent.parent
-project_dir = root_dir.joinpath("test-projects")
 
 __all__ = ["CliTestCase", "CliTestCaseFactory", "test_case"]
 
@@ -50,6 +53,7 @@ __all__ = ["CliTestCase", "CliTestCaseFactory", "test_case"]
 #
 
 
+# pylint: disable=too-many-instance-attributes
 class CliTestCase:
     """A CLI test case runner"""
 
@@ -68,21 +72,24 @@ class CliTestCase:
 
     args: List[str]
     interactive: bool
+    expected_dependency_renames: Tuple[Tuple[str, str], ...] = ()
     expected_dry_run: bool = False
-    expected_package_name: str = ""
-    expected_out_fmt: CondaPackageFormat = CondaPackageFormat.V2
-    expected_overwrite: bool = False
-    expected_keep_pip: bool = False
-    exoected_dependency_rename: Sequence[Tuple[str, str]] = ()
     expected_extra_dependencies: Sequence[str] = ()
     expected_interactive: bool = True
-    expected_project_root: str = ""
-    """Relative path from projects dir"""
+    expected_keep_pip: bool = False
+    expected_out_dir: str = ""
+    expected_out_fmt: CondaPackageFormat = CondaPackageFormat.V2
+    expected_overwrite: bool = False
+    expected_package_name: str = ""
     expected_parser_error: str = ""
+    """Relative path from projects dir"""
+    expected_project_root: str = ""
+    expected_wheel_path: str = ""
 
     expected_prompts: List[str]
     responses: List[str]
     from_dir: Path
+    was_run: bool = False
 
     #
     # Other test state
@@ -100,17 +107,20 @@ class CliTestCase:
         capsys: pytest.CaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
+        project_dir: Path,
         # optional
         interactive: Optional[bool] = None,
         expected_dry_run: bool = False,
-        expected_package_name: str = "",
-        expected_parser_error: str = "",
-        expected_out_fmt: CondaPackageFormat = CondaPackageFormat.V2,
-        expected_overwrite: bool = False,
-        expected_keep_pip: bool = False,
         expected_extra_dependencies: Sequence[str] = (),
         expected_interactive: bool = True,
+        expected_keep_pip: bool = False,
+        expected_out_dir: str = "",
+        expected_out_fmt: CondaPackageFormat = CondaPackageFormat.V2,
+        expected_overwrite: bool = False,
+        expected_package_name: str = "",
+        expected_parser_error: str = "",
         expected_project_root: str = "",
+        expected_wheel_path: str = "",
         from_dir: str = "",
     ):
         self.caplog = caplog
@@ -121,26 +131,28 @@ class CliTestCase:
         self.args = list(args)
         self.interactive = is_interactive() if interactive is None else interactive
         self.expected_dry_run = expected_dry_run
-        self.expected_parser_error = expected_parser_error
-        self.expected_package_name = expected_package_name
-        self.expected_out_fmt = expected_out_fmt
-        self.expected_overwrite = expected_overwrite
-        self.expected_keep_pip = expected_keep_pip
         self.expected_extra_dependencies = list(expected_extra_dependencies)
         self.expected_interactive = expected_interactive
+        self.expected_keep_pip = expected_keep_pip
+        self.expected_out_dir = expected_out_dir
+        self.expected_out_fmt = expected_out_fmt
+        self.expected_overwrite = expected_overwrite
+        self.expected_package_name = expected_package_name
+        self.expected_parser_error = expected_parser_error
         self.expected_project_root = expected_project_root
         self.expected_prompts = []
+        self.expected_wheel_path = expected_wheel_path
         self.responses = []
 
-        self.project_dir = tmp_path.joinpath("projects")
+        self.project_dir = project_dir
         self.from_dir = (
             self.project_dir.joinpath(from_dir) if from_dir else self.project_dir
         )
-        shutil.copytree(project_dir, self.project_dir)
 
     def run(self) -> None:
         """Run the test"""
 
+        self.was_run = True
         prompts = iter(self.expected_prompts)
         responses = iter(self.responses)
 
@@ -213,6 +225,16 @@ class CliTestCase:
             assert not list(prompts)
             assert not list(responses)
 
+    def add_dependency_rename(self, pypi_name: str, conda_name: str) -> CliTestCase:
+        """Add an expected dependency rename
+
+        Arguments:
+            pypi_name: the original name from wheel
+            conda_name: the resulting conda name
+        """
+        self.expected_dependency_renames += ((pypi_name, conda_name),)
+        return self
+
     def add_prompt(self, expected_prompt: str, response: str) -> CliTestCase:
         """Add a prompt/response pair
 
@@ -225,27 +247,48 @@ class CliTestCase:
 
     def validate_converter(self, converter: Wheel2CondaConverter) -> None:
         """Validate converter settings"""
-        if self.expected_project_root:
-            assert converter.project_root == self.project_dir.joinpath(
-                self.expected_project_root
-            )
+        projects = self.project_dir
+        if expected_root := self.expected_project_root:
+            assert converter.project_root == projects / expected_root
         else:
             assert not converter.project_root
+        if expected_wheel := self.expected_wheel_path:
+            assert converter.wheel_path == projects / expected_wheel
+        expected_outdir = self.expected_out_dir
+        if not expected_outdir:
+            if expected_wheel:
+                expected_outdir = os.path.dirname(expected_wheel)
+            elif expected_root:
+                expected_outdir = os.path.join(expected_root, "dist")
+        if expected_outdir:
+            assert converter.out_dir == projects / expected_outdir
         assert converter.dry_run is self.expected_dry_run
-        assert converter.package_name is self.expected_package_name
+        assert converter.package_name == self.expected_package_name
         assert converter.out_format is self.expected_out_fmt
         assert converter.overwrite is self.expected_overwrite
         assert converter.keep_pip_dependencies is self.expected_keep_pip
         assert converter.extra_dependencies == list(self.expected_extra_dependencies)
-        assert converter.dependency_rename == list(self.exoected_dependency_rename)
+        assert converter.dependency_rename == list(self.expected_dependency_renames)
 
 
 class CliTestCaseFactory:
-    """Factory for CLI test case runners"""
+    """Factory for CLI test case runners
+
+    The factory copies the test-projects/ directory tree
+    into tmp directory shared by all test cases produced
+    by the factory rooted undr the `project_dir` path.
+
+    Note that all test cases will share the same tree
+    and can see any changes introduced by previous test
+    cases.
+    """
 
     capsys: pytest.CaptureFixture
     monkeypatch: pytest.MonkeyPatch
     tmp_path: Path
+    project_dir: Path
+
+    cases: List[CliTestCase]
 
     def __init__(
         self,
@@ -260,15 +303,59 @@ class CliTestCaseFactory:
         self.monkeypatch = monkeypatch
         self.tmp_path = tmp_path
 
-    def __call__(self, args: Sequence[str], **kwargs) -> CliTestCase:
-        return CliTestCase(
+        orig_project_dir = root_dir.joinpath("test-projects")
+        self.project_dir = tmp_path.joinpath("projects")
+        shutil.copytree(orig_project_dir, self.project_dir)
+        self.cases = []
+
+    # pylint: disable=too-many-locals
+    def __call__(
+        self,
+        args: Sequence[str],
+        *,
+        interactive: Optional[bool] = None,
+        expected_dry_run: bool = False,
+        expected_package_name: str = "",
+        expected_parser_error: str = "",
+        expected_out_dir: str = "",
+        expected_out_fmt: CondaPackageFormat = CondaPackageFormat.V2,
+        expected_overwrite: bool = False,
+        expected_keep_pip: bool = False,
+        expected_extra_dependencies: Sequence[str] = (),
+        expected_interactive: bool = True,
+        expected_project_root: str = "",
+        expected_wheel_path: str = "",
+        from_dir: str = "",
+    ) -> CliTestCase:
+        case = CliTestCase(
             caplog=self.caplog,
             capsys=self.capsys,
             monkeypatch=self.monkeypatch,
             tmp_path=self.tmp_path,
+            project_dir=self.project_dir,
             args=args,
-            **kwargs,
+            interactive=interactive,
+            expected_dry_run=expected_dry_run,
+            expected_package_name=expected_package_name,
+            expected_parser_error=expected_parser_error,
+            expected_out_dir=expected_out_dir,
+            expected_out_fmt=expected_out_fmt,
+            expected_overwrite=expected_overwrite,
+            expected_keep_pip=expected_keep_pip,
+            expected_extra_dependencies=expected_extra_dependencies,
+            expected_interactive=expected_interactive,
+            expected_project_root=expected_project_root,
+            expected_wheel_path=expected_wheel_path,
+            from_dir=from_dir,
         )
+        self.cases.append(case)
+        return case
+
+    def teardown(self) -> None:
+        """Make sure all test cases have been run."""
+        for i, case in enumerate(self.cases):
+            if not case.was_run:
+                pytest.fail(f"Case #{i+1} was not run")
 
 
 @pytest.fixture
@@ -279,9 +366,11 @@ def test_case(
     tmp_path: Path,
 ) -> Generator[CliTestCaseFactory, None, None]:
     """Yields test CLI case factory"""
-    yield CliTestCaseFactory(
+    factory = CliTestCaseFactory(
         caplog=caplog, capsys=capsys, monkeypatch=monkeypatch, tmp_path=tmp_path
     )
+    yield factory
+    factory.teardown()
 
 
 #
@@ -301,8 +390,11 @@ def test_simple_default(test_case: CliTestCaseFactory) -> None:
     )
     case.run()
 
-    case.interactive = True
-    case.expected_parser_error = ""
+    case = test_case(
+        ["simple"],
+        interactive=True,
+        expected_project_root="simple",
+    )
     case.add_prompt(
         r"\[build\] build wheel",
         "build",
@@ -310,12 +402,27 @@ def test_simple_default(test_case: CliTestCaseFactory) -> None:
     case.run()
 
     # run from project root dir without any positional args
-    case.from_dir = case.project_dir.joinpath("simple")
-    case.args = []
+    case = test_case(
+        [],
+        interactive=True,
+        expected_project_root="simple",
+        from_dir="simple",
+    )
+    case.add_prompt(
+        r"\[build\] build wheel",
+        "no-dep",
+    )
     case.run()
 
-    case.from_dir = case.project_dir
-    case.args = ["--project-root", str(case.project_dir.joinpath("simple"))]
+    case = test_case(
+        ["--project-root", "simple"],
+        interactive=True,
+        expected_project_root="simple",
+    )
+    case.add_prompt(
+        r"\[build\] build wheel",
+        "no-dep",
+    )
     case.run()
 
 
@@ -363,32 +470,45 @@ def test_parse_errors(test_case: CliTestCaseFactory) -> None:
     """
     Test cli parser errors
     """
-    case = test_case(
-        ["does-not-exist"], expected_parser_error="'does-not-exist' does not exist"
-    )
-    case.run()
+    test_case(
+        ["does-not-exist"],
+        expected_parser_error="'does-not-exist' does not exist",
+    ).run()
 
-    case.args = [str(Path(__file__).absolute())]
-    case.expected_parser_error = "does not have .whl suffix"
-    case.run()
+    test_case(
+        [str(Path(__file__).absolute())],
+        expected_parser_error="does not have .whl suffix",
+    ).run()
 
-    case.args = ["simple", "--project-root", "simple"]
-    case.expected_parser_error = "project root as both positional and keyword"
-    case.run()
+    test_case(
+        ["simple", "--project-root", "simple"],
+        expected_parser_error="project root as both positional and keyword",
+    ).run()
 
-    case.args = ["simple/simple"]
-    case.expected_parser_error = "No pyproject.toml"
-    case.run()
+    test_case(
+        ["simple/simple"],
+        expected_parser_error="No pyproject.toml",
+    ).run()
 
-    case.args = ["--project-root", "does-not-exist"]
-    case.expected_parser_error = "does not exist"
-    case.run()
+    test_case(
+        ["--project-root", "does-not-exist"],
+        expected_parser_error="does not exist",
+    ).run()
 
-    not_a_dir = case.tmp_path.joinpath("not_a_dir")
+    not_a_dir = test_case.tmp_path.joinpath("not_a_dir")
     not_a_dir.write_text("")
-    case.args = ["--project-root", str(not_a_dir.absolute())]
-    case.expected_parser_error = "is not a directory"
-    case.run()
+    test_case(
+        ["--project-root", str(not_a_dir.absolute())],
+        expected_parser_error="is not a directory",
+    ).run()
+
+    test_case(
+        ["--wheel-dir", str(not_a_dir)], expected_parser_error="is not a directory"
+    ).run()
+
+    test_case(
+        ["--out-dir", str(not_a_dir)], expected_parser_error="is not a directory"
+    ).run()
 
 
 def test_out_format(test_case: CliTestCaseFactory) -> None:
@@ -489,3 +609,182 @@ def test_do_build_wheel(
     wheel_file = do_build_wheel(
         project_root, wheel_dir, no_deps=False, no_build_isolation=True
     )
+
+
+def test_input_wheel(
+    test_case: CliTestCaseFactory,
+    simple_wheel: Path,
+) -> None:
+    """Test whl2conda build with explicit wheel"""
+    # Free standing wheel, not in project
+    case = test_case(
+        [str(simple_wheel)],
+        interactive=False,
+        expected_wheel_path=str(simple_wheel),
+        expected_out_dir=str(simple_wheel.parent),
+    )
+    case.run()
+
+    simple_root = test_case.project_dir / "simple"
+    case = test_case(
+        [str(simple_wheel), "--project-root", str(simple_root)],
+        interactive=False,
+        expected_wheel_path=str(simple_wheel),
+        expected_out_dir=str(simple_wheel.parent),
+        expected_project_root="simple",
+    )
+    case.run()
+
+    # Put wheel in project subdir to test finding project
+    dist = simple_root / "dist"
+    subdist = dist / "subdist"
+    subdist.mkdir(parents=True)
+    subdist_wheel = subdist / simple_wheel.name
+    shutil.copyfile(simple_wheel, subdist_wheel)
+
+    case = test_case(
+        [str(subdist_wheel)],
+        interactive=False,
+        expected_wheel_path=str(subdist_wheel),
+        expected_out_dir=str(subdist_wheel.parent),
+        expected_project_root="simple",
+    )
+    case.run()
+
+    case = test_case(
+        [str(subdist_wheel), "--wheel-dir", str(dist)],
+        interactive=False,
+        expected_wheel_path=str(subdist_wheel),
+        # expected out taken from wheel dir even if wheel in different dir
+        expected_out_dir=str(dist),
+        expected_project_root="simple",
+    )
+    case.run()
+
+
+def test_choose_wheel(
+    test_case: CliTestCaseFactory,
+    simple_wheel: Path,
+) -> None:
+    """Test finding/choosing wheel"""
+    project_root = test_case.project_dir / "simple"
+    dist = project_root / "dist"
+    assert not dist.exists()
+
+    case = test_case(
+        ["simple"], interactive=False, expected_parser_error="No wheels found"
+    )
+    case.run()
+
+    # add a wheel
+    dist.mkdir(parents=True)
+    dist_wheel = dist / simple_wheel.name
+    shutil.copyfile(simple_wheel, dist_wheel)
+
+    # wheel is chosen if only one
+    case = test_case(
+        ["simple"],
+        interactive=False,
+        expected_project_root="simple",
+        expected_wheel_path=str(dist_wheel),
+    )
+    case.run()
+
+    # add second copy of wheel
+    time.sleep(0.01)  # wait to ensure later timestamp
+    dist_wheel2 = dist / f"{dist_wheel.stem}-2.whl"
+    shutil.copyfile(simple_wheel, dist_wheel2)
+    case = test_case(
+        ["simple"],
+        interactive=False,
+        expected_project_root="simple",
+        expected_wheel_path=str(dist_wheel),
+        expected_parser_error="Cannot choose from multiple wheels",
+    )
+    case.run()
+
+    # with --yes, the latest wheel will be chosen
+    case = test_case(
+        ["simple", "--yes"],
+        interactive=False,
+        expected_project_root="simple",
+        expected_wheel_path=str(dist_wheel2),
+    )
+    case.run()
+
+
+def test_outdir(
+    test_case: CliTestCaseFactory,
+    simple_wheel: Path,
+) -> None:
+    """Test whl2conda build output directory"""
+    test_case(
+        [str(simple_wheel)],
+        expected_out_dir=str(simple_wheel.parent),
+        expected_wheel_path=str(simple_wheel),
+    ).run()
+
+    test_case(
+        [str(simple_wheel), "-w", "frob"],
+        expected_out_dir="frob",
+    ).run()
+
+    test_case(
+        [str(simple_wheel), "-w", "frob", "--out", "out"],
+        expected_out_dir="out",
+    ).run()
+
+
+def test_pyproject(
+    test_case: CliTestCaseFactory,
+) -> None:
+    """Test pyproject settings"""
+    project_root = test_case.project_dir / "settings"
+
+    test_case(
+        [str(project_root), "--yes"],
+        interactive=False,
+        expected_project_root="settings",
+        expected_out_dir="settings/conda-dist",
+        expected_package_name="conda-settings",
+        expected_out_fmt=CondaPackageFormat.V1,
+        expected_extra_dependencies=["pytest"],
+    ).add_dependency_rename('numpy', '').add_dependency_rename('mypy', 'pylint').run()
+
+    test_case(
+        [str(project_root), "--yes", "--ignore-pyproject"],
+        interactive=False,
+        expected_project_root="settings",
+    ).run()
+
+
+def test_rename_options(
+    test_case: CliTestCaseFactory,
+    simple_wheel: Path,
+) -> None:
+    """Test rename/drop dependency options"""
+    test_case(
+        [str(simple_wheel)],
+        interactive=False,
+        expected_wheel_path=str(simple_wheel),
+        expected_out_dir=str(simple_wheel.parent),
+    ).run()
+
+    test_case(
+        [
+            str(simple_wheel),
+            "-A",
+            "foo",
+            "--add-dependency",
+            "bar",
+            "-D",
+            "quaternion",
+        ],
+        interactive=False,
+        expected_wheel_path=str(simple_wheel),
+        expected_out_dir=str(simple_wheel.parent),
+        expected_extra_dependencies=["foo", "bar"],
+    ).add_dependency_rename(
+        "quaternion",
+        "",
+    ).run()

@@ -98,7 +98,7 @@ def config_main(
     if parsed.generate_pyproject:
         try:
             add_pyproject_defaults(parsed.generate_pyproject)
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             parser.error(str(ex))
 
 

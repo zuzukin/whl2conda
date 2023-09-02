@@ -30,6 +30,7 @@ __all__ = [
     "dedent",
     "existing_path",
     "existing_dir",
+    "maybe_existing_dir",
 ]
 
 
@@ -111,9 +112,21 @@ def existing_path(val: str) -> Path:
     Returns:
         Path after validating it exists.
     """
-    path = Path(val)
+    path = Path(val).expanduser()
     if not path.exists():
         raise argparse.ArgumentTypeError(f"path '{val}' does not exist")
+    return path
+
+
+def maybe_existing_dir(val: str) -> Path:
+    """
+    Parses argument as a possibly not yet existing directory path.
+
+    For use as type of argparse argument
+    """
+    path = Path(val).expanduser()
+    if path.is_file():
+        raise argparse.ArgumentTypeError(f"'{val}' is not a directory")
     return path
 
 
@@ -128,7 +141,7 @@ def existing_dir(val: str) -> Path:
     Returns:
         Directory Path after validating it is a directory.
     """
-    path = existing_path(val)
+    path = existing_path(val).expanduser()
     if not path.is_dir():
         raise argparse.ArgumentTypeError(f"'{val}' is not a directory")
     return path
