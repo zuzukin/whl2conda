@@ -248,10 +248,7 @@ class CliTestCase:
     def validate_converter(self, converter: Wheel2CondaConverter) -> None:
         """Validate converter settings"""
         projects = self.project_dir
-        if expected_root := self.expected_project_root:
-            assert converter.project_root == projects / expected_root
-        else:
-            assert not converter.project_root
+        expected_root = self.expected_project_root
         if expected_wheel := self.expected_wheel_path:
             assert converter.wheel_path == projects / expected_wheel
         expected_outdir = self.expected_out_dir

@@ -437,7 +437,7 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
 
     assert wheel_file
 
-    converter = Wheel2CondaConverter(wheel_file, out_dir=out_dir)
+    converter = Wheel2CondaConverter(wheel_file, out_dir)
     converter.dry_run = parsed.dry_run
     # TODO use pyproj name (#29)
     converter.package_name = parsed.name or pyproj_info.conda_name
@@ -447,7 +447,6 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
     converter.extra_dependencies.extend(pyproj_info.extra_dependencies)
     converter.extra_dependencies.extend(parsed.extra_deps)
     converter.interactive = interactive
-    converter.project_root = project_root
 
     converter.dependency_rename.extend(pyproj_info.dependency_rename)
     for dropname in parsed.dropped_deps:
