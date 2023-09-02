@@ -6,6 +6,29 @@ build-backend = "hatchling.build"
 name = "simple"
 version = "1.0.2"
 description = "simple test project"
-#license = "MIT"
+license = { text = "MIT" }
 requires-python = ">=3.8"
+authors = [
+    { name = "John Doe", email = "jdoe@nowhere.com" }
+]
+maintainers = [
+    { name = "Zuzu", email = "zuzu@somwwhere.com" }
+]
+keywords = ["test-package", "stuff"]
+classifiers = [
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+]
 
+dependencies = [
+    "black[colorama] >=23.3",
+    "numpy-quaternion"
+]
+
+[project.optional-dependencies]
+test = ["pytest", "pylint"]
+
+[project.urls]
+Homepage = "https://github.com/analog-cbarber/tree/main/test-projects/simple"

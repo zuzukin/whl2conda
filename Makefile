@@ -88,6 +88,9 @@ test: pytest
 coverage:
 	$(CONDA_RUN) pytest -s --cov=src --cov-report=html --cov-report=term test
 
+slow-coverage:
+	$(CONDA_RUN) pytest -s --cov=src --cov-report=html --cov-report=term test --run-slow
+
 htmlcov/index.html:
 	$(MAKE) coverage
 

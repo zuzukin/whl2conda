@@ -38,7 +38,6 @@ __all__ = ["install_main"]
 class InstallArgs:
     """Parsed arguments"""
 
-    channels: List[str]
     create: bool
     conda_bld: bool
     dry_run: bool
@@ -48,6 +47,17 @@ class InstallArgs:
     package_file: Path
     prefix: Optional[Path]
     yes: bool
+    remaining_args: List[str]
+
+    @classmethod
+    def parse(
+        cls,
+        parser: argparse.ArgumentParser,
+        args: Optional[Sequence[str]],
+    ):
+        """Parses and returns parsed args"""
+        ns = parser.parse_args(args)
+        return cls(**vars(ns))
 
 
 # pylint: disable=too-many-locals
@@ -76,6 +86,7 @@ def install_main(
         ),
         formatter_class=argparse.RawTextHelpFormatter,
         prog=prog,
+        allow_abbrev=False,
     )
 
     parser.add_argument(
@@ -122,15 +133,6 @@ def install_main(
     )
 
     env_options.add_argument(
-        "-c",
-        "--channel",
-        dest="channels",
-        action="append",
-        default=[],
-        help="Add a channel to use for install",
-    )
-
-    env_options.add_argument(
         "--only-deps",
         action="store_true",
         help="Only install package dependencies, not the package itself.",
@@ -141,6 +143,20 @@ def install_main(
         dest="use_mamba",
         action="store_true",
         help="Use mamba instead of conda for install actions",
+    )
+
+    env_options.add_argument(
+        "--extra",
+        dest="remaining_args",
+        nargs=argparse.REMAINDER,
+        default=[],
+        help=dedent(
+            """
+            All the remaining arguments after this flat will be passed
+            to `conda install` or `conda create`. This can be used to add
+            additional dependencies for testing.
+            """
+        ),
     )
 
     common_opts = parser.add_argument_group("Common options")
@@ -157,7 +173,7 @@ def install_main(
 
     add_markdown_help(parser)
 
-    parsed = InstallArgs(**vars(parser.parse_args(args)))
+    parsed = InstallArgs.parse(parser, args)
 
     conda_file: Path = parsed.package_file
 
@@ -193,7 +209,8 @@ def conda_bld_install(parsed: InstallArgs, subdir: str):
         )
     )
     conda_bld = config.get("bld_path") or config.get("croot")
-    if not conda_bld:
+    if not conda_bld:  # pragma: no cover
+        # this is extremely unlikely to ever occur
         raise LookupError("Cannot find conda-bld location")
     conda_bld_path = Path(conda_bld)
     subdir_path = conda_bld_path.joinpath(subdir)  # e.g. noarch/
@@ -229,9 +246,8 @@ def conda_env_install(parsed: InstallArgs, dependencies: List[str]):
     else:
         install_deps_cmd.append("install")
     install_deps_cmd.extend(common_opts)
-    for channel in parsed.channels:
-        install_deps_cmd.extend(["-c", channel])
     install_deps_cmd.extend(dependencies)
+    install_deps_cmd.extend(parsed.remaining_args)
 
     subprocess.check_call(install_deps_cmd)
 
@@ -240,4 +256,8 @@ def conda_env_install(parsed: InstallArgs, dependencies: List[str]):
         install_pkg_cmd.extend(common_opts)
         install_pkg_cmd.append(str(parsed.package_file))
 
-        subprocess.check_call(install_pkg_cmd)
+        if parsed.dry_run:
+            # dry run of a package file install fails in conda
+            print("Running ", install_pkg_cmd)
+        else:
+            subprocess.check_call(install_pkg_cmd)
