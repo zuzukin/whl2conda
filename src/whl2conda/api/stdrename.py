@@ -44,6 +44,8 @@ from urllib.error import HTTPError
 
 from platformdirs import user_cache_path
 
+from whl2conda.__about__ import __version__
+
 __all__ = [
     "load_std_renames",
     "update_renames_file",
@@ -307,7 +309,10 @@ def download_mappings(
         URLError: connection errors
     """
 
-    req = urllib.request.Request(url)
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": f"whl2conda/{__version__}"},
+    )
     if etag:
         req.add_header("If-None-Match", f'"{etag}"')
 
