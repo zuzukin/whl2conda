@@ -45,9 +45,12 @@ help:
 	"doc         - build documentation\n" \
 	"open-doc    - open documentation index.html\n" \
 	"serve-doc   - serve documentation in temporary web server\n" \
-	"clean-doc   - remove generated documentation files" \
+	"clean-doc   - remove generated documentation files\n" \
+	"\n" \
 	"--- distribute ---\n" \
-	"build       - build wheel and conda package in dist/"
+	"build        - build wheel and conda package in dist/\n" \
+	"check-upload - check uploadable wheels in dist/\n" \
+	"upload       - upload the latest wheel in dist/"
 
 #
 # Environment management
@@ -132,7 +135,7 @@ build:
 
 upload:
 	# NOTE: --skip-existing doesn't seem to actually work
-	$(CONDA_RUN) twine upload --skip-existing dist/*.whl
+	$(CONDA_RUN) twine upload --skip-existing $(lastword $(sort $(wildcard dist/*.whl)))
 
 check-upload:
 	$(CONDA_RUN) twine check dist/*.whl
