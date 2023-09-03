@@ -105,6 +105,11 @@ class Wheel2CondaError(RuntimeError):
 class NonNoneDict(dict):
     """dict that drops keys with None values"""
 
+    def __init__(self, **kwargs: Any):
+        super().__init__()
+        for k, v in kwargs.items():
+            self[k] = v
+
     def __setitem__(self, key: str, val: Any) -> None:
         if val is None:
             if key in self:
@@ -185,12 +190,13 @@ class Wheel2CondaConverter:
 
     SUPPORTED_WHEEL_VERSIONS = ("1.0",)
     SUPPORTED_METADATA_VERSIONS = ("1.0", "1.1", "1.2", "2.1", "2.2", "2.3")
-    LIST_METADATA_KEYS = {
+    MULTI_USE_METADATA_KEYS = {
         "Classifier",
         "Dynamic",
-        "Platform",
         "Obsoletes",
         "Obsoletes-Dist",
+        "Platform",
+        "Project-URL",
         "Provides",
         "Provides-Dist",
         "Provides-Extra",
@@ -382,6 +388,7 @@ class Wheel2CondaConverter:
             build_number = int(wheel_md.wheel_build_number)
         except ValueError:
             build_number = 0
+
         conda_index_file.write_text(
             json.dumps(
                 dict(
@@ -418,22 +425,39 @@ class Wheel2CondaConverter:
         license = md.get("license-expression") or md.get("license")
         conda_about_file = conda_info_dir.joinpath("about.json")
         # TODO description can come from METADATA message body
+        #   then need to also use content type. It doesn't seem
+        #   that conda-forge packages include this in the info/
+        doc_url: Optional[str] = None
+        dev_url: Optional[str] = None
+        extra: Dict[str, Any] = {}
+        for urlline in md.get("project-url", ()):
+            urlparts = re.split(r"\s*,\s*", urlline, maxsplit=1)
+            if len(urlparts) > 1:
+                key, url = urlparts
+                keyl = key.lower()
+                if re.match(r"doc(umentation)?\b", keyl):
+                    doc_url = urlparts[1]
+                elif re.match(r"(dev(elopment)?|repo(sitory))\b", keyl):
+                    dev_url = urlparts[1]
+                if key and url:
+                    extra[key] = url
+        for key in ["author", "maintainer", "author-email", "maintainer-email"]:
+            val = md.get(key)
+            if val:
+                extra[key] = val
         conda_about_file.write_text(
             json.dumps(
                 NonNoneDict(
-                    description=md.get("description", ""),
-                    summary=md.get("summary", ""),
+                    description=md.get("description"),
+                    summary=md.get("summary"),
                     license=license or None,
                     classifiers=md.get("classifier"),
                     keywords=md.get("keywords"),
+                    home=md.get("home-page"),
                     whl2conda_version=__version__,
-                    # TODO: add more about.json values (#32)
-                    # home
-                    # dev_url
-                    # doc_url
-                    # license_url
-                    # extra
-                    # authors, maintainers
+                    dev_url=dev_url,
+                    doc_url=doc_url,
+                    extra=extra or None,
                 ),
                 indent=2,
             )
@@ -526,7 +550,7 @@ class Wheel2CondaConverter:
         # md_version = tuple(int(x) for x in md_version_str.split("."))
         for mdkey, mdval in md_msg.items():
             mdkey = mdkey.strip()
-            if mdkey in self.LIST_METADATA_KEYS:
+            if mdkey in self.MULTI_USE_METADATA_KEYS:
                 md.setdefault(mdkey.lower(), []).append(mdval)
             else:
                 md[mdkey.lower()] = mdval
