@@ -193,6 +193,7 @@ class Wheel2CondaConverter:
     MULTI_USE_METADATA_KEYS = {
         "Classifier",
         "Dynamic",
+        "License-File",
         "Obsoletes",
         "Obsoletes-Dist",
         "Platform",
@@ -273,6 +274,7 @@ class Wheel2CondaConverter:
             conda_dependencies = self._compute_conda_dependencies(wheel_md.dependencies)
 
             # Write conda info files
+            self._copy_licenses(conda_info_dir, wheel_md)
             self._write_about(conda_info_dir, wheel_md.md)
             self._write_hash_input(conda_info_dir)
             self._write_files_list(conda_info_dir, rel_files)
@@ -445,6 +447,8 @@ class Wheel2CondaConverter:
             val = md.get(key)
             if val:
                 extra[key] = val
+        if license_files := md.get("license-file"):
+            extra["license_files"] = list(license_files)
         conda_about_file.write_text(
             json.dumps(
                 NonNoneDict(
@@ -462,6 +466,9 @@ class Wheel2CondaConverter:
                 indent=2,
             )
         )
+
+    def _write_license_files(self):
+        pass
 
     # pylint: disable=too-many-locals
     def _compute_conda_dependencies(self, dependencies: Sequence[str]) -> List[str]:
@@ -520,6 +527,16 @@ class Wheel2CondaConverter:
             if f.is_file()
         )
         return rel_files
+
+    def _copy_licenses(self, conda_info_dir: Path, wheel_md: MetadataFromWheel) -> None:
+        if license_files := wheel_md.md.get("license-file"):
+            from_license_dir = wheel_md.wheel_info_dir.joinpath("licenses")
+            to_license_dir = conda_info_dir.joinpath("licenses")
+            for license_file in license_files:
+                from_file = from_license_dir.joinpath(license_file)
+                to_file = to_license_dir.joinpath(license_file)
+                to_license_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(from_file, to_file)
 
     # pylint: disable=too-many-locals
     def _parse_wheel_metadata(self, wheel_dir: Path) -> MetadataFromWheel:
