@@ -79,6 +79,9 @@ class PyProjInfo:
     build_backend: str = ""
     """build-system.build-backend value"""
 
+    name: str = ""
+    """project.name or tool.poetry.name if appropriate"""
+
     # whl2conda settings
     conda_name: str = ""
     """tool.whl2conda.conda-name - overrides name of conda package"""
@@ -239,7 +242,9 @@ def read_pyproject(path: Path) -> PyProjInfo:
 
     pyproj.build_backend = str(toml.get("build-system", {}).get("build-backend", ""))
 
-    whl2conda = toml.get("tool", {}).get("whl2conda", {})
+    tool = toml.get("tool", {})
+    whl2conda = tool.get("whl2conda", {})
+    poetry = tool.get("poetry", {})
 
     def _read_str(key: str) -> str:
         s = whl2conda.get(key, "")
@@ -247,6 +252,11 @@ def read_pyproject(path: Path) -> PyProjInfo:
             return s
         warn_ignored_key(toml_file, key, f"value is not a string: {s}")
         return ""
+
+    if pyproj.build_backend == "poetry.core.masonry.api":
+        pyproj.name = poetry.get("name")
+    else:
+        pyproj.name = _read_str("name")
 
     pyproj.conda_name = _read_str("conda-name")
 

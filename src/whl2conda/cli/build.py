@@ -454,8 +454,7 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
 
     converter = Wheel2CondaConverter(wheel_file, out_dir)
     converter.dry_run = parsed.dry_run
-    # TODO use pyproj name (#29)
-    converter.package_name = parsed.name or pyproj_info.conda_name
+    converter.package_name = parsed.name or pyproj_info.conda_name or pyproj_info.name
     converter.out_format = out_fmt
     converter.overwrite = parsed.overwrite
     converter.keep_pip_dependencies = parsed.keep_pip_deps
