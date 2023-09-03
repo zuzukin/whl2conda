@@ -2,7 +2,7 @@
 
 [![pypi version](https://img.shields.io/pypi/v/whl2conda.svg)](https://pypi.org/project/whl2conda/)
 [![conda version](https://img.shields.io/conda/vn/conda-forge/whl2conda)](https://anaconda.org/conda-forge/whl2conda)
-[![documentation](https://img.shields.io/badge/docs-mkdocs%20material-blue.svg?style=flat)](https://whl2conda.github.io/)  
+[![documentation](https://img.shields.io/badge/docs-mkdocs%20material-blue.svg?style=flat)](https://zuzukin.github.io/whl2conda/)  
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/whl2conda)
 ![GitHub](https://img.shields.io/github/license/analog-cbarber/whl2conda)  
 [![CI](https://github.com/mkdocstrings/mkdocstrings/actions/workflows/ci.yml/badge.svg)](https://github.com/mkdocstrings/mkdocstrings/actions/workflows/ci.yml)
