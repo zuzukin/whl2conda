@@ -130,6 +130,13 @@ build:
 	# Use tool to build itself!
 	$(CONDA_RUN) whl2conda build --build-wheel
 
+upload:
+	# NOTE: --skip-existing doesn't seem to actually work
+	$(CONDA_RUN) twine upload --skip-existing dist/*.whl
+
+check-upload:
+	$(CONDA_RUN) twine check dist/*.whl
+
 #
 # Cleanup targets
 #
