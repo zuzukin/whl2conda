@@ -19,7 +19,6 @@ from __future__ import annotations
 # standard lib
 import argparse
 import logging
-import re
 import subprocess
 import time
 from dataclasses import dataclass
@@ -28,7 +27,7 @@ from typing import List, Optional, Sequence, Tuple
 
 # this project
 from ..impl.prompt import is_interactive, choose_wheel
-from ..api.converter import Wheel2CondaConverter, CondaPackageFormat
+from ..api.converter import Wheel2CondaConverter, CondaPackageFormat, DependencyRename
 from ..impl.pyproject import read_pyproject, PyProjInfo
 from .common import (
     add_markdown_help,
@@ -383,23 +382,19 @@ def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None)
     can_build = project_root is not None
 
     # assemble rename patterns and verify regular expression can be compiled
-    renames: List[Tuple[str, str]] = []
-    for pat, repl in pyproj_info.dependency_rename:
-        try:
-            re.compile(pat)
-        except re.error as re_err:
-            parser.error(
-                f"Bad regular expression '{pat}' in {pyproj_info.toml_file}:\n{re_err}"
-            )
-        renames.append((pat, repl))
-    for pat, repl in parsed.dep_renames:
-        try:
-            re.compile(pat)
-        except re.error as re_err:
-            parser.error(f"Bad regular expression '{pat}': {re_err}")
-        renames.append((pat, repl))
-    for dropname in parsed.dropped_deps:
-        renames.append((dropname, ""))
+    renames: List[DependencyRename] = []
+    source = str(pyproj_info.toml_file)
+    try:
+        for pat, repl in pyproj_info.dependency_rename:
+            renames.append(DependencyRename.from_strings(pat, repl))
+        source = "-R/--dependency-rename option"
+        for pat, repl in parsed.dep_renames:
+            renames.append(DependencyRename.from_strings(pat, repl))
+        source = "-D/--drop-dependency option"
+        for dropname in parsed.dropped_deps:
+            renames.append(DependencyRename.from_strings(dropname, ""))
+    except ValueError as ex:
+        parser.error(f"Bad rename pattern from {source}:\n{ex}")
 
     if not wheel_file and wheel_dir and not build_wheel:
         # find wheel in directory

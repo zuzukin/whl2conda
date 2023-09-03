@@ -26,13 +26,17 @@ import re
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Generator, List, Optional, Sequence, Tuple
+from typing import Any, Generator, List, Optional, Sequence
 
 # third party
 import pytest
 
 # this project
-from whl2conda.api.converter import CondaPackageFormat, Wheel2CondaConverter
+from whl2conda.api.converter import (
+    CondaPackageFormat,
+    Wheel2CondaConverter,
+    DependencyRename,
+)
 from whl2conda.cli import main
 from whl2conda.cli.build import do_build_wheel
 from whl2conda.impl.prompt import is_interactive
@@ -72,7 +76,7 @@ class CliTestCase:
 
     args: List[str]
     interactive: bool
-    expected_dependency_renames: Tuple[Tuple[str, str], ...] = ()
+    expected_dependency_renames: List[DependencyRename]
     expected_dry_run: bool = False
     expected_extra_dependencies: Sequence[str] = ()
     expected_interactive: bool = True
@@ -131,6 +135,7 @@ class CliTestCase:
         self.args = list(args)
         self.interactive = is_interactive() if interactive is None else interactive
         self.expected_dry_run = expected_dry_run
+        self.expected_dependency_renames = []
         self.expected_extra_dependencies = list(expected_extra_dependencies)
         self.expected_interactive = expected_interactive
         self.expected_keep_pip = expected_keep_pip
@@ -232,7 +237,9 @@ class CliTestCase:
             pypi_name: the original name from wheel
             conda_name: the resulting conda name
         """
-        self.expected_dependency_renames += ((pypi_name, conda_name),)
+        self.expected_dependency_renames.append(
+            DependencyRename.from_strings(pypi_name, conda_name)
+        )
         return self
 
     def add_prompt(self, expected_prompt: str, response: str) -> CliTestCase:

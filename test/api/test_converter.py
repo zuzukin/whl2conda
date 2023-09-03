@@ -32,6 +32,7 @@ from whl2conda.api.converter import (
     Wheel2CondaConverter,
     Wheel2CondaError,
     CondaPackageFormat,
+    DependencyRename,
 )
 from whl2conda.cli.install import install_main
 from .validator import PackageValidator
@@ -41,6 +42,10 @@ from ..test_packages import simple_wheel  # pylint: disable=unused-import
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent.parent
 
+#
+# Converter test fixture
+#
+
 
 class ConverterTestCase:
     """
@@ -48,7 +53,7 @@ class ConverterTestCase:
     """
 
     wheel_src: Union[Path, str]
-    dependency_rename: Sequence[Tuple[str, str]]
+    dependency_rename: Sequence[DependencyRename]
     extra_dependencies: Sequence[str]
     overwrite: bool
     package_name: str
@@ -83,7 +88,9 @@ class ConverterTestCase:
             wheel_src = Path(wheel_src)
             assert wheel_src.exists()
         self.wheel_src = wheel_src
-        self.dependency_rename = tuple(dependency_rename)
+        self.dependency_rename = tuple(
+            DependencyRename.from_strings(*dr) for dr in dependency_rename
+        )
         self.extra_dependencies = tuple(extra_dependencies)
         self.overwrite = overwrite
         self.tmp_dir = tmp_dir
@@ -211,6 +218,49 @@ def test_case(
 
 # pylint: disable=redefined-outer-name
 
+#
+# DependencyRename test cases
+#
+
+
+def test_dependency_rename() -> None:
+    """Unit tests for DependencyRename class"""
+    r = DependencyRename.from_strings("foot", "bar")
+    assert r.rename("foo") == ("foo", False)
+    assert r.rename("foot") == ("bar", True)
+
+    r = DependencyRename.from_strings("foot", "foot")
+    assert r.rename("foot") == ("foot", True)
+
+    r = DependencyRename.from_strings("acme-(.*)", r"acme.\1")
+    assert r.rename("acme-stuff") == ("acme.stuff", True)
+
+    r = DependencyRename.from_strings("acme-(?P<name>.*)", r"acme.\g<name>")
+    assert r.rename("acme-widgets") == ("acme.widgets", True)
+
+    r = DependencyRename.from_strings("(acme-)?(.*)", r"acme.$2")
+    assert r.rename("acme-stuff") == ("acme.stuff", True)
+    assert r.rename("stuff") == ("acme.stuff", True)
+
+    r = DependencyRename.from_strings("(?P<name>.*)", r"${name}-foo")
+    assert r.rename("stuff") == ("stuff-foo", True)
+
+    # error cases
+
+    with pytest.raises(ValueError, match="Bad dependency rename pattern"):
+        DependencyRename.from_strings("[foo", "bar")
+    with pytest.raises(ValueError, match="Bad dependency replacement"):
+        DependencyRename.from_strings("foo", r"\1")
+    with pytest.raises(ValueError, match="Bad dependency replacement"):
+        DependencyRename.from_strings("foo(.*)", r"$2")
+    with pytest.raises(ValueError, match="Bad dependency replacement"):
+        DependencyRename.from_strings("foo(.*)", r"${name}")
+
+
+#
+# Converter test cases
+#
+
 
 def test_this(test_case: ConverterTestCaseFactory) -> None:
     """Test using this own project's wheel"""
@@ -234,11 +284,6 @@ def test_this(test_case: ConverterTestCaseFactory) -> None:
 
     for fmt in CondaPackageFormat:
         case.build(fmt)
-
-
-#
-# Local tests
-#
 
 
 def test_simple_wheel(

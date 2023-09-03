@@ -30,18 +30,24 @@ import time
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple, NamedTuple
 
 # third party
 from wheel.wheelfile import WheelFile
 from conda_package_handling.api import create as create_conda_pkg
 
+# this project
 from ..__about__ import __version__
 from ..impl.prompt import bool_input
 from ..impl.pyproject import CondaPackageFormat
 from .stdrename import load_std_renames
 
-__all__ = ["CondaPackageFormat", "Wheel2CondaConverter", "Wheel2CondaError"]
+__all__ = [
+    "CondaPackageFormat",
+    "DependencyRename",
+    "Wheel2CondaConverter",
+    "Wheel2CondaError",
+]
 
 
 def __compile_requires_dist_re() -> re.Pattern:
@@ -120,6 +126,57 @@ class MetadataFromWheel:
     wheel_info_dir: Path
 
 
+class DependencyRename(NamedTuple):
+    r"""
+    Defines a pypi to conda package renaming rule.
+
+    The pattern must fully match the input package.
+    The replacement string may contain group references
+    e.g. r'\1', r'\g<name>`.
+    """
+
+    pattern: re.Pattern
+    replacement: str
+
+    @classmethod
+    def from_strings(cls, pattern: str, replacement: str) -> DependencyRename:
+        r"""Construct from strings
+
+        This will also translate '$#' and '${name}' expressions
+        into r'\#' and r'\P<name>' respectively.
+        """
+        try:
+            pat = re.compile(pattern)
+        except re.error as err:
+            # pylint: disable=raise-missing-from
+            raise ValueError(f"Bad dependency rename pattern '{pattern}': {err}")
+        repl = re.sub(r"\$(\d+)", r"\\\1", replacement)
+        repl = re.sub(r"\$\{(\w+)}", r"\\g<\1>", repl)
+        # TODO also verify replacement does not contain invalid package chars
+        try:
+            pat.sub(repl, "")
+        except Exception as ex:
+            if isinstance(ex, re.error):
+                msg = ex.msg
+            else:
+                msg = str(ex)
+            # pylint: disable=raise-missing-from
+            raise ValueError(
+                f"Bad dependency replacement '{replacement}' for pattern '{pattern}': {msg}"
+            )
+        return cls(pat, repl)
+
+    def rename(self, pypi_name: str) -> Tuple[str, bool]:
+        """Rename dependency package name
+
+        Returns conda name and indicator of whether the
+        pattern was applied.
+        """
+        if m := self.pattern.fullmatch(pypi_name):
+            return m.expand(self.replacement), True
+        return pypi_name, False
+
+
 class Wheel2CondaConverter:
     """
     Converter supports generation of conda package from a pure python wheel.
@@ -152,7 +209,7 @@ class Wheel2CondaConverter:
     out_format: CondaPackageFormat
     overwrite: bool = False
     keep_pip_dependencies: bool = False
-    dependency_rename: List[Tuple[str, str]]
+    dependency_rename: List[DependencyRename]
     extra_dependencies: List[str]
     interactive: bool = False
 
@@ -386,15 +443,6 @@ class Wheel2CondaConverter:
     def _compute_conda_dependencies(self, dependencies: Sequence[str]) -> List[str]:
         conda_dependencies: List[str] = []
 
-        # compile renames
-        rename_patterns: List[Tuple[re.Pattern, str]] = []
-        for oldmatch, replacement in self.dependency_rename:
-            pat = re.compile(oldmatch)
-            # support $1, ${name} style replacement patterns
-            replacement = re.sub(r"\$(\d+)", r"\\\1", replacement)
-            replacement = re.sub(r"\$\{(\w+)}", r"\\g<\1>", replacement)
-            rename_patterns.append((pat, replacement))
-
         for dep in dependencies:
             try:
                 entry = RequiresDistEntry.parse(dep)
@@ -415,10 +463,9 @@ class Wheel2CondaConverter:
             #   download target pip package and its extra dependencies
             # check manual renames first
             renamed = False
-            for pat, replacement in rename_patterns:
-                if m := pat.fullmatch(pip_name):
-                    conda_name = m.expand(replacement)
-                    renamed = True
+            for renamer in self.dependency_rename:
+                conda_name, renamed = renamer.rename(pip_name)
+                if renamed:
                     break
             if not renamed:
                 conda_name = self.std_renames.get(pip_name, pip_name)
