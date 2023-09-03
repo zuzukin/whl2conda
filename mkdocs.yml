@@ -16,6 +16,7 @@ nav:
         - whl2conda build: cli/whl2conda-build.md
         - whl2conda config: cli/whl2conda-config.md
         - whl2conda install: cli/whl2conda-install.md
+      - License: license.md
 
 # TODO:
 #   - Links:
@@ -85,6 +86,7 @@ extra:
 watch:
   # path is relative to this file
   - src/whl2conda
+  - doc
 
 plugins:
   - search
@@ -131,3 +133,8 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.snippets:
       check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+#          format: !!python/name:pymdownx.superfences.fence_code_format
