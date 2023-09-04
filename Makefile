@@ -14,6 +14,9 @@ else
 	endif
 endif
 
+VERSION_FILE := src/whl2conda/VERSION
+VERSION := $(file < $(VERSION_FILE))
+
 -include custom.mk
 
 # Whether to run targets in current env or explicitly in $(DEV_ENV)
@@ -59,13 +62,12 @@ help:
 DEV_INSTALL := $(CONDA_RUN) pip install -e . --no-deps --no-build-isolation
 
 createdev:
-	conda env create -f environment.yml -n $(DEV_ENV) --yes
-	$(DEV_INSTALL)
-
+	conda env create -f environment.yml -n $(DEV_ENV)
+	$(MAKE) dev-install
 
 updatedev:
 	conda env update -f environment.yml -n $(DEV_ENV)
-	$(DEV_INSTALL)
+	$(MAKE) dev-install
 
 dev-install:
 	$(DEV_INSTALL)
@@ -123,6 +125,13 @@ serve-doc: $(CLI_DOCS)
 
 open-doc: doc/whl2conda-cli.md
 	$(OPEN) site/index.html
+
+mike-build:
+	$(CONDA_RUN) mike deploy -u $(VERSION) latest
+	$(CONDA_RUN) mike set-default latest
+
+mike-push:
+	git push origin gh-pages
 
 #
 # Distribution targets
