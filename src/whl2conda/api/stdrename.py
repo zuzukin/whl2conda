@@ -290,7 +290,7 @@ def download_mappings(
     url: str = NAME_MAPPINGS_DOWNLOAD_URL,
     *,
     etag: str = "",
-    timeout: float = 10.0,
+    timeout: float = 20.0,
 ) -> DownloadedMappings:
     """
     Download pypi to conda name mappings from github
