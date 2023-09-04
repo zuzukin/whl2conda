@@ -34,6 +34,7 @@ from whl2conda.api.converter import (
     CondaPackageFormat,
     DependencyRename,
 )
+from whl2conda.cli.build import do_build_wheel
 from whl2conda.cli.install import install_main
 from .validator import PackageValidator
 
@@ -41,6 +42,7 @@ from ..test_packages import simple_wheel  # pylint: disable=unused-import
 
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent.parent
+test_projects = root_dir / "test-projects"
 
 #
 # Converter test fixture
@@ -264,7 +266,7 @@ def test_dependency_rename() -> None:
 
 def test_this(test_case: ConverterTestCaseFactory) -> None:
     """Test using this own project's wheel"""
-    wheel_dir = test_case.tmp_path_factory.mktemp("test_this_wheel_dir")
+    wheel_dir = test_case.tmp_path_factory.mktemp("test_this_wjheel_dir")
     subprocess.check_call(
         [
             "pip",
@@ -302,6 +304,18 @@ def test_simple_wheel(
 
     v1pkg = test_case(simple_wheel).build(CondaPackageFormat.V1)
     assert v1pkg.name.endswith(".tar.bz2")
+
+
+def test_poetry(
+    test_case: ConverterTestCaseFactory,
+    tmp_path: Path,
+) -> None:
+    """Unit test on simple poetry package"""
+    poetry_dir = test_projects / "poetry"
+    wheel = do_build_wheel(poetry_dir, tmp_path)
+    pkg = test_case(wheel).build()
+    # conda package name taken from project name
+    assert pkg.name.startswith("poetry.example")
 
 
 #
