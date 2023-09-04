@@ -1,11 +1,10 @@
 site_name: whl2conda
 repo_url: https://github.com/analog-cbarber/whl2conda
-#site_url: ?
+site_url: https://zuzukin.github.io/whl2conda
 docs_dir: doc
 site_dir: site
 site_author: Christopher Barber
 repo_name: GitHub
-#edit_uri: edit/build_main/docs
 copyright: Copyright &copy; 2023 Christopher Barber
 
 nav:
@@ -59,8 +58,8 @@ theme:
   hljs_languages:
     python
     json
-#  logo: whl2conda.svg
-#  favicon: whl2conda.svg
+  logo: whl2conda.png
+  favicon: whl2conda.png
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
