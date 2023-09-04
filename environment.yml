@@ -2,7 +2,7 @@ name: whl2conda-dev
 channels:
   - conda-forge
 dependencies:
-  - python >=3.8
+  - python 3.11
   # runtime
   - conda-package-handling >=2.2,<3.0
   - platformdirs >=3.10
