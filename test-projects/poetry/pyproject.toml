@@ -3,9 +3,18 @@ requires = ["poetry-core","setuptools"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "simple"
+name = "poetry.example"
 version = "1.0.2"
 description = "simple test project"
-authors = ["bob"]
+authors = ["bob <bob@nowhere.com>"]
 license = "MIT"
+homepage = "https://nowhere.com/poetry.example"
+documentation = "https://nowhere.com/poetry.example/docs"
+packages = [
+    { include = "poetry_example", from ="src"}
+]
+
+[tool.poetry.dependencies]
+python = ">= 3.8"
+requests = "^2.13"
 

@@ -11,15 +11,4 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-"""
-Static project info
-"""
-
-import importlib.resources as res
-import sys
-
-# pylint: disable=no-member
-if sys.version_info >= (3, 9):  # pragma: no cover
-    __version__ = res.files('whl2conda').joinpath("VERSION").read_text().strip()
-else:  # pragma: no cover
-    __version__ = res.read_text('whl2conda', "VERSION").strip()
+#

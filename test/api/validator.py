@@ -29,7 +29,8 @@ import conda_package_handling.api as cphapi
 import pytest
 from wheel.wheelfile import WheelFile
 
-from whl2conda.api.converter import RequiresDistEntry
+from whl2conda.__about__ import __version__
+from whl2conda.api.converter import RequiresDistEntry, Wheel2CondaConverter
 
 
 class PackageValidator:
@@ -85,7 +86,7 @@ class PackageValidator:
         md_file = metdata_files[0]
         md_msg = email.message_from_string(md_file.read_text())
 
-        list_keys = {"classifier", "license-file", "requires-dist"}
+        list_keys = set(s.lower() for s in Wheel2CondaConverter.MULTI_USE_METADATA_KEYS)
         md: Dict[str, Any] = {}
         for key, value in md_msg.items():
             key = key.lower()
@@ -132,8 +133,39 @@ class PackageValidator:
     def _validate_about(self, info_dir: Path) -> None:
         about_file = info_dir.joinpath("about.json")
         assert about_file.is_file()
-        _about = json.loads(about_file.read_text())
-        # TODO - check about contents
+        md = self._wheel_md
+        _about: Dict[str, Any] = json.loads(about_file.read_text())
+
+        assert _about.get("home") == md.get("home-page")
+        assert _about.get("keywords") == md.get("keywords")
+        assert _about.get("summary") == md.get("summary")
+        assert _about.get("description") == md.get("description")
+        assert _about.get("classifiers") == md.get("classifier")
+        assert _about.get("whl2conda_version") == __version__
+
+        license = _about.get("license")
+        if license_expr := md.get("license-expression"):
+            assert license == license_expr
+        else:
+            assert license == md.get("license")
+
+        extra = _about.get("extra", {})
+        dev_url = ""
+        doc_url = ""
+        for urlpair in md.get("project-url", ()):
+            key, url = re.split(r"\s*,\s*", urlpair)
+            assert extra.get(key) == url
+            first_word = re.split(r"\W+", key)[0].lower()
+            if first_word in {"doc", "documentation"}:
+                doc_url = url
+            if first_word in {"dev", "development", "repo", "repository"}:
+                dev_url = url
+        assert _about.get("doc_url", "") == doc_url
+        assert _about.get("dev_url", "") == dev_url
+
+        assert extra.get("license_files", ()) == md.get("license-file", ())
+        for key in ["author", "maintainer", "author-email", "maintainer-email"]:
+            assert extra.get(key) == md.get(key)
 
     def _validate_hash_input(self, info_dir: Path) -> None:
         hash_input_file = info_dir.joinpath("hash_input.json")

@@ -468,9 +468,6 @@ class Wheel2CondaConverter:
             )
         )
 
-    def _write_license_files(self):
-        pass
-
     # pylint: disable=too-many-locals
     def _compute_conda_dependencies(self, dependencies: Sequence[str]) -> List[str]:
         conda_dependencies: List[str] = []
@@ -534,10 +531,14 @@ class Wheel2CondaConverter:
             from_license_dir = wheel_md.wheel_info_dir.joinpath("licenses")
             to_license_dir = conda_info_dir.joinpath("licenses")
             for license_file in license_files:
-                from_file = from_license_dir.joinpath(license_file)
-                to_file = to_license_dir.joinpath(license_file)
-                to_license_dir.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(from_file, to_file)
+                # copy license file if it exists
+                for from_dir in [from_license_dir, wheel_md.wheel_info_dir]:
+                    from_file = from_dir.joinpath(license_file)
+                    if from_file.is_file():
+                        to_file = to_license_dir.joinpath(license_file)
+                        to_license_dir.mkdir(parents=True, exist_ok=True)
+                        shutil.copyfile(from_file, to_file)
+                        break
 
     # pylint: disable=too-many-locals
     def _parse_wheel_metadata(self, wheel_dir: Path) -> MetadataFromWheel:
