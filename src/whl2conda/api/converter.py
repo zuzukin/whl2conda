@@ -19,8 +19,8 @@ Converter API
 from __future__ import annotations
 
 # standard
+import configparser
 import email
-import iniconfig
 import json
 import logging
 import re
@@ -359,7 +359,8 @@ class Wheel2CondaConverter:
         wheel_entry_points_file = wheel_info_dir.joinpath("entry_points.txt")
         console_scripts: List[str] = []
         if wheel_entry_points_file.is_file():
-            wheel_entry_points = iniconfig.IniConfig(wheel_entry_points_file)
+            wheel_entry_points = configparser.ConfigParser()
+            wheel_entry_points.read(wheel_entry_points_file)
             for section_name in ["console_scripts", "gui_scripts"]:
                 if section_name in wheel_entry_points:
                     if section := wheel_entry_points[section_name]:
