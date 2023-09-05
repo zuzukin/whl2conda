@@ -483,6 +483,7 @@ class Wheel2CondaConverter:
                 if "extra" in marker:
                     self._debug("Skipping extra dependency: %s", dep)
                 else:
+                    # TODO - support inclusion in OS-specific package
                     self._warn("Skipping dependency with environment marker: %s", dep)
                 continue
 
