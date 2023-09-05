@@ -45,15 +45,25 @@ help:
 	"open-coverage - open HTML coverage report\n" \
 	"\n" \
 	"--- documentation ---\n" \
-	"doc         - build documentation\n" \
-	"open-doc    - open documentation index.html\n" \
-	"serve-doc   - serve documentation in temporary web server\n" \
-	"clean-doc   - remove generated documentation files\n" \
+	"doc           - build documentation\n" \
+	"doc-open      - build/open documentation index.html\n" \
+	"doc-serve     - serve documentation in temporary web server\n" \
+	"doc-serve-all - serve versioned documentation in temporary web server\n" \
+	"doc-deploy    - deploy doc for current version to gh-pages branch\n" \
+	"doc-push      - upload docs by pushing gh-pages branch to github\n" \
+	"doc-clean     - remove generated documentation files\n" \
 	"\n" \
 	"--- distribute ---\n" \
 	"build        - build wheel and conda package in dist/\n" \
 	"check-upload - check uploadable wheels in dist/\n" \
-	"upload       - upload the latest wheel in dist/"
+	"upload       - upload the latest wheel in dist (requires pypi access)/\n" \
+	"\n" \
+	"--- clean ---\n" \
+	"clean          - remove generated files\n" \
+	"clean-doc      - just remove generated doc files\n" \
+	"clean-build    - just remove generated build files\n" \
+	"clean-coverage - just remove generated coverage data and reports\n" \
+	"clean-all      - remove generated files and caches" \
 
 #
 # Environment management
@@ -108,30 +118,49 @@ open-coverage: htmlcov/index.html
 # Documentation targets
 #
 
+MKDOCS_FILE := doc/mkdocs.yml
 CLI_SUBCMDS := build config install
 CLI_DOCS := doc/cli/whl2conda.md $(foreach subcmd,$(CLI_SUBCMDS),doc/cli/whl2conda-$(subcmd).md)
 
+# Build main cli man page
 doc/cli/whl2conda.md: src/whl2conda/cli/main.py
 	$(CONDA_RUN) whl2conda --markdown-help > $@
 
+# Build subcommand cli man page
 doc/cli/whl2conda-%.md: src/whl2conda/cli/%.py
 	$(CONDA_RUN) whl2conda $* --markdown-help > $@
 
-doc: $(CLI_DOCS) mkdocs.yml
-	$(CONDA_RUN) mkdocs build
+site/index.html: $(CLI_DOCS) $(MKDOCS_FILE) doc/*.md
+	$(CONDA_RUN) mkdocs build -f $(MKDOCS_FILE)
 
-serve-doc: $(CLI_DOCS)
-	$(CONDA_RUN) mkdocs serve
+doc: site/index.html
 
-open-doc: doc/whl2conda-cli.md
+doc-serve: $(CLI_DOCS)
+	$(CONDA_RUN) mkdocs serve -f $(MKDOCS_FILE)
+
+serve-doc: doc-serve
+
+doc-open: site/index.html
 	$(OPEN) site/index.html
 
-mike-build:
-	$(CONDA_RUN) mike deploy -u $(VERSION) latest
-	$(CONDA_RUN) mike set-default latest
+open-doc: doc-open
 
-mike-push:
+doc-deploy:
+	$(CONDA_RUN) mike deploy -F $(MKDOCS_FILE) -u $(VERSION) latest
+	$(CONDA_RUN) mike set-default -F $(MKDOCS_FILE) latest
+
+mike-deploy: doc-deploy
+mike-build: doc-deploy
+
+doc-push:
 	git push origin gh-pages
+
+doc-upload: doc-push
+
+doc-serve-all:
+	$(CONDA_RUN) mike serve -F $(MKDOCS_FILE)
+
+mike-serve: doc-serve-all
 
 #
 # Distribution targets
@@ -159,10 +188,16 @@ clean-coverage:
 clean-doc:
 	$(RMDIR) site doc/whl2conda-cli.md
 
-clean-gen:
+doc-clean: clean-doc
+
+clean-build:
 	-find . \( -name '*.whl' -or -name '*.conda' -or -name '*.tar.bz2' \) -exec $(RM) {} \;
 	-find . \( -name 'dist' -or -name 'build' -or -name '*.egg-info' \) -exec $(RMDIR) {} \;
 
-clean: clean-doc clean-coverage clean-gen
+clean: clean-doc clean-coverage clean-build
+
+clean-all: clean
+	-$(RMDIR) .mypy_cache
+	-$(RMDIR) .pytest_cache
 
 

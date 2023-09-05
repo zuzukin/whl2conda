@@ -1,8 +1,8 @@
 site_name: whl2conda
 repo_url: https://github.com/analog-cbarber/whl2conda
 site_url: https://zuzukin.github.io/whl2conda
-docs_dir: doc
-site_dir: site
+docs_dir: .
+site_dir: ../site
 site_author: Christopher Barber
 repo_name: GitHub
 copyright: Copyright &copy; 2023 Christopher Barber
@@ -84,8 +84,7 @@ extra:
 
 watch:
   # path is relative to this file
-  - src/whl2conda
-  - doc
+  - ../src/whl2conda
 
 plugins:
   - search
