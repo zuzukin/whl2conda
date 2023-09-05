@@ -125,7 +125,7 @@ def load_std_renames(
         if sys.version_info >= (3, 9):  # pragma: no cover
             resources = importlib.resources.files('whl2conda.api')
             s = resources.joinpath("stdrename.json").read_text("utf8")
-        else:
+        else:  # pragma: no cover
             s = importlib.resources.read_text(
                 "whl2conda.api",
                 "stdrename.json",
