@@ -5,7 +5,7 @@
 [![documentation](https://img.shields.io/badge/docs-mkdocs%20material-blue.svg?style=flat)](https://zuzukin.github.io/whl2conda/)  
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/whl2conda)
 ![GitHub](https://img.shields.io/github/license/analog-cbarber/whl2conda)  
-[![CI](https://github.com/mkdocstrings/mkdocstrings/actions/workflows/ci.yml/badge.svg)](https://github.com/mkdocstrings/mkdocstrings/actions/workflows/ci.yml)
+[![CI](https://github.com/zuzukin/whl2conda/actions/workflows/python-package-conda.yml/badge.svg)](https://github.com/zuzukin/whl2conda/actions/workflows/python-package-conda.yml)
 ![GitHub issues](https://img.shields.io/github/issues/analog-cbarber/whl2conda)
 
 **Generate conda packages directly from pure python wheels**
