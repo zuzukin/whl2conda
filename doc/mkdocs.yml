@@ -12,8 +12,8 @@ nav:
   - Reference:
       - Command line:
         - wl2conda: cli/whl2conda.md
-        - whl2conda build: cli/whl2conda-build.md
         - whl2conda config: cli/whl2conda-config.md
+        - whl2conda convert: cli/whl2conda-convert.md
         - whl2conda install: cli/whl2conda-install.md
       - License: license.md
 

@@ -169,7 +169,7 @@ mike-serve: doc-serve-all
 # TODO - add targets from version
 build:
 	# Use tool to build itself!
-	$(CONDA_RUN) whl2conda build --build-wheel
+	$(CONDA_RUN) whl2conda convert --build-wheel
 
 upload:
 	# NOTE: --skip-existing doesn't seem to actually work

@@ -195,7 +195,7 @@ class Subcommands:
         Args:
             cmd: the command word
             main_func: fully qualified name of main function
-                e.g. "whl2conda.cli.build.build_main"
+                e.g. "whl2conda.cli.convert.convert_main"
             help: help string
             aliases: optional aliases for subcommand
         """

@@ -38,7 +38,7 @@ def test_help(
     assert "usage: whl2conda2" in out
     assert "--markdown-help" not in out
 
-    subcmds = ["build", "config", "install"]
+    subcmds = ["convert", "config", "install"]
     for subcmd in subcmds:
         assert re.search(rf"^\s+{subcmd}\s+\w+", out, flags=re.MULTILINE)
 
