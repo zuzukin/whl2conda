@@ -140,7 +140,7 @@ def test_update_renames_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     renames_file = tmp_path.joinpath("renames.json")
     try:
         assert update_renames_file(renames_file)
-    except HTTPError as err:
+    except (HTTPError, URLError) as err:
         pytest.skip(f"download url not accessible?: {err}")
 
     assert renames_file.is_file()

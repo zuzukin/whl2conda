@@ -37,7 +37,7 @@ from .common import (
     maybe_existing_dir,
 )
 
-__all__ = ["build_main"]
+__all__ = ["convert_main"]
 
 
 # pylint: disable=too-many-instance-attributes
@@ -307,7 +307,7 @@ def _is_project_root(path: Path) -> bool:
 
 
 # pylint: disable=too-many-statements,too-many-branches,too-many-locals
-def build_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
+def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
     """
     Main command line interface
     """
@@ -544,4 +544,4 @@ def do_build_wheel(
 
 
 if __name__ == "__main__":  # pragma: no cover
-    build_main()
+    convert_main()

@@ -20,7 +20,7 @@ from typing import Generator
 
 import pytest
 
-from whl2conda.cli.build import build_main, do_build_wheel
+from whl2conda.cli.convert import convert_main, do_build_wheel
 
 __all__ = ["project_dir", "simple_conda_package", "simple_wheel"]
 
@@ -47,7 +47,7 @@ def simple_conda_package(
 ) -> Generator[Path, None, None]:
     """Provides conda package for "simple" test project"""
     # Use whl2conda build to create conda package
-    build_main(
+    convert_main(
         [
             str(simple_wheel),
             "--batch",

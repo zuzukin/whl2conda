@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """
-Unit tests for `whl2conda build` command line interface
+Unit tests for `whl2conda convert` command line interface
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ from whl2conda.api.converter import (
     DependencyRename,
 )
 from whl2conda.cli import main
-from whl2conda.cli.build import do_build_wheel
+from whl2conda.cli.convert import do_build_wheel
 from whl2conda.impl.prompt import is_interactive
 
 from ..impl.test_prompt import monkeypatch_interactive
@@ -201,7 +201,7 @@ class CliTestCase:
             # TODO monkeypatch for --test-install
             mp.setattr(Wheel2CondaConverter, "convert", fake_convert)
             mp.setattr("builtins.input", fake_input)
-            mp.setattr("whl2conda.cli.build.do_build_wheel", fake_build_wheel)
+            mp.setattr("whl2conda.cli.convert.do_build_wheel", fake_build_wheel)
             if self.interactive is not is_interactive():
                 monkeypatch_interactive(mp, self.interactive)
             mp.chdir(self.from_dir)
@@ -211,7 +211,7 @@ class CliTestCase:
             # Run the command
             exit_code: Any = None
             try:
-                main(["build"] + self.args, "whl2conda")
+                main(["convert"] + self.args, "whl2conda")
             except SystemExit as exit_err:
                 exit_code = exit_err.code
 
