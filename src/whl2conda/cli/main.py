@@ -46,14 +46,14 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None) -> No
 
     subcmds = Subcommands(parser)
     subcmds.add_subcommand(
-        "build",
-        "whl2conda.cli.build.build_main",
-        "builds a conda package from a python wheel",
-    )
-    subcmds.add_subcommand(
         "config",
         "whl2conda.cli.config.config_main",
         "configure whl2conda",
+    )
+    subcmds.add_subcommand(
+        "convert",
+        "whl2conda.cli.convert.convert_main",
+        "builds a conda package from a python wheel",
     )
     subcmds.add_subcommand(
         "install",
