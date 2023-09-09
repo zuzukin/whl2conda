@@ -167,16 +167,33 @@ mike-serve: doc-serve-all
 #
 
 # TODO - add targets from version
-build:
+build-sdist:
+	$(CONDA_RUN) python -m build --sdist --no-isolation --outdir dist
+
+build-conda:
 	# Use tool to build itself!
 	$(CONDA_RUN) whl2conda convert --build-wheel
 
-upload:
+build: build-sdist build-conda
+
+check-upload-wheel:
+	$(CONDA_RUN) twine check dist/*.whl
+
+check-upload-sdist:
+	$(CONDA_RUN) twine check dist/*.tar.gz
+
+check-upload: check-upload-sdist check-upload-wheel
+
+upload-wheel: check-upload-wheel
 	# NOTE: --skip-existing doesn't seem to actually work
 	$(CONDA_RUN) twine upload --skip-existing $(lastword $(sort $(wildcard dist/*.whl)))
 
-check-upload:
-	$(CONDA_RUN) twine check dist/*.whl
+
+upload-sdist: check-upload-sdist
+	# NOTE: --skip-existing doesn't seem to actually work
+	$(CONDA_RUN) twine upload --skip-existing $(lastword $(sort $(wildcard dist/*.tar.gz)))
+
+upload: upload-sdist upload-wheel
 
 #
 # Cleanup targets
