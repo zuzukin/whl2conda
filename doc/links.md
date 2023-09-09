@@ -1,4 +1,10 @@
 
+## Conda
+
+* [conda file format](https://docs.conda.io/projects/conda/en/latest/user-guide/concepts/packages.html)
+* [package spec](https://docs.conda.io/projects/conda-build/en/stable/resources/package-spec.html)
+* [conda-package-handling tool (cph)](https://conda.github.io/conda-package-handling/)
+
 ## Wheels:
 
 * [Current meta-data specification](https://packaging.python.org/en/latest/specifications/core-metadata/)
@@ -14,12 +20,6 @@
 * [PEP 621](https://peps.python.org/pep-0621/)
 * [PEP 639](https://peps.python.org/pep-0639/) - license files
 * [PEP 725](https://peps.python.org/pep-0725/) - external dependencies
-
-## Conda
-
-* [conda file format](https://docs.conda.io/projects/conda/en/latest/user-guide/concepts/packages.html)
-* [package spec](https://docs.conda.io/projects/conda-build/en/stable/resources/package-spec.html)
-* [conda-package-handling tool (cph)](https://conda.github.io/conda-package-handling/)
 
 ## Poetry issues:
 

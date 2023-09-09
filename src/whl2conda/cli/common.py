@@ -22,7 +22,7 @@ import importlib
 import sys
 import textwrap
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, List, Optional, Sequence
 
 __all__ = [
     "add_markdown_help",
@@ -169,17 +169,24 @@ class Subcommands:
     """
 
     _parser: argparse.ArgumentParser
-    _subcmds: argparse._SubParsersAction
+    _subparsers: argparse._SubParsersAction
+    _subcommands: List[str]
 
     def __init__(self, parser: argparse.ArgumentParser):
         self._parser = parser
-        self._subcmds = parser.add_subparsers(
+        self._subcommands = []
+        self._subparsers = parser.add_subparsers(
             title="Commands",
             dest="subcmd",
             metavar="<command>",
             required=True,
             parser_class=_SubcommandParser,
         )
+
+    @property
+    def subcommands(self) -> Sequence[str]:
+        """List of subcommand words"""
+        return tuple(self._subcommands)
 
     def add_subcommand(
         self,
@@ -199,7 +206,8 @@ class Subcommands:
             help: help string
             aliases: optional aliases for subcommand
         """
-        subparser = self._subcmds.add_parser(
+        self._subcommands.append(cmd)
+        subparser = self._subparsers.add_parser(
             cmd, help=help, add_help=False, aliases=aliases
         )
         modulename, func = main_func.rsplit(".", maxsplit=1)

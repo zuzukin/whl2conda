@@ -1,40 +1,37 @@
 site_name: whl2conda
 repo_url: https://github.com/analog-cbarber/whl2conda
 site_url: https://zuzukin.github.io/whl2conda
-docs_dir: .
-site_dir: ../site
+docs_dir: doc
+site_dir: site
 site_author: Christopher Barber
 repo_name: GitHub
 copyright: Copyright &copy; 2023 Christopher Barber
 
 nav:
-  - User Guide: index.md
+  - User Guide:
+    - Basic Usage: basic-usage.md
+    - Dependency Modification: renaming.md
+    - Configuring pyproject.toml: pyproject.md
+    - Installing and Testing: testing.md
+    - Limitations: limitations.md
+  - Installation: install.md
   - Reference:
       - Command line:
         - wl2conda: cli/whl2conda.md
         - whl2conda config: cli/whl2conda-config.md
         - whl2conda convert: cli/whl2conda-convert.md
         - whl2conda install: cli/whl2conda-install.md
+      - API (<i>not stable!</i>):
+          - api/converter.md
+          - api/stdrename.md
+      - Reference Material: links.md
+
+  - About:
+      - Getting help: support.md
+#      - Release notes: changelog.md
       - License: license.md
 
-# TODO:
-#   - Links:
-#      - wheel format
-#      - conda package format
-#      - https://packaging.python.org/en/latest/specifications/binary-distribution-format/
-#
-#  - API:
-#      - garpy.asyncio: api-asyncio.md
-#
-#  - Installation: install.md
-#
-#  - Support:
-#      - Getting help: support.md
-#      - Release notes: changelog.md
-#      - License: license.md
-
 # https://squidfunk.github.io/mkdocs-material/setup/changing-the-colors/
-
 extra_css:
   - style.css
 
@@ -58,8 +55,8 @@ theme:
   hljs_languages:
     python
     json
-  logo: whl2conda.png
-  favicon: whl2conda.png
+  logo: whl2conda.svg
+  favicon: whl2conda.svg
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -84,25 +81,25 @@ extra:
 
 watch:
   # path is relative to this file
-  - ../src/whl2conda
+  - src/whl2conda
 
 plugins:
   - search
   - autorefs
   - offline
-  # See https://mkdocstrings.github.io/
   - mike:
       # These fields are all optional; the defaults are as below...
       canonical_version: stable
       version_selector: true
       css_dir: css
       javascript_dir: js
+  # See https://mkdocstrings.github.io/
   - mkdocstrings:
-      default_handler: python
+      default_handler: python_xref
       # generate objects.inv sphinx inventory file in site/ dir to support external cross references
       enable_inventory: true
       handlers:
-        python:
+        python_xref:
           import:
             - https://docs.python.org/3/objects.inv
 
@@ -131,8 +128,14 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.snippets:
       check_paths: true
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
           class: mermaid
 #          format: !!python/name:pymdownx.superfences.fence_code_format
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
