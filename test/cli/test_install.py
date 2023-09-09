@@ -15,6 +15,9 @@
 """
 Unit tests for `whl2conda install` subcommand
 """
+
+from __future__ import annotations
+
 import re
 from pathlib import Path
 from typing import Any, Sequence

@@ -16,6 +16,8 @@
 Unit tests for whl2conda.prompt module
 """
 
+from __future__ import annotations
+
 import time
 from collections import deque
 from pathlib import Path

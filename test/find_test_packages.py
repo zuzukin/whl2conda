@@ -16,6 +16,8 @@
 Script to find candidate test packages that use pypi/conda renamed packages.
 """
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
 import urllib.request
