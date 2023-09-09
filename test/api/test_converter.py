@@ -22,7 +22,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Generator, List, Optional, Sequence, Tuple, Union
+from typing import Generator, Optional, Sequence, Union
 
 # third party
 import pytest
@@ -82,7 +82,7 @@ class ConverterTestCase:
         tmp_dir: Path,
         project_dir: Path,
         package_name: str = "",
-        dependency_rename: Sequence[Tuple[str, str]] = (),
+        dependency_rename: Sequence[tuple[str, str]] = (),
         extra_dependencies: Sequence[str] = (),
         overwrite: bool = False,
     ) -> None:
@@ -169,7 +169,7 @@ class ConverterTestCaseFactory:
     tmp_path_factory: pytest.TempPathFactory
     tmp_path: Path
     project_dir: Path
-    _cases: List[ConverterTestCase]
+    _cases: list[ConverterTestCase]
 
     def __init__(self, tmp_path_factory: pytest.TempPathFactory) -> None:
         self.tmp_path_factory = tmp_path_factory
@@ -184,7 +184,7 @@ class ConverterTestCaseFactory:
         wheel_src: Union[Path, str],
         *,
         package_name: str = "",
-        dependency_rename: Sequence[Tuple[str, str]] = (),
+        dependency_rename: Sequence[tuple[str, str]] = (),
         extra_dependencies: Sequence[str] = (),
         overwrite: bool = False,
     ) -> ConverterTestCase:

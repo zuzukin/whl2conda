@@ -23,7 +23,7 @@ import json
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Generator, Optional, Sequence, Set
+from typing import Any, Dict, Generator, Optional, Sequence
 
 import conda_package_handling.api as cphapi
 import pytest
@@ -45,10 +45,10 @@ class PackageValidator:
 
     _unpacked_wheel: Path
     _unpacked_conda: Path
-    _wheel_md: Dict[str, Any]
+    _wheel_md: dict[str, Any]
     _override_name: str
-    _renamed_dependencies: Dict[str, Any]
-    _std_renames: Dict[str, Any]
+    _renamed_dependencies: dict[str, Any]
+    _std_renames: dict[str, Any]
     _extra_dependencies: Sequence[str]
 
     def __init__(self, tmp_dir: Path) -> None:
@@ -63,8 +63,8 @@ class PackageValidator:
         conda_pkg: Path,
         *,
         name: str = "",
-        renamed: Optional[Dict[str, str]] = None,
-        std_renames: Optional[Dict[str, str]] = None,
+        renamed: Optional[dict[str, str]] = None,
+        std_renames: Optional[dict[str, str]] = None,
         extra: Sequence[str] = (),
     ) -> None:
         """Validate conda package against wheel from which it was generated"""
@@ -80,14 +80,14 @@ class PackageValidator:
 
         self._validate_unpacked()
 
-    def _parse_wheel_metadata(self, wheel_dir: Path) -> Dict[str, Any]:
+    def _parse_wheel_metadata(self, wheel_dir: Path) -> dict[str, Any]:
         metdata_files = list(wheel_dir.glob("*.dist-info/METADATA"))
         assert metdata_files
         md_file = metdata_files[0]
         md_msg = email.message_from_string(md_file.read_text())
 
         list_keys = set(s.lower() for s in Wheel2CondaConverter.MULTI_USE_METADATA_KEYS)
-        md: Dict[str, Any] = {}
+        md: dict[str, Any] = {}
         for key, value in md_msg.items():
             key = key.lower()
             if key in list_keys:
@@ -134,7 +134,7 @@ class PackageValidator:
         about_file = info_dir.joinpath("about.json")
         assert about_file.is_file()
         md = self._wheel_md
-        _about: Dict[str, Any] = json.loads(about_file.read_text())
+        _about: dict[str, Any] = json.loads(about_file.read_text())
 
         assert _about.get("home") == md.get("home-page")
         assert _about.get("keywords") == md.get("keywords")
@@ -202,7 +202,7 @@ class PackageValidator:
 
     def _validate_dependencies(self, dependencies: Sequence[str]) -> None:
         output_depends = set(dependencies)
-        expected_depends: Set[str] = set()
+        expected_depends: set[str] = set()
 
         wheel_md = self._wheel_md
         if python_ver := wheel_md.get("requires-python"):
@@ -236,13 +236,13 @@ class PackageValidator:
     def _validate_paths(self, info_dir: Path) -> None:
         rel_files = info_dir.joinpath("files").read_text().splitlines()
         pkg_dir = self._unpacked_conda
-        files: Set[Path] = set(
+        files: set[Path] = set(
             pkg_dir.joinpath(rel_file.strip()) for rel_file in rel_files
         )
         for file in files:
             assert file.is_file()
 
-        path_files: Set[Path] = set()
+        path_files: set[Path] = set()
         paths = json.loads(info_dir.joinpath("paths.json").read_text())
         assert set(paths.keys()) == {"paths", "paths_version"}
         assert paths["paths_version"] == 1

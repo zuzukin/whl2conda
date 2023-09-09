@@ -16,10 +16,12 @@
 Script to find candidate test packages that use pypi/conda renamed packages.
 """
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
 import urllib.request
-from typing import Any, Dict
+from typing import Any
 
 from whl2conda.api.stdrename import load_std_renames
 
@@ -41,7 +43,7 @@ def main():
     # make a set of the conda names
     conda_renames = set(stdrenames.values())
 
-    candidates: Dict[str, Any] = {}
+    candidates: dict[str, Any] = {}
 
     print("filtering")
     for _k, v in repodata.get("packages.conda", {}).items():

@@ -15,9 +15,12 @@
 """
 Unit tests for `whl2conda install` subcommand
 """
+
+from __future__ import annotations
+
 import re
 from pathlib import Path
-from typing import Any, List, Sequence
+from typing import Any, Sequence
 
 import pytest
 
@@ -207,7 +210,7 @@ def test_env_install_whitebox(
     """
     prefix = tmp_path.joinpath("prefix")
 
-    call_args: List[List[str]] = []
+    call_args: list[list[str]] = []
 
     def fake_call(cmd: Sequence[str]) -> Any:
         call_args.append(list(cmd))

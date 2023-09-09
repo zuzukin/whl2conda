@@ -25,7 +25,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import Optional, Sequence
 
 from conda_package_handling.api import extract as extract_conda_pkg
 
@@ -47,7 +47,7 @@ class InstallArgs:
     package_file: Path
     prefix: Optional[Path]
     yes: bool
-    remaining_args: List[str]
+    remaining_args: list[str]
 
     @classmethod
     def parse(
@@ -226,9 +226,9 @@ def conda_bld_install(parsed: InstallArgs, subdir: str):
         )
 
 
-def conda_env_install(parsed: InstallArgs, dependencies: List[str]):
+def conda_env_install(parsed: InstallArgs, dependencies: list[str]):
     """Install package into an environment"""
-    common_opts: List[str] = []
+    common_opts: list[str] = []
     if parsed.prefix:
         common_opts.extend(["--prefix", str(parsed.prefix)])
     else:

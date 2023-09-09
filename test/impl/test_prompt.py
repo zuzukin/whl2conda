@@ -16,10 +16,12 @@
 Unit tests for whl2conda.prompt module
 """
 
+from __future__ import annotations
+
 import time
 from collections import deque
 from pathlib import Path
-from typing import Deque, Iterator, Tuple
+from typing import Deque, Iterator
 
 import pytest
 
@@ -50,7 +52,7 @@ def test_is_interactive(
 
 def test_bool_input(monkeypatch: pytest.MonkeyPatch) -> None:
     """Unit test for bool_input function"""
-    input_calls: Iterator[Tuple[str, str]] = iter(())
+    input_calls: Iterator[tuple[str, str]] = iter(())
 
     def fake_input(prompt: str) -> str:
         try:

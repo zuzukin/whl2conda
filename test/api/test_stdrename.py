@@ -25,7 +25,6 @@ import time
 from email.utils import parsedate_to_datetime
 from http import HTTPStatus
 from pathlib import Path
-from typing import List
 from urllib.error import HTTPError, URLError
 
 import pytest
@@ -108,7 +107,7 @@ def test_load_std_renames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert not local_renames_file.exists()
 
     # Don't bother with actual update, just make sure it is called.
-    fake_update_path: List[Path] = []
+    fake_update_path: list[Path] = []
 
     def fake_update(fpath: Path) -> bool:
         fake_update_path.clear()
