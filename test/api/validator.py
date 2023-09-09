@@ -130,6 +130,7 @@ class PackageValidator:
         self._validate_paths(info_dir)
         self._validate_hash_input(info_dir)
 
+    # pylint: disable=too-many-locals
     def _validate_about(self, info_dir: Path) -> None:
         about_file = info_dir.joinpath("about.json")
         assert about_file.is_file()
@@ -163,7 +164,16 @@ class PackageValidator:
         assert _about.get("doc_url", "") == doc_url
         assert _about.get("dev_url", "") == dev_url
 
-        assert extra.get("license_files", ()) == md.get("license-file", ())
+        license_files = md.get("license-file",())
+        licenses_dir = info_dir / "licenses"
+        assert extra.get("license_files", ()) == license_files
+        if license_files:
+            assert licenses_dir.is_dir()
+            expected_license_files = set(licenses_dir/fname for fname in license_files)
+            assert set(licenses_dir.glob("**/*")) == expected_license_files
+        else:
+            assert not licenses_dir.exists()
+
         for key in ["author", "maintainer", "author-email", "maintainer-email"]:
             assert extra.get(key) == md.get(key)
 
