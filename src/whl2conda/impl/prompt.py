@@ -27,7 +27,6 @@ __all__ = [
 ]
 
 from pathlib import Path
-from typing import Dict, Tuple
 
 
 def is_interactive() -> bool:
@@ -93,7 +92,7 @@ def choose_wheel(
         )
 
     # key -> (label,Path)
-    options: Dict[str, Tuple[str, Path]] = {
+    options: dict[str, tuple[str, Path]] = {
         str(i): (wheel.name, wheel) for i, wheel in enumerate(wheels)
     }
     if can_build:

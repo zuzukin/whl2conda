@@ -42,7 +42,7 @@ import time
 from email.utils import formatdate, parsedate_to_datetime
 from http import HTTPStatus
 from pathlib import Path
-from typing import Dict, NamedTuple, Optional, Sequence, TypedDict, Union
+from typing import NamedTuple, Optional, Sequence, TypedDict, Union
 from urllib.error import HTTPError
 
 from platformdirs import user_cache_path
@@ -100,7 +100,7 @@ def user_stdrenames_path() -> Path:
 def load_std_renames(
     *,
     update: bool = False,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """
     Load standard pypi to conda package rename table.
 
@@ -197,7 +197,7 @@ class DownloadedMappings(NamedTuple):
         return -1
 
 
-def process_name_mapping_dict(mappings: DownloadedMappings) -> Dict[str, str]:
+def process_name_mapping_dict(mappings: DownloadedMappings) -> dict[str, str]:
     """
     Convert name mapping table from github to simple rename table.
 
@@ -209,7 +209,7 @@ def process_name_mapping_dict(mappings: DownloadedMappings) -> Dict[str, str]:
     Returns:
         dictionary mapping pypi to conda package names
     """
-    renames: Dict[str, str] = {
+    renames: dict[str, str] = {
         "$source": mappings.url,
         "$date": mappings.datestr or formatdate(usegmt=True),
         "$etag": mappings.etag,

@@ -21,12 +21,12 @@ from __future__ import annotations
 import json
 import re
 from subprocess import check_output
-from typing import Any, Dict
+from typing import Any
 
 __all__ = ["conda_config", "conda_json", "conda_output"]
 
 
-def conda_config() -> Dict[str, Any]:
+def conda_config() -> dict[str, Any]:
     """Return conda configuration dictionary"""
     return conda_json("config", "--show")
 

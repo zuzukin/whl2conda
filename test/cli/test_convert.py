@@ -26,7 +26,7 @@ import re
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Generator, List, Optional, Sequence
+from typing import Any, Generator, Optional, Sequence
 
 # third party
 import pytest
@@ -74,9 +74,9 @@ class CliTestCase:
     # Expected values
     #
 
-    args: List[str]
+    args: list[str]
     interactive: bool
-    expected_dependency_renames: List[DependencyRename]
+    expected_dependency_renames: list[DependencyRename]
     expected_dry_run: bool = False
     expected_extra_dependencies: Sequence[str] = ()
     expected_interactive: bool = True
@@ -90,8 +90,8 @@ class CliTestCase:
     expected_project_root: str = ""
     expected_wheel_path: str = ""
 
-    expected_prompts: List[str]
-    responses: List[str]
+    expected_prompts: list[str]
+    responses: list[str]
     from_dir: Path
     was_run: bool = False
 
@@ -292,7 +292,7 @@ class CliTestCaseFactory:
     tmp_path: Path
     project_dir: Path
 
-    cases: List[CliTestCase]
+    cases: list[CliTestCase]
 
     def __init__(
         self,

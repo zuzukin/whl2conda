@@ -30,7 +30,7 @@ import time
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, NamedTuple
+from typing import Any, Optional, Sequence, NamedTuple
 
 # third party
 from wheel.wheelfile import WheelFile
@@ -122,12 +122,12 @@ class NonNoneDict(dict):
 class MetadataFromWheel:
     """Metadata parsed from wheel distribution"""
 
-    md: Dict[str, Any]
+    md: dict[str, Any]
     package_name: str
     version: str
     wheel_build_number: str
     license: Optional[str]
-    dependencies: List[str]
+    dependencies: list[str]
     wheel_info_dir: Path
 
 
@@ -171,7 +171,7 @@ class DependencyRename(NamedTuple):
             )
         return cls(pat, repl)
 
-    def rename(self, pypi_name: str) -> Tuple[str, bool]:
+    def rename(self, pypi_name: str) -> tuple[str, bool]:
         """Rename dependency package name
 
         Returns conda name and indicator of whether the
@@ -216,13 +216,13 @@ class Wheel2CondaConverter:
     out_format: CondaPackageFormat
     overwrite: bool = False
     keep_pip_dependencies: bool = False
-    dependency_rename: List[DependencyRename]
-    extra_dependencies: List[str]
+    dependency_rename: list[DependencyRename]
+    extra_dependencies: list[str]
     interactive: bool = False
 
     wheel_md: Optional[MetadataFromWheel] = None
     conda_pkg_path: Optional[Path] = None
-    std_renames: Dict[str, str]
+    std_renames: dict[str, str]
 
     temp_dir: Optional[tempfile.TemporaryDirectory] = None
 
@@ -337,7 +337,7 @@ class Wheel2CondaConverter:
     def _write_paths_file(self, conda_dir: Path, rel_files: Sequence[str]) -> None:
         # info/paths.json - paths with SHA256 do we really need this?
         conda_paths_file = conda_dir.joinpath("info", "paths.json")
-        paths: List[Dict[str, Any]] = []
+        paths: list[dict[str, Any]] = []
         for rel_file in rel_files:
             abs_file = conda_dir.joinpath(rel_file)
             file_bytes = abs_file.read_bytes()
@@ -357,7 +357,7 @@ class Wheel2CondaConverter:
         # info/link.json
         conda_link_file = conda_info_dir.joinpath("link.json")
         wheel_entry_points_file = wheel_info_dir.joinpath("entry_points.txt")
-        console_scripts: List[str] = []
+        console_scripts: list[str] = []
         if wheel_entry_points_file.is_file():
             wheel_entry_points = configparser.ConfigParser()
             wheel_entry_points.read(wheel_entry_points_file)
@@ -423,7 +423,7 @@ class Wheel2CondaConverter:
         conda_hash_input_file = conda_info_dir.joinpath("hash_input.json")
         conda_hash_input_file.write_text(json.dumps({}, indent=2))
 
-    def _write_about(self, conda_info_dir: Path, md: Dict[str, Any]) -> None:
+    def _write_about(self, conda_info_dir: Path, md: dict[str, Any]) -> None:
         # * info/about.json
         license = md.get("license-expression") or md.get("license")
         conda_about_file = conda_info_dir.joinpath("about.json")
@@ -432,7 +432,7 @@ class Wheel2CondaConverter:
         #   that conda-forge packages include this in the info/
         doc_url: Optional[str] = None
         dev_url: Optional[str] = None
-        extra: Dict[str, Any] = {}
+        extra: dict[str, Any] = {}
         for urlline in md.get("project-url", ()):
             urlparts = re.split(r"\s*,\s*", urlline, maxsplit=1)
             if len(urlparts) > 1:
@@ -469,8 +469,8 @@ class Wheel2CondaConverter:
         )
 
     # pylint: disable=too-many-locals
-    def _compute_conda_dependencies(self, dependencies: Sequence[str]) -> List[str]:
-        conda_dependencies: List[str] = []
+    def _compute_conda_dependencies(self, dependencies: Sequence[str]) -> list[str]:
+        conda_dependencies: list[str] = []
 
         for dep in dependencies:
             try:
@@ -514,7 +514,7 @@ class Wheel2CondaConverter:
             conda_dependencies.append(dep)
         return conda_dependencies
 
-    def _copy_site_packages(self, wheel_dir: Path, conda_dir: Path) -> List[str]:
+    def _copy_site_packages(self, wheel_dir: Path, conda_dir: Path) -> list[str]:
         conda_site_packages = conda_dir.joinpath("site-packages")
         conda_site_packages.mkdir()
         conda_info_dir = conda_dir.joinpath("info")
@@ -557,7 +557,7 @@ class Wheel2CondaConverter:
         if not is_pure_lib:
             raise Wheel2CondaError(f"Wheel {self.wheel_path} is not pure python")
         wheel_md_file = wheel_info_dir.joinpath("METADATA")
-        md: Dict[str, List[Any]] = {}
+        md: dict[str, list[Any]] = {}
         # Metdata spec: https://packaging.python.org/en/latest/specifications/core-metadata/
         # Required keys: Metadata-Version, Name, Version
         md_msg = email.message_from_string(wheel_md_file.read_text())
@@ -595,7 +595,7 @@ class Wheel2CondaConverter:
         package_name = self.package_name or str(md.get("name"))
         self.package_name = package_name
         version = md.get("version")
-        dependencies: List[str] = []
+        dependencies: list[str] = []
         python_version = md.get("requires-python")
         if python_version:
             dependencies.append(f"python {python_version}")

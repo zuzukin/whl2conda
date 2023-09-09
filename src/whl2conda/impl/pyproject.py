@@ -22,7 +22,7 @@ import enum
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import Optional, Sequence, Union
 
 import tomlkit
 
@@ -95,7 +95,7 @@ class PyProjInfo:
     out_dir: Optional[Path] = None
     """tool.whl2conda.out-dir - override default package output directory"""
 
-    dependency_rename: Sequence[Tuple[str, str]] = ()
+    dependency_rename: Sequence[tuple[str, str]] = ()
     """tool.whl2conda.dependency-rename - map pip package names to conda package names
     
     This is a list of `<pattern>`/`<substitution>` strings, where `<pattern>` is
@@ -267,7 +267,7 @@ def read_pyproject(path: Path) -> PyProjInfo:
         pyproj.out_dir = project_dir.joinpath(out_dir).absolute()
 
     if renames := whl2conda.get("dependency-rename", ()):
-        _renames: List[Tuple[str, str]] = []
+        _renames: list[tuple[str, str]] = []
         for entry in renames:
             try:
                 k, v = entry
@@ -284,7 +284,7 @@ def read_pyproject(path: Path) -> PyProjInfo:
         pyproj.dependency_rename = tuple(_renames)
 
     if extra_deps := whl2conda.get("extra-dependencies", ()):
-        _extra_deps: List[str] = []
+        _extra_deps: list[str] = []
         for dep in extra_deps:
             if isinstance(dep, str):
                 _extra_deps.append(dep)

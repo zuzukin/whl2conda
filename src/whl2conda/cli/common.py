@@ -22,7 +22,7 @@ import importlib
 import sys
 import textwrap
 from pathlib import Path
-from typing import Any, List, Optional, Sequence
+from typing import Any, Optional, Sequence
 
 __all__ = [
     "add_markdown_help",
@@ -170,7 +170,7 @@ class Subcommands:
 
     _parser: argparse.ArgumentParser
     _subparsers: argparse._SubParsersAction
-    _subcommands: List[str]
+    _subcommands: list[str]
 
     def __init__(self, parser: argparse.ArgumentParser):
         self._parser = parser

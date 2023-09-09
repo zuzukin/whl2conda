@@ -23,7 +23,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import Optional, Sequence
 
 # this project
 from ..impl.prompt import is_interactive, choose_wheel
@@ -48,10 +48,10 @@ class Whl2CondaArgs:
     """
 
     build_wheel: bool
-    dep_renames: Sequence[Tuple[str, str]]
+    dep_renames: Sequence[tuple[str, str]]
     dropped_deps: Sequence[str]
     dry_run: bool
-    extra_deps: List[str]
+    extra_deps: list[str]
     ignore_pyproject: bool
     interactive: bool
     keep_pip_deps: bool
@@ -382,7 +382,7 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     can_build = project_root is not None
 
     # assemble rename patterns and verify regular expression can be compiled
-    renames: List[DependencyRename] = []
+    renames: list[DependencyRename] = []
     source = str(pyproj_info.toml_file)
     try:
         for pat, repl in pyproj_info.dependency_rename:
