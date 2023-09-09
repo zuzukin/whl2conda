@@ -18,6 +18,7 @@ Main whl2conda CLI
 from __future__ import annotations
 
 import argparse
+import sys
 from typing import Optional, Sequence
 
 from ..__about__ import __version__
@@ -61,6 +62,17 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None) -> No
         "install conda package file with dependencies",
     )
     # TODO subcommand for clean/fixup of conda-bld or pkgs cache
+
+    class ListSubcommands(argparse.Action):
+        """Print out space separated list of command words and exit"""
+
+        def __call__(self, *args, **kwargs):
+            print(" ".join(subcmds.subcommands))
+            sys.exit(0)
+
+    parser.add_argument(
+        "--list-subcommands", action=ListSubcommands, nargs=0, help=argparse.SUPPRESS
+    )
 
     add_markdown_help(parser)
     parser.add_argument("--version", action="version", version=__version__)

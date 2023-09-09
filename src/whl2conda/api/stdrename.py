@@ -24,6 +24,9 @@ are available from:
 This package provides utility functions for downlaading mappings
 from that site and extracting a standard pypi to conda name
 mapping dictionary.
+
+**NOTE: this module should not be considered stable! The API
+may change incompatibly in a future release.**
 """
 
 from __future__ import annotations
@@ -102,7 +105,7 @@ def load_std_renames(
     Load standard pypi to conda package rename table.
 
     A copy of this table is kept in a local a cache
-    file (see [user_stdrenames_path][whl2conda.stderename.user_stdrenames_path])
+    file (see [user_stdrenames_path][(m).])
     The table will be read from that file, it it exists, otherwise the
     table included in this package will be copied to the
     user cache file.
@@ -183,8 +186,7 @@ class DownloadedMappings(NamedTuple):
         """Max age from Cache-Control header
 
         Max age in seconds from cache control header, or
-        else difference between [expires][whl2conda.api.stdrename.expires]
-        and [date][whl2conda.api.stdrename.date] or else -1.
+        else difference between [expires][..] and [date][..] or else -1.
         """
         if cc := self.headers.get("Cache-Control", ""):
             if m := re.search(r"max-age=(\d+)", cc):
