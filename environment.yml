@@ -1,7 +1,7 @@
 name: whl2conda-dev
 channels:
   - conda-forge
-  - garpy
+  - garpy # for mkdocstrings-python-xref
 dependencies:
   - python >=3.8,<3.12
   # runtime
