@@ -45,7 +45,7 @@ def test_help(
 
     with pytest.raises(SystemExit) as exc_info:
         main(["--list-subcommands"], "whl2conda")
-    out,err = capsys.readouterr()
+    out, err = capsys.readouterr()
     assert err == ""
     assert set(out.strip().split()) == set(subcmds)
     assert exc_info.value.code == 0
