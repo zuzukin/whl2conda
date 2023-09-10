@@ -295,6 +295,31 @@ def test_simple_wheel(
     v1pkg = test_case(simple_wheel).build(CondaPackageFormat.V1)
     assert v1pkg.name.endswith(".tar.bz2")
 
+    # Repack wheel with build number
+    dest_dir = test_case.tmp_path / "number"
+    subprocess.check_call(
+        ["wheel", "unpack", str(simple_wheel), "--dest", str(dest_dir)]
+    )
+    unpack_dir = next(dest_dir.glob("*"))
+    assert unpack_dir.is_dir()
+    subprocess.check_call(
+        [
+            "wheel",
+            "pack",
+            str(unpack_dir),
+            "--build-number",
+            "42",
+            "--dest",
+            str(dest_dir),
+        ]
+    )
+    build42whl = next(dest_dir.glob("*.whl"))
+
+    test_case(
+        build42whl,
+        overwrite=True,
+    ).build()
+
 
 def test_poetry(
     test_case: ConverterTestCaseFactory,

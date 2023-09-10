@@ -219,6 +219,7 @@ class Wheel2CondaConverter:
     dependency_rename: list[DependencyRename]
     extra_dependencies: list[str]
     interactive: bool = False
+    build_number: Optional[int] = None
 
     wheel_md: Optional[MetadataFromWheel] = None
     conda_pkg_path: Optional[Path] = None
@@ -386,11 +387,14 @@ class Wheel2CondaConverter:
     ) -> None:
         # info/index.json
         conda_index_file = conda_info_dir.joinpath("index.json")
-        # TODO allow build number override (#31)
-        try:
-            build_number = int(wheel_md.wheel_build_number)
-        except ValueError:
-            build_number = 0
+
+        if self.build_number is not None:
+            build_number = self.build_number
+        else:
+            try:
+                build_number = int(wheel_md.wheel_build_number)
+            except ValueError:
+                build_number = 0
 
         conda_index_file.write_text(
             json.dumps(

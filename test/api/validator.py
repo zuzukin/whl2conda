@@ -81,9 +81,8 @@ class PackageValidator:
         self._validate_unpacked()
 
     def _parse_wheel_metadata(self, wheel_dir: Path) -> dict[str, Any]:
-        metdata_files = list(wheel_dir.glob("*.dist-info/METADATA"))
-        assert metdata_files
-        md_file = metdata_files[0]
+        dist_info_dir = next(wheel_dir.glob("*.dist-info"))
+        md_file = dist_info_dir / "METADATA"
         md_msg = email.message_from_string(md_file.read_text())
 
         list_keys = set(s.lower() for s in Wheel2CondaConverter.MULTI_USE_METADATA_KEYS)
@@ -94,6 +93,12 @@ class PackageValidator:
                 md.setdefault(key, []).append(value)
             else:
                 md[key] = value
+
+        wheel_file = dist_info_dir / "WHEEL"
+        wheel_msg = email.message_from_string(wheel_file.read_text())
+        if build := wheel_msg.get("Build"):
+            md["build"] = build
+
         return md
 
     def _unpack_package(self, pkg_path: Path) -> Path:
@@ -203,7 +208,13 @@ class PackageValidator:
         # TODO support pinned python version...
         assert index["arch"] is None
         assert index['build'] == 'py_0'
-        assert index['build_number'] == 0  # TODO support setting build #
+
+        try:
+            build_number = int(wheel_md.get("build", 0))
+        except ValueError:
+            build_number = 0
+        assert index['build_number'] == build_number
+
         assert index["platform"] is None
         assert index["subdir"] == "noarch"
         assert index.get("license") == wheel_md.get(
