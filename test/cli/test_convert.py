@@ -802,6 +802,16 @@ def test_rename_options(
         "",
     ).run()
 
+    test_case(
+        [str(simple_wheel), "-R", "[bad", "bad"],
+        expected_parser_error="Bad dependency rename pattern",
+    ).run()
+
+    test_case(
+        [str(simple_wheel), "-R", "acme-(.*)", "acme.$2"],
+        expected_parser_error="Bad dependency replacement",
+    ).run()
+
 
 def test_build_number(
     test_case: CliTestCaseFactory,
