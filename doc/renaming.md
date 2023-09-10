@@ -23,7 +23,7 @@ exceptions, for example:
 === "pip"
 
     ```bash
-    $ pip install -c conda-forge numpy-quaternion 
+    $ pip install numpy-quaternion 
     $ pip install tables
     $ pip install torch
     ```
@@ -156,7 +156,7 @@ This is described in the [next section](pyproject.md).
 
 We have sometimes seen problems in packages built using conda-build
 in which the pip dependencies listed in the python packages
-dist-info directory in the site-packages directory int the conda
+dist-info directory in the site-packages directory in the conda
 environment where the conda package is installed can clash with
 conda dependencies. To avoid this kind of problem, the `whl2conda`
 by default will turn all regular dependencies in the dist-info

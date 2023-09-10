@@ -1,4 +1,4 @@
-*whl2conda* currently only supports conversion ofgeneric pure python wheels
+*whl2conda* currently only supports conversion of generic pure python wheels
 into noarch python conda packages.
 
 It has the following limitations, some of which might be addressed in future
@@ -6,8 +6,9 @@ releases.
 
 ## Cannot convert from sdist
 
-Currently, only conversion from wheels is supported. Python sdist
-distributions are not currently supported. This could possibly be supported in the future.
+Currently, only conversion from wheels is supported. Conversion from python sdist
+distributions are not currently supported. This could possibly be supported in 
+the future (see [issue 78](https://github.com/zuzukin/whl2conda/issues/78)).
 
 ## Cannot convert from eggs
 
@@ -26,7 +27,7 @@ black[jupyter]
 ```
 
 will include the `black` dependency itself, but not any extra dependencies
-that are declared with the `extra == jupyter` marker. This will be addressed
+that are declared with the `extra == 'jupyter'` marker. This will be addressed
 in a future release. See [issue 36](https://github.com/zuzukin/whl2conda/issues/36).
 
 ## Only supports noarch python

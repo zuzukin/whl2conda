@@ -6,7 +6,7 @@ run `whl2conda convert`:
 ```bash
 $ whl2conda convert mypackage-1.2.3-py3-none-any.whl
 Reading mypackage-1.2.3-py3-none-any.whl
-Writing mypackae-1.2.3-py_0.coda
+Writing mypackage-1.2.3-py_0.coda
 ```
 
 By default, this will create the conda package in the same directory
@@ -54,8 +54,8 @@ read any project-specific options from the `[tool.whl2conda]` section
 then look for a wheel in the `dist/` subdirectory of the project.
 
 If there is only one `.whl` file in the `dist/` directory, that will
-be used. Otherwise,  f the there is an interactive terminal and the 
-`--batch` option  has not been specified, then *whl2conda* will prompt
+be used. Otherwise, if the there is an interactive terminal and the 
+`--batch` option  has not been specified, *whl2conda* will prompt
 the user to choose a wheel or to build one using [pip wheel][pip-wheel].
 
 You can use the `--build-wheel` option to force the wheel to be built
@@ -75,7 +75,7 @@ uses the `.tar.bz2` extension, you can use the `--format` option:
 ```bash
 $ whl2conda convert mypackage-1.2.3-py3-none-any.whl --format V1
 Reading mypackage-1.2.3-py3-none-any.whl
-Writing mypackae-1.2.3-py_0.tar.bz2
+Writing mypackage-1.2.3-py_0.tar.bz2
 ```
 
 You can also specify the format `tree` to generate the conda package
