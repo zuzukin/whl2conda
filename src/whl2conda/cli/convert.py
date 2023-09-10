@@ -440,6 +440,20 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     else:
         out_fmt = CondaPackageFormat.V2
 
+    if verbosity < -1:
+        level = logging.ERROR
+    elif verbosity < 0:
+        level = logging.WARNING
+    elif verbosity == 0:
+        level = logging.INFO
+    elif verbosity == 1:
+        level = logging.DEBUG
+    else:  # verbosity >= 2:
+        level = logging.DEBUG - 5
+
+    logging.getLogger().setLevel(level)
+    logging.basicConfig(level=level, format="%(message)s")
+
     if not wheel_file:
         if build_wheel:
             assert project_root and wheel_dir
@@ -448,6 +462,7 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
                 wheel_dir,
                 no_deps=build_no_deps,
                 dry_run=dry_run,
+                capture_output=level > logging.INFO,
             )
 
     assert wheel_file
@@ -464,20 +479,6 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
 
     converter.dependency_rename.extend(renames)
 
-    if verbosity < -1:
-        level = logging.ERROR
-    elif verbosity < 0:
-        level = logging.WARNING
-    elif verbosity == 0:
-        level = logging.INFO
-    elif verbosity == 1:
-        level = logging.DEBUG
-    else:  # verbosity >= 2:
-        level = logging.DEBUG - 5
-
-    logging.getLogger().setLevel(level)
-    logging.basicConfig(level=level, format="%(message)s")
-
     _conda_package = converter.convert()
 
 
@@ -488,6 +489,7 @@ def do_build_wheel(
     no_deps: bool = True,
     no_build_isolation: bool = False,
     dry_run: bool = False,
+    capture_output: bool = False,
 ) -> Path:
     """Build wheel for project
 
@@ -497,9 +499,13 @@ def do_build_wheel(
         no_deps: build with --no-deps
         no_build_isolation: build with --no-build-isolation
         dry_run: just log, don't actually run anything
+        capture_output: if True, capture output.
 
     Returns:
         path to created wheel
+
+    Raises:
+        CalledProcessError if pip command fails
     """
     logger = logging.getLogger(__name__)
     logger.info("Building wheel for %s", project_root)
@@ -523,8 +529,11 @@ def do_build_wheel(
         start = time.time()
         time.sleep(0.01)  # wait to avoid time resolution issues
 
-        # TODO capture/hide output in quiet mode (#30)
-        subprocess.check_call(cmd)
+        subprocess.run(
+            cmd,
+            check=True,
+            capture_output=capture_output,
+        )
 
         wheels = sorted(
             wheel_dir.glob("*.whl"),

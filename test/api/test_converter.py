@@ -267,17 +267,7 @@ def test_dependency_rename() -> None:
 def test_this(test_case: ConverterTestCaseFactory) -> None:
     """Test using this own project's wheel"""
     wheel_dir = test_case.tmp_path_factory.mktemp("test_this_wjheel_dir")
-    subprocess.check_call(
-        [
-            "pip",
-            "wheel",
-            str(root_dir),
-            "--no-deps",
-            "--no-build-isolation",
-            "-w",
-            str(wheel_dir),
-        ]
-    )
+    do_build_wheel(root_dir, wheel_dir, no_build_isolation=True, capture_output=True)
 
     wheel_path = list(wheel_dir.glob("*"))[0]
     assert wheel_path.is_file()
@@ -313,9 +303,9 @@ def test_poetry(
     """Unit test on simple poetry package"""
     poetry_dir = test_projects / "poetry"
     try:
-        wheel = do_build_wheel(poetry_dir, tmp_path)
+        wheel = do_build_wheel(poetry_dir, tmp_path, capture_output=True)
     except subprocess.CalledProcessError as err:
-        # TODO - capture output and look
+        # TODO - look at captured output
         pytest.skip(str(err))
     pkg = test_case(wheel).build()
     # conda package name taken from project name

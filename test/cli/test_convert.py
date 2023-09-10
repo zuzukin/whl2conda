@@ -168,6 +168,7 @@ class CliTestCase:
             *,
             no_deps: bool = False,
             dry_run: bool = False,
+            capture_output: bool = False,
         ) -> Path:
             # TODO validate no_deps, dry_run
             return wheel_dir.joinpath("fake-1.0-py3-none-any.whl")
@@ -581,11 +582,13 @@ def test_do_build_wheel(
         wheel_file = Path(parsed.wheel_dir).joinpath("acme-1.2.3-py3-none-any.whl")
         wheel_file.write_text("")
 
-    monkeypatch.setattr("subprocess.check_call", fake_call)
+    monkeypatch.setattr("subprocess.run", fake_call)
 
     caplog.set_level("INFO")
 
-    wheel_file = do_build_wheel(project_root, wheel_dir, dry_run=True)
+    wheel_file = do_build_wheel(
+        project_root, wheel_dir, dry_run=True, capture_output=True
+    )
     assert not wheel_dir.exists()
     assert not wheel_file.exists()
     assert wheel_file.parent == wheel_dir

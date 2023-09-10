@@ -42,6 +42,13 @@ def test_help(
     for subcmd in subcmds:
         assert re.search(rf"^\s+{subcmd}\s+\w+", out, flags=re.MULTILINE)
 
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--list-subcommands"], "whl2conda")
+    out, err = capsys.readouterr()
+    assert err == ""
+    assert set(out.strip().split()) == set(subcmds)
+    assert exc_info.value.code == 0
+
     def _check_subcmd(subcmd: str):
         with monkeypatch.context() as ctx:
             with pytest.raises(SystemExit):
