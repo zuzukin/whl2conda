@@ -1,6 +1,9 @@
 # whl2conda changes
 
-## [23.8.7] - 2023-9-9
+## [23.8.8] - 2023-9-10 (*prerelease*)
 
-**Prerelease**: this will be removed after first official
-stable release (which will probably be 23.9.0).
+* hide pip build wheel output with `--quiet`
+
+## [23.8.7] - 2023-9-9 (*prerelease*)
+
+* first conda-forge release
