@@ -28,7 +28,7 @@ nav:
 
   - About:
       - Getting help: support.md
-#      - Release notes: changelog.md
+      - Release notes: changelog.md
       - License: license.md
 
 # https://squidfunk.github.io/mkdocs-material/setup/changing-the-colors/
