@@ -8,8 +8,7 @@ pip install whl2conda
 ## using conda
 
 ```bash
-conda install -c garpy whl2conda
+conda install -c conda-forge whl2conda
 ```
 
-*coming soon on conda-forge*
 
