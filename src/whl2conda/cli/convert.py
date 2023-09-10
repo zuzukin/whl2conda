@@ -47,6 +47,7 @@ class Whl2CondaArgs:
     Parsed arguments
     """
 
+    build_number: Optional[int]
     build_wheel: bool
     dep_renames: Sequence[tuple[str, str]]
     dropped_deps: Sequence[str]
@@ -188,6 +189,11 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
             Build wheel
             """
         ),
+    )
+    output_opts.add_argument(
+        "--build-number",
+        type=int,
+        help="Specify build number. Otherwise taken from wheel.",
     )
 
     override_opts.add_argument(
@@ -476,6 +482,7 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     converter.extra_dependencies.extend(pyproj_info.extra_dependencies)
     converter.extra_dependencies.extend(parsed.extra_deps)
     converter.interactive = interactive
+    converter.build_number = parsed.build_number
 
     converter.dependency_rename.extend(renames)
 

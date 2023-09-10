@@ -76,6 +76,7 @@ class CliTestCase:
 
     args: list[str]
     interactive: bool
+    expected_build_number: Optional[int] = None
     expected_dependency_renames: list[DependencyRename]
     expected_dry_run: bool = False
     expected_extra_dependencies: Sequence[str] = ()
@@ -114,6 +115,7 @@ class CliTestCase:
         project_dir: Path,
         # optional
         interactive: Optional[bool] = None,
+        expected_build_number: Optional[int] = None,
         expected_dry_run: bool = False,
         expected_extra_dependencies: Sequence[str] = (),
         expected_interactive: bool = True,
@@ -134,6 +136,7 @@ class CliTestCase:
 
         self.args = list(args)
         self.interactive = is_interactive() if interactive is None else interactive
+        self.expected_build_number = expected_build_number
         self.expected_dry_run = expected_dry_run
         self.expected_dependency_renames = []
         self.expected_extra_dependencies = list(expected_extra_dependencies)
@@ -267,6 +270,7 @@ class CliTestCase:
                 expected_outdir = os.path.join(expected_root, "dist")
         if expected_outdir:
             assert converter.out_dir == projects / expected_outdir
+        assert converter.build_number == self.expected_build_number
         assert converter.dry_run is self.expected_dry_run
         assert converter.package_name == self.expected_package_name
         assert converter.out_format is self.expected_out_fmt
@@ -319,6 +323,7 @@ class CliTestCaseFactory:
         args: Sequence[str],
         *,
         interactive: Optional[bool] = None,
+        expected_build_number: Optional[int] = None,
         expected_dry_run: bool = False,
         expected_package_name: str = "",
         expected_parser_error: str = "",
@@ -340,6 +345,7 @@ class CliTestCaseFactory:
             project_dir=self.project_dir,
             args=args,
             interactive=interactive,
+            expected_build_number=expected_build_number,
             expected_dry_run=expected_dry_run,
             expected_package_name=expected_package_name,
             expected_parser_error=expected_parser_error,
@@ -794,4 +800,30 @@ def test_rename_options(
     ).add_dependency_rename(
         "quaternion",
         "",
+    ).run()
+
+    test_case(
+        [str(simple_wheel), "-R", "[bad", "bad"],
+        expected_parser_error="Bad dependency rename pattern",
+    ).run()
+
+    test_case(
+        [str(simple_wheel), "-R", "acme-(.*)", "acme.$2"],
+        expected_parser_error="Bad dependency replacement",
+    ).run()
+
+
+def test_build_number(
+    test_case: CliTestCaseFactory,
+    simple_wheel: Path,
+) -> None:
+    """Test whl2conda build output directory"""
+    test_case(
+        [str(simple_wheel)],
+        expected_build_number=None,
+    ).run()
+
+    test_case(
+        [str(simple_wheel), "--build-number", "42"],
+        expected_build_number=42,
     ).run()

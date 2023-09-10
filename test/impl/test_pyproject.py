@@ -116,6 +116,26 @@ def test_read_pyproject(tmp_path: Path) -> None:
     assert pyproj3.conda_format is CondaPackageFormat.V1
 
     #
+    # Test poetry name
+    #
+    proj_file.write_text(
+        dedent(
+            r"""
+            [build-system]
+            requires = ["poetry-core","setuptools"]
+            build-backend = "poetry.core.masonry.api"
+            
+            [tool.poetry]
+            name = "poetry.example"
+            version = "1.0.2"
+            """
+        ),
+        encoding="ascii",
+    )
+    pyproj4 = read_pyproject(tmp_path)
+    assert pyproj4.name == "poetry.example"
+
+    #
     # Test bad value warnings
     #
 
