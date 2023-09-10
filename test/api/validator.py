@@ -164,12 +164,14 @@ class PackageValidator:
         assert _about.get("doc_url", "") == doc_url
         assert _about.get("dev_url", "") == dev_url
 
-        license_files = md.get("license-file",())
+        license_files = md.get("license-file", ())
         licenses_dir = info_dir / "licenses"
         assert extra.get("license_files", ()) == license_files
         if license_files:
             assert licenses_dir.is_dir()
-            expected_license_files = set(licenses_dir/fname for fname in license_files)
+            expected_license_files = set(
+                licenses_dir / fname for fname in license_files
+            )
             assert set(licenses_dir.glob("**/*")) == expected_license_files
         else:
             assert not licenses_dir.exists()

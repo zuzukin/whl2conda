@@ -38,7 +38,13 @@ def simple_wheel(
 ) -> Generator[Path, None, None]:
     """Provides pip wheel for "simple" test project"""
     distdir = tmp_path_factory.mktemp("dist")
-    yield do_build_wheel(simple_project, distdir, no_deps=True, no_build_isolation=True)
+    yield do_build_wheel(
+        simple_project,
+        distdir,
+        no_deps=True,
+        no_build_isolation=True,
+        capture_output=True,
+    )
 
 
 @pytest.fixture(scope="session")
