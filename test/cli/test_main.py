@@ -18,6 +18,7 @@ Unit tests for main `whl2conda` CLI
 from __future__ import annotations
 
 import re
+import subprocess
 
 import pytest
 
@@ -41,6 +42,13 @@ def test_help(
     subcmds = ["convert", "config", "install"]
     for subcmd in subcmds:
         assert re.search(rf"^\s+{subcmd}\s+\w+", out, flags=re.MULTILINE)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--list-subcommands"], "whl2conda")
+    out,err = capsys.readouterr()
+    assert err == ""
+    assert set(out.strip().split()) == set(subcmds)
+    assert exc_info.value.code == 0
 
     def _check_subcmd(subcmd: str):
         with monkeypatch.context() as ctx:
