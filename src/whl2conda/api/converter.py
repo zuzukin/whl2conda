@@ -20,7 +20,9 @@ from __future__ import annotations
 
 # standard
 import configparser
+import dataclasses
 import email
+import io
 import json
 import logging
 import re
@@ -51,6 +53,7 @@ __all__ = [
 
 
 def __compile_requires_dist_re() -> re.Pattern:
+    # NOTE: these are currently fairly forgiving and will accept bad syntax
     name_re = r"(?P<name>[a-zA-Z0-9_.-]+)"
     extra_re = r"(?:\[(?P<extra>.+?)\])?"
     version_re = r"(?:\(?(?P<version>.*?)\)?)?"
@@ -62,6 +65,11 @@ def __compile_requires_dist_re() -> re.Pattern:
 
 
 _requires_dist_re = __compile_requires_dist_re()
+
+_extra_marker_re = [
+    re.compile(r"""\bextra\s*==\s*(['"])(?P<name>\w+)\1"""),
+    re.compile(r"""\b(['"])(?P<name>\w+)\1\s*==\s*extra"""),
+]
 
 
 @dataclass
@@ -76,6 +84,12 @@ class RequiresDistEntry:
     extras: Sequence[str] = ()
     version: str = ""
     marker: str = ""
+
+    extra_marker_name: str = ""
+    """Name from extra expression in marker, if any"""
+
+    generic: bool = True
+    """True if marker is empty or only contains an extra expression"""
 
     @classmethod
     def parse(cls, raw: str) -> RequiresDistEntry:
@@ -95,7 +109,25 @@ class RequiresDistEntry:
             entry.version = version
         if marker := m.group("marker"):
             entry.marker = marker
+            entry.generic = False
+            for pat in _extra_marker_re:
+                if m := pat.search(marker):
+                    entry.extra_marker_name = m.group("name")
+                    if m.string == marker:
+                        entry.generic = True
+                    break
         return entry
+
+    def __str__(self) -> str:
+        with io.StringIO() as buf:
+            buf.write(self.name)
+            if self.extras:
+                buf.write(f" [{','.join(self.extras)}]")
+            if self.version:
+                buf.write(f" {self.version}")
+            if self.marker:
+                buf.write(f" ; {self.marker}")
+            return buf.getvalue()
 
 
 class Wheel2CondaError(RuntimeError):
@@ -127,7 +159,7 @@ class MetadataFromWheel:
     version: str
     wheel_build_number: str
     license: Optional[str]
-    dependencies: list[str]
+    dependencies: list[RequiresDistEntry]
     wheel_info_dir: Path
 
 
@@ -366,7 +398,6 @@ class Wheel2CondaConverter:
                 if section_name in wheel_entry_points:
                     if section := wheel_entry_points[section_name]:
                         console_scripts.extend(f"{k}={v}" for k, v in section.items())
-        # TODO - check correct setting for gui scripts (#20)
         conda_link_file.write_text(
             json.dumps(
                 dict(
@@ -473,27 +504,26 @@ class Wheel2CondaConverter:
         )
 
     # pylint: disable=too-many-locals
-    def _compute_conda_dependencies(self, dependencies: Sequence[str]) -> list[str]:
+    def _compute_conda_dependencies(
+        self,
+        dependencies: Sequence[RequiresDistEntry],
+    ) -> list[str]:
         conda_dependencies: list[str] = []
 
-        for dep in dependencies:
-            try:
-                entry = RequiresDistEntry.parse(dep)
-            except SyntaxError as err:
-                self._warn(str(err))
-                continue
+        # TODO - instead RequiresDistEntrys should be passed as an argument
 
-            if marker := entry.marker:
-                if "extra" in marker:
-                    self._debug("Skipping extra dependency: %s", dep)
-                else:
-                    # TODO - support inclusion in OS-specific package
-                    self._warn("Skipping dependency with environment marker: %s", dep)
+        for entry in dependencies:
+            if entry.extra_marker_name:
+                self._debug("Skipping extra dependency: %s", entry)
+                continue
+            if not entry.generic:
+                # TODO - support non-generic packages
+                self._warn("Skipping dependency with environment marker: %s", entry)
                 continue
 
             conda_name = pip_name = entry.name
             version = entry.version
-            # TODO - do something with extras
+            # TODO - do something with extras (#36)
             #   download target pip package and its extra dependencies
             # check manual renames first
             renamed = False
@@ -509,10 +539,10 @@ class Wheel2CondaConverter:
                 if conda_name == pip_name:
                     self._debug("Dependency copied: '%s'", conda_dep)
                 else:
-                    self._debug("Dependency renamed: '%s' -> '%s'", dep, conda_dep)
+                    self._debug("Dependency renamed: '%s' -> '%s'", entry, conda_dep)
                 conda_dependencies.append(conda_dep)
             else:
-                self._debug("Dependency dropped: %s", dep)
+                self._debug("Dependency dropped: %s", entry)
         for dep in self.extra_dependencies:
             self._debug("Dependency added:  '%s'", dep)
             conda_dependencies.append(dep)
@@ -545,21 +575,25 @@ class Wheel2CondaConverter:
                         shutil.copyfile(from_file, to_file)
                         break
 
-    # pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals, too-many-statements
     def _parse_wheel_metadata(self, wheel_dir: Path) -> MetadataFromWheel:
         wheel_info_dir = next(wheel_dir.glob("*.dist-info"))
         WHEEL_file = wheel_info_dir.joinpath("WHEEL")
         WHEEL_msg = email.message_from_string(WHEEL_file.read_text("utf8"))
         # https://peps.python.org/pep-0427/#what-s-the-deal-with-purelib-vs-platlib
+
         is_pure_lib = WHEEL_msg.get("Root-Is-Purelib", "").lower() == "true"
         wheel_build_number = WHEEL_msg.get("Build", "")
         wheel_version = WHEEL_msg.get("Wheel-Version")
+
         if wheel_version not in self.SUPPORTED_WHEEL_VERSIONS:
             raise Wheel2CondaError(
                 f"Wheel {self.wheel_path} has unsupported wheel version {wheel_version}"
             )
+
         if not is_pure_lib:
             raise Wheel2CondaError(f"Wheel {self.wheel_path} is not pure python")
+
         wheel_md_file = wheel_info_dir.joinpath("METADATA")
         md: dict[str, list[Any]] = {}
         # Metdata spec: https://packaging.python.org/en/latest/specifications/core-metadata/
@@ -580,38 +614,47 @@ class Wheel2CondaConverter:
                 md[mdkey.lower()] = mdval
             if mdkey in {"requires-dist", "requires"}:
                 continue
+
+        requires: list[RequiresDistEntry] = []
+        raw_requires_entries = md.get("requires-dist", md.get("requires", ()))
+        for raw_entry in raw_requires_entries:
+            try:
+                entry = RequiresDistEntry.parse(raw_entry)
+                requires.append(entry)
+            except SyntaxError as err:
+                # TODO: error in strict mode?
+                self._warn(str(err))
+
         if not self.keep_pip_dependencies:
+            # Turn requirements into optional extra requirements
             del md_msg["Requires"]
             del md_msg["Requires-Dist"]
-            requires = md_msg.get_all("Requires-Dist", ())
-            # Turn requirements into optional extra requirements
-            if requires:
-                for require in requires:
-                    if ';' not in require:
-                        md_msg.add_header(
-                            "Requires-Dist", f"{require}; extra == 'original"
-                        )
+            for entry in requires:
+                if not entry.extra_marker_name:
+                    marker = entry.marker
+                    extra_clause = "extra == 'original'"
+                    if marker:
+                        marker = f"({entry.marker}) and {extra_clause}"
                     else:
-                        # FIXME: check for extra vs environment marker
-                        md_msg.add_header("Requires-Dist", require)
-                md_msg.add_header("Provides-Extra", "original")
+                        marker = extra_clause
+                    entry = dataclasses.replace(entry, marker=marker)
+                md_msg.add_header("Requires-Dist", str(entry))
+            md_msg.add_header("Provides-Extra", "original")
             wheel_md_file.write_text(md_msg.as_string())
         package_name = self.package_name or str(md.get("name"))
         self.package_name = package_name
         version = md.get("version")
-        dependencies: list[str] = []
-        python_version = md.get("requires-python")
+
+        python_version: str = str(md.get("requires-python", ""))
         if python_version:
-            dependencies.append(f"python {python_version}")
-        # Use Requires-Dist if present, otherwise deprecated Requires keyword
-        dependencies.extend(md.get("requires-dist", md.get("requires", [])))
+            requires.append(RequiresDistEntry("python", version=python_version))
         self.wheel_md = MetadataFromWheel(
             md=md,
             package_name=package_name,
             version=str(version),
             wheel_build_number=wheel_build_number,
             license=md.get("license-expression") or md.get("license"),  # type: ignore
-            dependencies=dependencies,
+            dependencies=requires,
             wheel_info_dir=wheel_info_dir,
         )
         return self.wheel_md
