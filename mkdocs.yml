@@ -32,8 +32,8 @@ nav:
       - License: license.md
 
 # https://squidfunk.github.io/mkdocs-material/setup/changing-the-colors/
-extra_css:
-  - style.css
+#extra_css:
+#  - style.css
 
 theme:
   name: material

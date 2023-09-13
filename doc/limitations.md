@@ -1,8 +1,42 @@
 *whl2conda* currently only supports conversion of generic pure python wheels
 into noarch python conda packages.
 
-It has the following limitations, some of which might be addressed in future
+It has the following limitations, some of which will be addressed in future
 releases.
+
+## Version specifiers are not translated
+
+Version specifiers in dependencies are simply copied from
+the wheel without modification. This works for many cases,
+but since the version comparison operators for pip and conda
+are slightly different, some version specifiers will not work
+properly in conda. Specifically,
+
+* the *compatible release* operator `~=` is not supported by conda.
+    To translate, use a double expression with `>=` and `*`, e.g.:
+    `~= 1.2.3` would become `>=1.2.3,1.2.*` in conda. This form is
+    also supported by pip, so this is a viable workaround for packages
+    you control.
+  
+  
+* the *arbitrary equality* clause `===` is not supported by conda.
+    I do not believe there is an equivalent to this in conda, but
+    this clause is also heavily discouraged in dependencies and
+    might not even match the corresponding conda package.
+
+(*There are other operations supported by conda but not pip, but
+the are not a concern when translating from pip specifiers.*)
+
+As a workaround, users can switch to compatible specifier syntax when
+possible and otherwise can remove the offending package and add it
+back with compatible specifier syntax, e.g.:
+
+```bash
+whl2conda mywheel-1.2.3-py3-none-any.whl -D foo -A 'foo >=1.2.3,1.2.*'
+```
+
+This will be fixed in a future release 
+(see [issue 84](https://github.com/zuzukin/whl2conda/issues/84)).
 
 ## Cannot convert from sdist
 

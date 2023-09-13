@@ -1,6 +1,7 @@
 RM := rm
 RMDIR := rm -rf
 DEV_ENV := whl2conda-dev
+TOUCH := touch
 
 ifdef OS
 	# Windows
@@ -46,6 +47,7 @@ help:
 	"\n" \
 	"--- documentation ---\n" \
 	"doc           - build documentation\n" \
+	"doc-strict    - build documentation and check links\n" \
 	"doc-open      - build/open documentation index.html\n" \
 	"doc-serve     - serve documentation in temporary web server\n" \
 	"doc-serve-all - serve versioned documentation in temporary web server\n" \
@@ -134,6 +136,12 @@ site/index.html: $(CLI_DOCS) $(MKDOCS_FILE) doc/*.md src/whl2conda/api/*.py
 	$(CONDA_RUN) mkdocs build -f $(MKDOCS_FILE)
 
 doc: site/index.html
+
+site/.doc-strict: site/index.html
+	$(CONDA_RUN) linkchecker -f likcheckerrc.ini site
+	$(TOUCH) $@
+
+doc-strict: site/.doc-strict
 
 doc-serve: $(CLI_DOCS)
 	$(CONDA_RUN) mkdocs serve -f $(MKDOCS_FILE)
