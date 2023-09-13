@@ -16,3 +16,5 @@ Support for generating conda package from a pure python wheel.
 """
 
 from .__about__ import __version__
+
+__all__ = ["__version__"]

@@ -33,6 +33,7 @@ from whl2conda.api.converter import (
     Wheel2CondaError,
     CondaPackageFormat,
     DependencyRename,
+    RequiresDistEntry,
 )
 from whl2conda.cli.convert import do_build_wheel
 from whl2conda.cli.install import install_main
@@ -219,6 +220,66 @@ def test_case(
 
 
 # pylint: disable=redefined-outer-name
+
+#
+# RequiresdistEntry test cases
+#
+
+
+def check_dist_entry(entry: RequiresDistEntry) -> None:
+    """Check invariants on RequiresDistEntr"""
+    if not entry.marker:
+        assert entry.generic
+    if entry.extra_marker_name:
+        assert 'extra' in entry.marker
+        assert entry.extra_marker_name in entry.marker
+    else:
+        # technically, there COULD be an extra in another environment
+        # expression, but it wouldn't make much sense
+        assert 'extra' not in entry.marker
+        if entry.marker:
+            assert not entry.generic
+
+    raw = str(entry)
+    entry2 = RequiresDistEntry.parse(raw)
+    assert entry == entry2
+
+
+def test_requires_dist_entry() -> None:
+    """Test RequiresDistEntry data structure"""
+    entry = RequiresDistEntry.parse("foo")
+    assert entry.name == "foo"
+    assert not entry.extras
+    assert not entry.version
+    assert not entry.marker
+    check_dist_entry(entry)
+
+    entry2 = RequiresDistEntry.parse("foo >=1.2")
+    assert entry != entry2
+    assert entry2.name == "foo"
+    assert entry2.version == ">=1.2"
+    assert not entry2.extras
+    assert not entry2.marker
+    check_dist_entry(entry2)
+
+    entry3 = RequiresDistEntry.parse("foo-bar [baz,blah]")
+    assert entry3.name == "foo-bar"
+    assert entry3.extras == ("baz", "blah")
+    assert not entry3.version
+    assert not entry3.marker
+    check_dist_entry(entry3)
+
+    entry4 = RequiresDistEntry.parse("frodo ; extra=='LOTR'")
+    assert entry4.name == "frodo"
+    assert entry4.extra_marker_name == "LOTR"
+    assert entry4.marker == "extra=='LOTR'"
+    assert not entry4.version
+    assert not entry4.extras
+    check_dist_entry(entry4)
+
+    with pytest.raises(SyntaxError):
+        RequiresDistEntry.parse("=123 : bad")
+
 
 #
 # DependencyRename test cases
