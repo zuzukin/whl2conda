@@ -562,18 +562,35 @@ class Wheel2CondaConverter:
         return rel_files
 
     def _copy_licenses(self, conda_info_dir: Path, wheel_md: MetadataFromWheel) -> None:
-        if license_files := wheel_md.md.get("license-file"):
-            from_license_dir = wheel_md.wheel_info_dir.joinpath("licenses")
-            to_license_dir = conda_info_dir.joinpath("licenses")
-            for license_file in license_files:
+        to_license_dir = conda_info_dir / "licenses"
+        wheel_info_dir = wheel_md.wheel_info_dir
+        wheel_license_dir = wheel_info_dir / "licenses"
+        if wheel_license_dir.is_dir():
+            # just copy directory
+            shutil.copytree(
+                wheel_license_dir,
+                to_license_dir,
+                dirs_exist_ok=True,
+            )
+        else:
+            # Otherwise look for files in the dist-info dir
+            # that match the license-file entries. The paths
+            # of the license-file entries may be relative to
+            # where the wheel was built and may not directly
+            # point at the files.
+            for license_file in wheel_md.md.get("license-file", ()):
                 # copy license file if it exists
-                for from_dir in [from_license_dir, wheel_md.wheel_info_dir]:
-                    from_file = from_dir.joinpath(license_file)
-                    if from_file.is_file():
-                        to_file = to_license_dir.joinpath(license_file)
-                        to_license_dir.mkdir(parents=True, exist_ok=True)
-                        shutil.copyfile(from_file, to_file)
-                        break
+                license_path = Path(license_file)
+                from_files = [wheel_info_dir / license_path.name]
+                if not license_path.is_absolute():
+                    from_files.insert(0, wheel_info_dir / license_path)
+                for from_file in from_files:
+                    if from_file.exists():
+                        to_file = to_license_dir / from_file.relative_to(wheel_info_dir)
+                        if not to_file.exists():
+                            to_file.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copyfile(from_file, to_file)
+                            break
 
     # pylint: disable=too-many-locals, too-many-statements
     def _parse_wheel_metadata(self, wheel_dir: Path) -> MetadataFromWheel:
