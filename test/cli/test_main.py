@@ -18,6 +18,8 @@ Unit tests for main `whl2conda` CLI
 from __future__ import annotations
 
 import re
+import subprocess
+import sys
 
 import pytest
 
@@ -83,3 +85,13 @@ def test_version(capsys: pytest.CaptureFixture):
     out, err = capsys.readouterr()
     assert not err
     assert out.strip() == __version__
+
+def test_main_module() -> None:
+    version = subprocess.check_output(
+        [sys.executable, "-m", "whl2conda", "--version"],
+        encoding="utf8"
+    )
+    assert version.strip() == __version__
+
+    import whl2conda.__main__
+    assert whl2conda.__main__.main is main

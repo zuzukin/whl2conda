@@ -134,20 +134,13 @@ class Wheel2CondaError(RuntimeError):
     """Errors from Wheel2CondaConverter"""
 
 
-class NonNoneDict(dict):
+def non_none_dict(**kwargs: Any) -> dict[str,Any]:
     """dict that drops keys with None values"""
-
-    def __init__(self, **kwargs: Any):
-        super().__init__()
-        for k, v in kwargs.items():
-            self[k] = v
-
-    def __setitem__(self, key: str, val: Any) -> None:
-        if val is None:
-            if key in self:
-                del self[key]
-        else:
-            super().__setitem__(key, val)
+    d = dict()
+    for k,v in kwargs.items():
+        if v is not None:
+            d[k] = v
+    return d
 
 
 @dataclass
@@ -487,7 +480,7 @@ class Wheel2CondaConverter:
             extra["license_files"] = list(license_files)
         conda_about_file.write_text(
             json.dumps(
-                NonNoneDict(
+                non_none_dict(
                     description=md.get("description"),
                     summary=md.get("summary"),
                     license=license or None,
