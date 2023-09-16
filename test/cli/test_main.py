@@ -40,7 +40,7 @@ def test_help(
     assert "usage: whl2conda2" in out
     assert "--markdown-help" not in out
 
-    subcmds = ["convert", "config", "install"]
+    subcmds = ["convert", "config", "diff", "install"]
     for subcmd in subcmds:
         assert re.search(rf"^\s+{subcmd}\s+\w+", out, flags=re.MULTILINE)
 
@@ -86,12 +86,17 @@ def test_version(capsys: pytest.CaptureFixture):
     assert not err
     assert out.strip() == __version__
 
+
 def test_main_module() -> None:
+    """
+    Test running using python -m
+    """
     version = subprocess.check_output(
-        [sys.executable, "-m", "whl2conda", "--version"],
-        encoding="utf8"
+        [sys.executable, "-m", "whl2conda", "--version"], encoding="utf8"
     )
     assert version.strip() == __version__
 
+    # pylint: disable=import-outside-toplevel
     import whl2conda.__main__
+
     assert whl2conda.__main__.main is main

@@ -20,6 +20,7 @@ nav:
         - wl2conda: cli/whl2conda.md
         - whl2conda config: cli/whl2conda-config.md
         - whl2conda convert: cli/whl2conda-convert.md
+        - whl2conda diff: cli/whl2conda-diff.md
         - whl2conda install: cli/whl2conda-install.md
       - API (<i>not stable!</i>):
           - api/converter.md
