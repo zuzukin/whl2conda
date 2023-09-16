@@ -38,26 +38,13 @@ whl2conda mywheel-1.2.3-py3-none-any.whl -D foo -A 'foo >=1.2.3,1.2.*'
 This will be fixed in a future release 
 (see [issue 84](https://github.com/zuzukin/whl2conda/issues/84)).
 
-## whl2conda install does not create entry points
+## Wheel data directories not supported
 
-The `whl2conda install` command depends on `conda install` to
-install the package file, and that apparently does not create
-entry points declared in the package. For instance, if you
-have a package that normally provides a command line program
-`mycli`, that will not be available after this install.
+Wheels with `*.data` directies are not fully supported.
+Any such data directories will not be copied.
 
-If your package has a suitable main module, then you should still
-be able to invoke your program using `python -m`, e.g.:
-
-```bash
-python -m mycli
-```
-
-This will be fixed in a future release (see [issue #88](https://github.com/zuzukin/whl2conda/issues/88)).
-
-Note that this is only an issue with this installation technique.
-There is no problem with packages built by this tool that are
-installed from an indexed channel.
+This will be addressed in a future release
+(see [issue 91](https://github.com/zuzukin/whl2conda/issues/91))
 
 ## Cannot convert from sdist
 
