@@ -1,5 +1,16 @@
 # whl2conda changes
 
+## [23.8.10] - 2023-9-16 (*prerelease*)
+
+* Fix generation of entry points
+* Adjust metadata generation
+* Add `whl2conda diff` subcommand
+
+## [23.8.9] - 2023-9-14 (*prerelease*)
+
+* Support `python -m whl2conda`
+* Fix issue with license copying
+
 ## [23.8.8] - 2023-9-10 (*prerelease*)
 
 * hide pip build wheel output with `--quiet`

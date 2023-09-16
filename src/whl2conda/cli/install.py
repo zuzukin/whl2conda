@@ -221,6 +221,7 @@ def conda_bld_install(parsed: InstallArgs, subdir: str):
         shutil.copyfile(
             parsed.package_file, subdir_path.joinpath(parsed.package_file.name)
         )
+        # TODO: use conda-index instead
         subprocess.check_call(
             ["conda", "index", str(conda_bld_path), "--subdir", subdir]
         )

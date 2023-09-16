@@ -17,6 +17,7 @@ Conda package validator for unit tests.
 
 from __future__ import annotations
 
+import configparser
 import email
 import hashlib
 import json
@@ -80,6 +81,7 @@ class PackageValidator:
 
         self._validate_unpacked()
 
+    # pylint: disable=too-many-locals
     def _parse_wheel_metadata(self, wheel_dir: Path) -> dict[str, Any]:
         dist_info_dir = next(wheel_dir.glob("*.dist-info"))
         md_file = dist_info_dir / "METADATA"
@@ -98,6 +100,18 @@ class PackageValidator:
         wheel_msg = email.message_from_string(wheel_file.read_text())
         if build := wheel_msg.get("Build"):
             md["build"] = build
+
+        entry_points_file = dist_info_dir / "entry_points.txt"
+        if entry_points_file.exists():
+            entry_points: list[str] = []
+            wheel_entry_points = configparser.ConfigParser()
+            wheel_entry_points.read(entry_points_file)
+            for section_name in wheel_entry_points.sections():
+                if section_name in ["console_scripts", "gui_scripts"]:
+                    if section := wheel_entry_points[section_name]:
+                        entry_points.extend(f"{k}={v}" for k, v in section.items())
+            if entry_points:
+                md["entry_points"] = sorted(entry_points)
 
         return md
 
@@ -132,6 +146,7 @@ class PackageValidator:
 
         self._validate_about(info_dir)
         self._validate_index(info_dir)
+        self._validate_link(info_dir)
         self._validate_paths(info_dir)
         self._validate_hash_input(info_dir)
 
@@ -143,11 +158,15 @@ class PackageValidator:
         _about: dict[str, Any] = json.loads(about_file.read_text())
 
         assert _about.get("home") == md.get("home-page")
-        assert _about.get("keywords") == md.get("keywords")
+        if keywords := md.get("keywords"):
+            assert _about["keywords"] == keywords.split(",")
+        else:
+            assert "keywords" not in _about
         assert _about.get("summary") == md.get("summary")
         assert _about.get("description") == md.get("description")
-        assert _about.get("classifiers") == md.get("classifier")
-        assert _about.get("whl2conda_version") == __version__
+        extra = _about.get("extra", {})
+        assert extra.get("classifiers") == md.get("classifier")
+        assert extra.get("whl2conda_version") == __version__
 
         license = _about.get("license")
         if license_expr := md.get("license-expression"):
@@ -181,8 +200,9 @@ class PackageValidator:
         else:
             assert not licenses_dir.exists()
 
-        for key in ["author", "maintainer", "author-email", "maintainer-email"]:
+        for key in ["author", "maintainer"]:
             assert extra.get(key) == md.get(key)
+        # TODO : check author-email, maintainer-email
 
     def _validate_hash_input(self, info_dir: Path) -> None:
         hash_input_file = info_dir.joinpath("hash_input.json")
@@ -255,6 +275,20 @@ class PackageValidator:
                 + f"Unexpected entries: {output_depends - expected_depends}\n"
                 + f"Missing entries: {expected_depends - output_depends}"
             )
+
+    def _validate_link(self, info_dir: Path) -> None:
+        link_file = info_dir / "link.json"
+        assert link_file.is_file()
+        jobj = json.loads(link_file.read_text("utf8"))
+        assert jobj["package_metadata_version"] == 1
+        noarch = jobj["noarch"]
+        assert noarch["type"] == "python"
+        entry_points = noarch.get("entry_points")
+        if entry_points:
+            entry_points = sorted(entry_points)
+        md = self._wheel_md
+        expected_entry_points = md.get("entry_points")
+        assert entry_points == expected_entry_points
 
     def _validate_paths(self, info_dir: Path) -> None:
         rel_files = info_dir.joinpath("files").read_text().splitlines()

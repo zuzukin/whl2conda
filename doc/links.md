@@ -7,6 +7,8 @@
 
 ## Wheels:
 
+* [Binary distribution format](https://packaging.python.org/en/latest/specifications/binary-distribution-format/)
+* [Recording installed packages](https://packaging.python.org/en/latest/specifications/recording-installed-packages/)
 * [Current meta-data specification](https://packaging.python.org/en/latest/specifications/core-metadata/)
 * [Wheel 1.0 file format (PEP 427)](https://peps.python.org/pep-0427/)
 * [Wheel metadata 1.0 (PEP 241)](https://peps.python.org/pep-0241/)

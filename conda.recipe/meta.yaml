@@ -1,0 +1,74 @@
+{% set version = load_file_data('src/whl2conda/VERSION', 'yaml') %}
+{% set project = load_file_data('pyproject.toml')['project'] %}
+
+
+package:
+  name: whl2conda
+  version: {{ version }}
+
+source:
+  - path: ../pyproject.toml
+  - path: ../src
+    folder: src
+  - path: ../LICENSE.md
+  - path: ../README.md
+  - path: ../test
+    folder: test
+
+build:
+  noarch: python
+  script: pip install . -vv --no-deps --no-build-isolation
+
+  entry_points:
+    {% for script in project['scripts'] %}
+    - '{{ script }}={{ project['scripts'][script] }}'
+    {% endfor %}
+
+requirements:
+  build:
+    - python 3.11
+    - hatchling
+    - setuptools
+
+
+  run:
+    - python {{ project['requires-python'] }}
+
+    {% for dep in project['dependencies'] %}
+    - {{ dep.lower() }}
+    {% endfor %}
+
+
+test:
+  source_files:
+    - test
+  requires:
+    - pytest
+  imports:
+    - whl2conda.api
+  commands:
+    - pytest test
+
+about:
+  home: {{ project['urls']['homepage']}}
+  readme: {{ project['readme'] }}
+  summary: {{ project['summary'] }}
+  description: {{ project['description'] }}
+  keywords:
+    {% for keyword in project['keywords'] %}
+    - '{{ keyword }}'
+    {% endfor %}
+  dev_url: {{ project['urls']['repository'] }}
+  doc_url: {{ project['urls']['documentation'] }}
+  license: {{ project['license'] }}
+  license_file: {{ project['license-files']['paths'][0] }}
+
+extra:
+  authors:
+    {% for author in project['authors'] %}
+    - '{{ author['name'] }} <{{ author['email'] }}>'
+    {% endfor %}
+  classifiers:
+    {% for classifier in project['classifiers'] %}
+    - '{{ classifier }}'
+    {% endfor %}

@@ -57,6 +57,11 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None) -> No
         "builds a conda package from a python wheel",
     )
     subcmds.add_subcommand(
+        "diff",
+        "whl2conda.cli.diff.diff_main",
+        "compare contents of conda packages",
+    )
+    subcmds.add_subcommand(
         "install",
         "whl2conda.cli.install.install_main",
         "install conda package file with dependencies",

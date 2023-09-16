@@ -35,3 +35,39 @@ this using:
 ```bash
 $ whl2conda install mypackage-1.2.3-py_0.conda --conda-bld
 ```
+
+## Comparing packages
+
+You may wish to compare generated packages against those generated
+by conda-build in order both to understand what this tool is doing
+and to verify that nothing important is missing. You can do this
+using the `whl2conda diff` command with your favorite directory
+diff tool. This will unpack the packages into temporary directories,
+normalize the metadata files to minimize mismatches and run the
+specified diff tool with the given arguments.
+
+For instance,
+
+```bash
+$ whl2conda diff \
+   dist/mypackage-1.2.3-py_0.conda \
+   ~/miniforge3/conda-bld/noarch/mypackage-1.2.3-py_90.tar.bz2 \
+   kdiff3
+```
+
+Note that some differences are expected in the `info/` directory,
+specifically:
+
+* packages generated with whl2conda will not have copy of the recipe
+   or test directory
+* the about.json file may differ
+* the timestamp will be different in the `index.json` file
+* the `paths.json` file should reflect any files that differ
+
+There are also expected to be changes in the `site-packages/*dist-info/`
+for the package:
+
+* the `INSTALLER` file will contain `whl2conda` instead of `conda`
+* the `Requires-Dist` entries in `METADATA` will be modified to add
+    `; extra = 'original'`
+
