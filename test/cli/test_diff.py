@@ -88,6 +88,7 @@ def test_diff(
         **_kwargs,
     ):
         assert cmd[0] == expected_diff
+        # Not is_relative_to not available in python 3.8
         parser = argparse.ArgumentParser(prog="diff")
         parser.add_argument("dir1")
         parser.add_argument("dir2")
@@ -98,7 +99,7 @@ def test_diff(
         for d in [parsed.dir1, parsed.dir2]:
             dirpath = Path(d)
             assert dirpath.is_dir()
-            assert dirpath.is_relative_to(tmp_path)
+            dirpath.relative_to(tmp_path)
             info = dirpath / "info"
             assert info.is_dir()
 
