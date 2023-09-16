@@ -72,14 +72,14 @@ def diff_main(
 
     parser.add_argument(
         "package1",
-        metavar="<conda-package>",
+        metavar="<package1>",
         type=existing_conda_package,
         help="First package to compare",
     )
 
     parser.add_argument(
         "package2",
-        metavar="<conda-package>",
+        metavar="<package2>",
         type=existing_conda_package,
         help="Second package to compare",
     )
