@@ -134,10 +134,10 @@ class Wheel2CondaError(RuntimeError):
     """Errors from Wheel2CondaConverter"""
 
 
-def non_none_dict(**kwargs: Any) -> dict[str,Any]:
+def non_none_dict(**kwargs: Any) -> dict[str, Any]:
     """dict that drops keys with None values"""
     d = dict()
-    for k,v in kwargs.items():
+    for k, v in kwargs.items():
         if v is not None:
             d[k] = v
     return d
@@ -300,6 +300,8 @@ class Wheel2CondaConverter:
             conda_dependencies = self._compute_conda_dependencies(wheel_md.dependencies)
 
             # Write conda info files
+            # TODO - copy readme file into info
+            #  must be one of README, README.md or README.rst
             self._copy_licenses(conda_info_dir, wheel_md)
             self._write_about(conda_info_dir, wheel_md.md)
             self._write_hash_input(conda_info_dir)
@@ -307,6 +309,7 @@ class Wheel2CondaConverter:
             self._write_index(conda_info_dir, wheel_md, conda_dependencies)
             self._write_link_file(conda_info_dir, wheel_md.wheel_info_dir)
             self._write_paths_file(conda_dir, rel_files)
+            self._write_git_file(conda_info_dir)
 
             conda_pkg_path = self._conda_package_path(
                 wheel_md.package_name, wheel_md.version
@@ -360,6 +363,13 @@ class Wheel2CondaConverter:
 
         return conda_pkg_path
 
+    def _write_git_file(self, conda_info_dir: Path) -> None:
+        """Write empty git file"""
+        # python wheels don't have this concept, but conda-build
+        # will write an empty git file if there are no git sources,
+        # so we follow suit:
+        conda_info_dir.joinpath("git").write_bytes(b'')
+
     def _write_paths_file(self, conda_dir: Path, rel_files: Sequence[str]) -> None:
         # info/paths.json - paths with SHA256 do we really need this?
         conda_paths_file = conda_dir.joinpath("info", "paths.json")
@@ -391,14 +401,17 @@ class Wheel2CondaConverter:
                 if section_name in wheel_entry_points:
                     if section := wheel_entry_points[section_name]:
                         console_scripts.extend(f"{k}={v}" for k, v in section.items())
+        noarch_dict: dict[str, Any] = dict(type="python")
+        if console_scripts:
+            noarch_dict["entry_points"] = console_scripts
         conda_link_file.write_text(
             json.dumps(
                 dict(
-                    noarch=dict(type="python"),
-                    entry_points=console_scripts,
+                    noarch=noarch_dict,
                     package_metadata_version=1,
                 ),
                 indent=2,
+                sort_keys=True,
             )
         )
 
@@ -451,8 +464,22 @@ class Wheel2CondaConverter:
         conda_hash_input_file = conda_info_dir.joinpath("hash_input.json")
         conda_hash_input_file.write_text(json.dumps({}, indent=2))
 
+    # pylint: disable=too-many-locals
     def _write_about(self, conda_info_dir: Path, md: dict[str, Any]) -> None:
         # * info/about.json
+        #
+        # Note that the supported fields in the about section are not
+        # well documented, but conda-build will only copy fields from
+        # its approved list, which can be found in the FIELDS datastructure
+        # in the conda_build.metadata module. This currently includes:
+        #
+        #   URLS: home, dev_url, doc_url, doc_source_url
+        #   Text: license, summary, description, license_family
+        #   Lists: tags, keyword
+        #   Paths in source tree: license-file, prelink_message, readme
+        #
+        # conda-build also adds conda-build-version and conda-version fields.
+
         license = md.get("license-expression") or md.get("license")
         conda_about_file = conda_info_dir.joinpath("about.json")
         # TODO description can come from METADATA message body
@@ -460,7 +487,12 @@ class Wheel2CondaConverter:
         #   that conda-forge packages include this in the info/
         doc_url: Optional[str] = None
         dev_url: Optional[str] = None
-        extra: dict[str, Any] = {}
+        extra: dict[str, Any] = non_none_dict(
+            author=md.get("author"),
+            classifiers=md.get("classifier"),
+            maintainer=md.get("maintainer"),
+            whl2conda_version=__version__,
+        )
         for urlline in md.get("project-url", ()):
             urlparts = re.split(r"\s*,\s*", urlline, maxsplit=1)
             if len(urlparts) > 1:
@@ -472,22 +504,25 @@ class Wheel2CondaConverter:
                     dev_url = urlparts[1]
                 if key and url:
                     extra[key] = url
-        for key in ["author", "maintainer", "author-email", "maintainer-email"]:
+        for key in ["author-email", "maintainer-email"]:
             val = md.get(key)
             if val:
-                extra[key] = val
+                author_key = key.split("-", maxsplit=1)[0] + "s"
+                extra[author_key] = val.split(",")
         if license_files := md.get("license-file"):
             extra["license_files"] = list(license_files)
+        if keywords := md.get("keywords"):
+            keyword_list = keywords.split(",")
+        else:
+            keyword_list = None
         conda_about_file.write_text(
             json.dumps(
                 non_none_dict(
                     description=md.get("description"),
                     summary=md.get("summary"),
                     license=license or None,
-                    classifiers=md.get("classifier"),
-                    keywords=md.get("keywords"),
+                    keywords=keyword_list,
                     home=md.get("home-page"),
-                    whl2conda_version=__version__,
                     dev_url=dev_url,
                     doc_url=doc_url,
                     extra=extra or None,
@@ -547,6 +582,12 @@ class Wheel2CondaConverter:
         conda_info_dir = conda_dir.joinpath("info")
         conda_info_dir.mkdir()
         shutil.copytree(wheel_dir, conda_site_packages, dirs_exist_ok=True)
+        assert self.wheel_md is not None
+        dist_info_dir = conda_site_packages / self.wheel_md.wheel_info_dir.name
+        installer_file = dist_info_dir / "INSTALLER"
+        installer_file.write_text("whl2conda")
+        requested_file = dist_info_dir / "REQUESTED"
+        requested_file.write_text("")
         rel_files = list(
             str(f.relative_to(conda_dir))
             for f in conda_site_packages.glob("**/*")
@@ -654,6 +695,12 @@ class Wheel2CondaConverter:
         package_name = self.package_name or str(md.get("name"))
         self.package_name = package_name
         version = md.get("version")
+
+        # RECORD_file = wheel_info_dir / "RECORD"
+        # TODO: strip __pycache__ entries from RECORD
+        # TODO: add INSTALLER and REQUESTED to RECORD
+        # TODO: add direct_url to wheel and to RECORD
+        # RECORD line format: <path>,sha256=<hash>,<len>
 
         python_version: str = str(md.get("requires-python", ""))
         if python_version:
