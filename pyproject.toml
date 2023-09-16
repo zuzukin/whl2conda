@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "whl2conda"
-description = "build conda packages directly from pure python wheels"
+summary = "build conda packages directly from pure python wheels"
 readme = "README.md"
 dynamic = ["version"]
 license = "Apache-2.0"
@@ -31,6 +31,7 @@ dependencies = [
 ]
 
 [project.urls]
+homepage = "https://github.com/analog-cbarber/whl2conda"
 repository = "https://github.com/analog-cbarber/whl2conda"
 documentation = "https://zuzukin.github.io/whl2conda/"
 
