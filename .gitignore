@@ -17,6 +17,8 @@ build/
 
 # test files
 .coverage*
+coverage.json
+coverage.xml
 
 # Generated files
 doc/whl2conda-cli.md
