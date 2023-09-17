@@ -113,7 +113,7 @@ class RequiresDistEntry:
             for pat in _extra_marker_re:
                 if m := pat.search(marker):
                     entry.extra_marker_name = m.group("name")
-                    if m.string == marker:
+                    if m.group(0) == marker:
                         entry.generic = True
                     break
         return entry
@@ -250,8 +250,6 @@ class Wheel2CondaConverter:
     conda_pkg_path: Optional[Path] = None
     std_renames: dict[str, str]
 
-    temp_dir: Optional[tempfile.TemporaryDirectory] = None
-
     def __init__(
         self,
         wheel_path: Path,
@@ -265,13 +263,6 @@ class Wheel2CondaConverter:
         # TODO - option to ignore this
         self.std_renames = load_std_renames()
 
-    def __enter__(self):
-        self.temp_dir = tempfile.TemporaryDirectory(prefix="whl2conda-")
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.temp_dir:
-            self.temp_dir.cleanup()
-
     def convert(self) -> Path:
         """
         Convert wheel to conda package
@@ -283,14 +274,13 @@ class Wheel2CondaConverter:
         """
         # pylint: disable=too-many-statements,too-many-branches,too-many-locals
 
-        with self:
-            assert self.temp_dir is not None
-
-            extracted_wheel_dir = self._extract_wheel()
+        with tempfile.TemporaryDirectory(prefix="whl2conda-") as temp_dirname:
+            temp_dir = Path(temp_dirname)
+            extracted_wheel_dir = self._extract_wheel(temp_dir)
 
             wheel_md = self._parse_wheel_metadata(extracted_wheel_dir)
 
-            conda_dir = Path(self.temp_dir.name).joinpath("conda-files")
+            conda_dir = temp_dir / "conda-files"
             conda_info_dir = conda_dir.joinpath("info")
             conda_dir.mkdir()
 
@@ -399,8 +389,8 @@ class Wheel2CondaConverter:
             wheel_entry_points.read(wheel_entry_points_file)
             for section_name in ["console_scripts", "gui_scripts"]:
                 if section_name in wheel_entry_points:
-                    if section := wheel_entry_points[section_name]:
-                        console_scripts.extend(f"{k}={v}" for k, v in section.items())
+                    section = wheel_entry_points[section_name]
+                    console_scripts.extend(f"{k}={v}" for k, v in section.items())
         noarch_dict: dict[str, Any] = dict(type="python")
         if console_scripts:
             noarch_dict["entry_points"] = console_scripts
@@ -466,6 +456,7 @@ class Wheel2CondaConverter:
 
     # pylint: disable=too-many-locals
     def _write_about(self, conda_info_dir: Path, md: dict[str, Any]) -> None:
+        """Write the info/about.json file"""
         # * info/about.json
         #
         # Note that the supported fields in the about section are not
@@ -480,41 +471,47 @@ class Wheel2CondaConverter:
         #
         # conda-build also adds conda-build-version and conda-version fields.
 
-        license = md.get("license-expression") or md.get("license")
-        conda_about_file = conda_info_dir.joinpath("about.json")
         # TODO description can come from METADATA message body
         #   then need to also use content type. It doesn't seem
         #   that conda-forge packages include this in the info/
-        doc_url: Optional[str] = None
-        dev_url: Optional[str] = None
-        extra: dict[str, Any] = non_none_dict(
+
+        conda_about_file = conda_info_dir.joinpath("about.json")
+
+        extra = non_none_dict(
             author=md.get("author"),
             classifiers=md.get("classifier"),
             maintainer=md.get("maintainer"),
             whl2conda_version=__version__,
         )
+
+        proj_url_pat = re.compile(r"\s*(?P<key>\w+)\s*,\s*(?P<url>\w.*)\s*")
+        doc_url: Optional[str] = None
+        dev_url: Optional[str] = None
         for urlline in md.get("project-url", ()):
-            urlparts = re.split(r"\s*,\s*", urlline, maxsplit=1)
-            if len(urlparts) > 1:
-                key, url = urlparts
-                keyl = key.lower()
-                if re.match(r"doc(umentation)?\b", keyl):
-                    doc_url = urlparts[1]
-                elif re.match(r"(dev(elopment)?|repo(sitory))\b", keyl):
-                    dev_url = urlparts[1]
-                if key and url:
-                    extra[key] = url
+            if m := proj_url_pat.match(urlline):  # pragma: no branch
+                key = m.group("key")
+                url = m.group("url")
+                if re.match(r"(?i)doc(umentation)?\b", key):
+                    doc_url = url
+                elif re.match(r"(?i)(dev(elopment)?|repo(sitory))\b", key):
+                    dev_url = url
+                extra[key] = url
+
         for key in ["author-email", "maintainer-email"]:
             val = md.get(key)
             if val:
                 author_key = key.split("-", maxsplit=1)[0] + "s"
                 extra[author_key] = val.split(",")
+
+        license = md.get("license-expression") or md.get("license")
         if license_files := md.get("license-file"):
             extra["license_files"] = list(license_files)
+
         if keywords := md.get("keywords"):
             keyword_list = keywords.split(",")
         else:
             keyword_list = None
+
         conda_about_file.write_text(
             json.dumps(
                 non_none_dict(
@@ -525,9 +522,10 @@ class Wheel2CondaConverter:
                     home=md.get("home-page"),
                     dev_url=dev_url,
                     doc_url=doc_url,
-                    extra=extra or None,
+                    extra=extra,
                 ),
                 indent=2,
+                sort_keys=True,
             )
         )
 
@@ -537,8 +535,6 @@ class Wheel2CondaConverter:
         dependencies: Sequence[RequiresDistEntry],
     ) -> list[str]:
         conda_dependencies: list[str] = []
-
-        # TODO - instead RequiresDistEntrys should be passed as an argument
 
         for entry in dependencies:
             if entry.extra_marker_name:
@@ -618,13 +614,14 @@ class Wheel2CondaConverter:
                 from_files = [wheel_info_dir / license_path.name]
                 if not license_path.is_absolute():
                     from_files.insert(0, wheel_info_dir / license_path)
-                for from_file in from_files:
-                    if from_file.exists():
-                        to_file = to_license_dir / from_file.relative_to(wheel_info_dir)
-                        if not to_file.exists():
-                            to_file.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copyfile(from_file, to_file)
-                            break
+                for from_file in filter(
+                    lambda f: f.exists(), from_files
+                ):  # pragma: no branch
+                    to_file = to_license_dir / from_file.relative_to(wheel_info_dir)
+                    if not to_file.exists():  # pragma: no branch
+                        to_file.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copyfile(from_file, to_file)
+                        break
 
     # pylint: disable=too-many-locals, too-many-statements
     def _parse_wheel_metadata(self, wheel_dir: Path) -> MetadataFromWheel:
@@ -663,8 +660,6 @@ class Wheel2CondaConverter:
                 md.setdefault(mdkey.lower(), []).append(mdval)
             else:
                 md[mdkey.lower()] = mdval
-            if mdkey in {"requires-dist", "requires"}:
-                continue
 
         requires: list[RequiresDistEntry] = []
         raw_requires_entries = md.get("requires-dist", md.get("requires", ()))
@@ -716,11 +711,10 @@ class Wheel2CondaConverter:
         )
         return self.wheel_md
 
-    def _extract_wheel(self) -> Path:
+    def _extract_wheel(self, temp_dir: Path) -> Path:
         self.logger.info("Reading %s", self.wheel_path)
         wheel = WheelFile(self.wheel_path)
-        assert self.temp_dir
-        wheel_dir = Path(self.temp_dir.name).joinpath("wheel-files")
+        wheel_dir = temp_dir / "wheel-files"
         wheel.extractall(wheel_dir)
         if self.logger.getEffectiveLevel() <= logging.DEBUG:
             for wheel_file in wheel_dir.glob("**/*"):
@@ -736,6 +730,3 @@ class Wheel2CondaConverter:
 
     def _debug(self, msg, *args):
         self.logger.debug(msg, *args)
-
-    def _trace(self, msg, *args):
-        self.logger.log(logging.DEBUG - 5, msg, *args)

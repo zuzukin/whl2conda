@@ -15,6 +15,7 @@
 """
 Test fixtures providing wheels and conda packages for tests
 """
+import shutil
 from pathlib import Path
 from typing import Generator
 
@@ -22,12 +23,18 @@ import pytest
 
 from whl2conda.cli.convert import convert_main, do_build_wheel
 
-__all__ = ["project_dir", "simple_conda_package", "simple_wheel"]
+__all__ = [
+    "project_dir",
+    "setup_wheel",
+    "simple_conda_package",
+    "simple_wheel",
+]
 
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent
 project_dir = root_dir.joinpath("test-projects")
 simple_project = project_dir.joinpath("simple")
+setup_project = project_dir.joinpath("setup")
 
 # pylint: disable=redefined-outer-name
 
@@ -62,3 +69,21 @@ def simple_conda_package(
         ]
     )
     yield list(simple_wheel.parent.glob("*.conda"))[0]
+
+
+@pytest.fixture(scope="session")
+def setup_wheel(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Generator[Path, None, None]:
+    """Provides pip wheel for setup.py based test project"""
+    # build in tmp dir to avoid leaving build cruft in source tree
+    srcdir = tmp_path_factory.mktemp("setup-src")
+    distdir = srcdir / "dist"
+    shutil.copytree(setup_project, srcdir, dirs_exist_ok=True)
+    yield do_build_wheel(
+        srcdir,
+        distdir,
+        no_deps=True,
+        no_build_isolation=True,
+        capture_output=True,
+    )

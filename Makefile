@@ -74,7 +74,7 @@ help:
 DEV_INSTALL := $(CONDA_RUN) pip install -e . --no-deps --no-build-isolation
 
 createdev:
-	conda env create -f environment.yml -n $(DEV_ENV)
+	conda env create -f environment.yml -n $(DEV_ENV) --yes
 	$(MAKE) dev-install
 
 updatedev:

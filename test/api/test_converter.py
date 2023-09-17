@@ -18,6 +18,7 @@ Unit tests for converter module
 from __future__ import annotations
 
 # standard
+import email
 import shutil
 import subprocess
 import tempfile
@@ -26,6 +27,7 @@ from typing import Generator, Optional, Sequence, Union
 
 # third party
 import pytest
+from wheel.wheelfile import WheelFile
 
 # this package
 from whl2conda.api.converter import (
@@ -33,12 +35,16 @@ from whl2conda.api.converter import (
     CondaPackageFormat,
     DependencyRename,
     RequiresDistEntry,
+    Wheel2CondaError,
 )
 from whl2conda.cli.convert import do_build_wheel
 from whl2conda.cli.install import install_main
 from .validator import PackageValidator
 
-from ..test_packages import simple_wheel  # pylint: disable=unused-import
+from ..test_packages import (  # pylint: disable=unused-import
+    setup_wheel,
+    simple_wheel,
+)
 
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent.parent
@@ -71,7 +77,9 @@ class ConverterTestCase:
 
     @property
     def converter(self) -> Wheel2CondaConverter:
-        """Converter instance. Only valid after build() is called"""
+        """Converter instance, constructed on demand."""
+        if self._converter is None:
+            self._converter = Wheel2CondaConverter(self._get_wheel(), self.out_dir)
         assert self._converter is not None
         return self._converter
 
@@ -112,7 +120,7 @@ class ConverterTestCase:
         """Run the build test case"""
         self.was_run = True
         wheel_path = self._get_wheel()
-        package_path = self._convert(wheel_path, out_format=out_format)
+        package_path = self._convert(out_format=out_format)
         self._validate(wheel_path, package_path)
         return package_path
 
@@ -122,8 +130,8 @@ class ConverterTestCase:
         install_main([str(pkg_file), "-p", str(test_env), "--yes", "--create"])
         return test_env
 
-    def _convert(self, wheel_path: Path, *, out_format: CondaPackageFormat) -> Path:
-        converter = Wheel2CondaConverter(wheel_path, self.out_dir)
+    def _convert(self, *, out_format: CondaPackageFormat) -> Path:
+        converter = self.converter
         converter.dependency_rename = list(self.dependency_rename)
         converter.extra_dependencies = list(self.extra_dependencies)
         converter.package_name = self.package_name
@@ -158,7 +166,12 @@ class ConverterTestCase:
     def _validate(self, wheel_path: Path, package_path: Path) -> None:
         converter = self._converter
         assert converter is not None
-        self._validator(wheel_path, package_path, std_renames=converter.std_renames)
+        self._validator.validate(
+            wheel_path,
+            package_path,
+            std_renames=converter.std_renames,
+            keep_pip_dependencies=converter.keep_pip_dependencies,
+        )
 
 
 class ConverterTestCaseFactory:
@@ -276,6 +289,26 @@ def test_requires_dist_entry() -> None:
     assert not entry4.extras
     check_dist_entry(entry4)
 
+    entry5 = RequiresDistEntry.parse("sam ; python_version >= '3.10'  ")
+    assert entry5.name == "sam"
+    assert entry5.marker == "python_version >= '3.10'"
+    assert not entry5.extra_marker_name
+    assert not entry5.version
+    assert not entry5.extras
+    assert not entry5.generic
+    check_dist_entry(entry5)
+
+    entry6 = RequiresDistEntry.parse(
+        "bilbo ~=23.2 ; sys_platform=='win32' and extra=='dev'  "
+    )
+    assert entry6.name == "bilbo"
+    assert entry6.version == "~=23.2"
+    assert not entry6.extras
+    assert entry6.marker == "sys_platform=='win32' and extra=='dev'"
+    assert entry6.extra_marker_name == "dev"
+    assert not entry6.generic
+    check_dist_entry(entry6)
+
     with pytest.raises(SyntaxError):
         RequiresDistEntry.parse("=123 : bad")
 
@@ -338,6 +371,26 @@ def test_this(test_case: ConverterTestCaseFactory) -> None:
         case.build(fmt)
 
 
+def test_setup_wheel(
+    test_case: ConverterTestCaseFactory,
+    setup_wheel: Path,
+) -> None:
+    """Tests converting wheel from 'setup' project"""
+    v2pkg = test_case(setup_wheel).build()
+    assert v2pkg.suffix == ".conda"
+
+
+def test_keep_pip_dependencies(
+    test_case: ConverterTestCaseFactory,
+    setup_wheel: Path,
+) -> None:
+    """Test keeping pip dependencies in dist-info"""
+    case = test_case(setup_wheel)
+    case.converter.keep_pip_dependencies = True
+    v1pkg = case.build(out_format=CondaPackageFormat.V1)
+    assert v1pkg.name.endswith(".tar.bz2")
+
+
 def test_simple_wheel(
     test_case: ConverterTestCaseFactory,
     simple_wheel: Path,
@@ -395,3 +448,71 @@ def test_poetry(
     pkg = test_case(wheel).build()
     # conda package name taken from project name
     assert pkg.name.startswith("poetry.example")
+
+
+def test_bad_wheels(
+    test_case: ConverterTestCaseFactory,
+    simple_wheel: Path,
+    tmp_path: Path,
+) -> None:
+    """
+    Test wheels that cannot be converter
+    """
+    good_wheel = WheelFile(simple_wheel)
+    extract_dir = tmp_path / "extraxt"
+    good_wheel.extractall(str(extract_dir))
+    extract_info_dir = next(extract_dir.glob("*.dist-info"))
+
+    WHEEL_file = extract_info_dir / 'WHEEL'
+    WHEEL_msg = email.message_from_string(WHEEL_file.read_text("utf8"))
+
+    #
+    # write bad wheelversion
+    #
+
+    WHEEL_msg.replace_header("Wheel-Version", "999.0")
+    WHEEL_file.write_text(WHEEL_msg.as_string())
+
+    bad_version_wheel = tmp_path / "bad-version" / simple_wheel.name
+    bad_version_wheel.parent.mkdir(parents=True)
+    with WheelFile(str(bad_version_wheel), "w") as wf:
+        wf.write_files(str(extract_dir))
+
+    with pytest.raises(Wheel2CondaError, match="unsupported wheel version"):
+        test_case(bad_version_wheel).build()
+
+    #
+    # impure wheel
+    #
+
+    WHEEL_msg.replace_header("Wheel-Version", "1.0")
+    WHEEL_msg.replace_header("Root-Is-Purelib", "False")
+    WHEEL_file.write_text(WHEEL_msg.as_string())
+
+    impure_wheel = tmp_path / "impure" / simple_wheel.name
+    impure_wheel.parent.mkdir(parents=True)
+    with WheelFile(str(impure_wheel), "w") as wf:
+        wf.write_files(str(extract_dir))
+
+    with pytest.raises(Wheel2CondaError, match="not pure python"):
+        test_case(impure_wheel).build()
+
+    #
+    # bad metadata version
+    #
+
+    WHEEL_msg.replace_header("Root-Is-Purelib", "True")
+    WHEEL_file.write_text(WHEEL_msg.as_string())
+
+    METADATA_file = extract_info_dir / 'METADATA'
+    METADATA_msg = email.message_from_string(METADATA_file.read_text("utf8"))
+    METADATA_msg.replace_header("Metadata-Version", "999.2")
+    METADATA_file.write_text(METADATA_msg.as_string())
+
+    bad_md_version_wheel = tmp_path / "bad-md-version" / simple_wheel.name
+    bad_md_version_wheel.parent.mkdir(parents=True)
+    with WheelFile(str(bad_md_version_wheel), "w") as wf:
+        wf.write_files(str(extract_dir))
+
+    with pytest.raises(Wheel2CondaError, match="unsupported metadata version"):
+        test_case(bad_md_version_wheel).build()
