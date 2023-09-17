@@ -18,6 +18,7 @@ Unit tests for converter module
 from __future__ import annotations
 
 # standard
+import email
 import shutil
 import subprocess
 import tempfile
@@ -26,13 +27,14 @@ from typing import Generator, Optional, Sequence, Union
 
 # third party
 import pytest
+from wheel.wheelfile import WheelFile
 
 # this package
 from whl2conda.api.converter import (
     Wheel2CondaConverter,
     CondaPackageFormat,
     DependencyRename,
-    RequiresDistEntry,
+    RequiresDistEntry, Wheel2CondaError,
 )
 from whl2conda.cli.convert import do_build_wheel
 from whl2conda.cli.install import install_main
@@ -395,3 +397,70 @@ def test_poetry(
     pkg = test_case(wheel).build()
     # conda package name taken from project name
     assert pkg.name.startswith("poetry.example")
+
+
+def test_bad_wheels(
+    test_case: ConverterTestCaseFactory,
+    simple_wheel: Path,
+    tmp_path: Path,
+) -> None:
+    good_wheel = WheelFile(simple_wheel)
+    extract_dir = tmp_path / "extraxt"
+    good_wheel.extractall(str(extract_dir))
+    extract_info_dir = next(extract_dir.glob("*.dist-info"))
+
+    WHEEL_file = extract_info_dir / 'WHEEL'
+    WHEEL_msg = email.message_from_string(WHEEL_file.read_text("utf8"))
+
+    #
+    # write bad wheelversion
+    #
+
+    WHEEL_msg.replace_header("Wheel-Version", "999.0")
+    WHEEL_file.write_text(WHEEL_msg.as_string())
+
+    bad_version_wheel = tmp_path / "bad-version" / simple_wheel.name
+    bad_version_wheel.parent.mkdir(parents=True)
+    with WheelFile(str(bad_version_wheel), "w") as wf:
+        wf.write_files(str(extract_dir))
+
+    with pytest.raises(Wheel2CondaError, match="unsupported wheel version"):
+        test_case(bad_version_wheel).build()
+
+    #
+    # impure wheel
+    #
+
+    WHEEL_msg.replace_header("Wheel-Version", "1.0")
+    WHEEL_msg.replace_header("Root-Is-Purelib", "False")
+    WHEEL_file.write_text(WHEEL_msg.as_string())
+
+    impure_wheel = tmp_path / "impure" / simple_wheel.name
+    impure_wheel.parent.mkdir(parents=True)
+    with WheelFile(str(impure_wheel), "w") as wf:
+        wf.write_files(str(extract_dir))
+
+    with pytest.raises(Wheel2CondaError, match="not pure python"):
+        test_case(impure_wheel).build()
+
+    #
+    # bad metadata version
+    3
+
+    WHEEL_msg.replace_header("Root-Is-Purelib", "True")
+    WHEEL_file.write_text(WHEEL_msg.as_string())
+
+    METADATA_file = extract_info_dir / 'METADATA'
+    METADATA_msg = email.message_from_string(METADATA_file.read_text("utf8"))
+    METADATA_msg.replace_header("Metadata-Version", "999.2")
+    METADATA_file.write_text(METADATA_msg.as_string())
+
+    bad_md_version_wheel = tmp_path / "bad-md-version" / simple_wheel.name
+    bad_md_version_wheel.parent.mkdir(parents=True)
+    with WheelFile(str(bad_md_version_wheel), "w") as wf:
+        wf.write_files(str(extract_dir))
+
+    with pytest.raises(Wheel2CondaError, match="unsupported metadata version"):
+        test_case(bad_md_version_wheel).build()
+
+

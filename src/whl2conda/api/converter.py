@@ -399,8 +399,8 @@ class Wheel2CondaConverter:
             wheel_entry_points.read(wheel_entry_points_file)
             for section_name in ["console_scripts", "gui_scripts"]:
                 if section_name in wheel_entry_points:
-                    if section := wheel_entry_points[section_name]:
-                        console_scripts.extend(f"{k}={v}" for k, v in section.items())
+                    section = wheel_entry_points[section_name]
+                    console_scripts.extend(f"{k}={v}" for k, v in section.items())
         noarch_dict: dict[str, Any] = dict(type="python")
         if console_scripts:
             noarch_dict["entry_points"] = console_scripts
@@ -663,8 +663,6 @@ class Wheel2CondaConverter:
                 md.setdefault(mdkey.lower(), []).append(mdval)
             else:
                 md[mdkey.lower()] = mdval
-            if mdkey in {"requires-dist", "requires"}:
-                continue
 
         requires: list[RequiresDistEntry] = []
         raw_requires_entries = md.get("requires-dist", md.get("requires", ()))
