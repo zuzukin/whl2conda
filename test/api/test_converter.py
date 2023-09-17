@@ -30,7 +30,6 @@ import pytest
 # this package
 from whl2conda.api.converter import (
     Wheel2CondaConverter,
-    Wheel2CondaError,
     CondaPackageFormat,
     DependencyRename,
     RequiresDistEntry,
@@ -396,71 +395,3 @@ def test_poetry(
     pkg = test_case(wheel).build()
     # conda package name taken from project name
     assert pkg.name.startswith("poetry.example")
-
-
-#
-# External pypi tests
-#
-
-
-@pytest.mark.external
-def test_pypi_tomlkit(test_case: ConverterTestCaseFactory):
-    """
-    Test tomlkit package from pypi
-    """
-    test_case("pypi:tomlkit").build()
-
-
-@pytest.mark.external
-def test_pypi_sphinx(test_case: ConverterTestCaseFactory):
-    """
-    Test sphinx package from pypi
-    """
-    test_case("pypi:sphinx").build()
-
-
-@pytest.mark.external
-def test_pypi_zstandard(test_case: ConverterTestCaseFactory):
-    """
-    Test zstandard package - not pure python
-    """
-    with pytest.raises(Wheel2CondaError, match="not pure python"):
-        test_case("pypi:zstandard").build()
-
-
-@pytest.mark.external
-def test_pypi_colorama(test_case: ConverterTestCaseFactory):
-    """
-    Test colorama package
-    """
-    test_case(
-        "pypi:colorama",
-    ).build()
-
-
-@pytest.mark.external
-def test_pypi_orix(test_case: ConverterTestCaseFactory) -> None:
-    """
-    Test orix package
-    """
-    case = test_case("pypi:orix")
-    orix_pkg = case.build()
-    assert orix_pkg.is_file()
-
-    test_env = case.install(orix_pkg)
-
-    subprocess.check_call(["conda", "install", "-p", str(test_env), "pytest", "--yes"])
-
-    subprocess.check_call(
-        [
-            "conda",
-            "run",
-            "-p",
-            str(test_env),
-            "pytest",
-            "--pyargs",
-            "orix.tests",
-            "-k",
-            "not test_restrict_to_fundamental_sector",
-        ]
-    )
