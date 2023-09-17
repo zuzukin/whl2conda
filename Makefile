@@ -105,13 +105,15 @@ pytest:
 test: pytest
 
 coverage:
-	$(CONDA_RUN) pytest -s --cov=src --cov-report=html --cov-report=term test
+	$(CONDA_RUN) pytest -s --cov=src --cov-report=json --cov-report=term test
 
 slow-coverage:
-	$(CONDA_RUN) pytest -s --cov=src --cov-report=html --cov-report=term test --run-slow
+	$(CONDA_RUN) pytest -s --cov=src --cov-report=json --cov-report=term test --run-slow
 
-htmlcov/index.html:
-	$(MAKE) coverage
+htmlcov/index.html: .coverage
+	$(CONDA_RUN) coverage html
+
+html-coverage: htmlcov/index.html
 
 open-coverage: htmlcov/index.html
 	$(OPEN) $<
@@ -208,7 +210,7 @@ upload: upload-sdist upload-wheel
 #
 
 clean-coverage:
-	$(RMDIR) htmlcov .coverage
+	$(RMDIR) htmlcov .coverage coverage.json coverage.xml
 
 clean-doc:
 	$(RMDIR) site doc/whl2conda-cli.md
