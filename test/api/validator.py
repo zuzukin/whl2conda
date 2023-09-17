@@ -21,6 +21,7 @@ import configparser
 import email
 import hashlib
 import json
+import os.path
 import re
 import shutil
 from pathlib import Path
@@ -51,6 +52,7 @@ class PackageValidator:
     _renamed_dependencies: dict[str, Any]
     _std_renames: dict[str, Any]
     _extra_dependencies: Sequence[str]
+    _keep_pip_dependencies: bool = False
 
     def __init__(self, tmp_dir: Path) -> None:
         self.tmp_dir = tmp_dir
@@ -67,12 +69,14 @@ class PackageValidator:
         renamed: Optional[dict[str, str]] = None,
         std_renames: Optional[dict[str, str]] = None,
         extra: Sequence[str] = (),
+        keep_pip_dependencies: bool = False,
     ) -> None:
         """Validate conda package against wheel from which it was generated"""
         self._override_name = name
         self._renamed_dependencies = renamed or {}
         self._std_renames = std_renames or {}
         self._extra_dependencies = extra
+        self._keep_pip_dependencies = keep_pip_dependencies
 
         wheel_dir = self._unpack_wheel(wheel)
         self._unpack_package(conda_pkg)
@@ -82,7 +86,8 @@ class PackageValidator:
         self._validate_unpacked()
 
     # pylint: disable=too-many-locals
-    def _parse_wheel_metadata(self, wheel_dir: Path) -> dict[str, Any]:
+    @classmethod
+    def _parse_wheel_metadata(cls, wheel_dir: Path) -> dict[str, Any]:
         dist_info_dir = next(wheel_dir.glob("*.dist-info"))
         md_file = dist_info_dir / "METADATA"
         md_msg = email.message_from_string(md_file.read_text())
@@ -150,7 +155,9 @@ class PackageValidator:
         self._validate_paths(info_dir)
         self._validate_hash_input(info_dir)
 
-    # pylint: disable=too-many-locals
+        self._validate_dist_info()
+
+    # pylint: disable=too-many-locals,too-many-branches
     def _validate_about(self, info_dir: Path) -> None:
         about_file = info_dir.joinpath("about.json")
         assert about_file.is_file()
@@ -193,16 +200,56 @@ class PackageValidator:
         assert extra.get("license_files", ()) == license_files
         if license_files:
             assert licenses_dir.is_dir()
-            expected_license_files = set(
-                licenses_dir / fname for fname in license_files
-            )
-            assert set(licenses_dir.glob("**/*")) == expected_license_files
+            expected_license_files: list[Path] = []
+            for fname in license_files:
+                if os.path.isabs(fname):
+                    expected_file = licenses_dir / os.path.basename(fname)
+                else:
+                    expected_file = licenses_dir / fname
+                expected_license_files.append(expected_file)
+            expected_license_files = sorted(expected_license_files)
+            assert sorted(licenses_dir.glob("**/*")) == expected_license_files
         else:
             assert not licenses_dir.exists()
 
         for key in ["author", "maintainer"]:
             assert extra.get(key) == md.get(key)
         # TODO : check author-email, maintainer-email
+
+    def _validate_dist_info(self) -> None:
+        site_packages = self._unpacked_conda / "site-packages"
+        dist_md = self._parse_wheel_metadata(site_packages)
+        wheel_md = dict(self._wheel_md)
+        if self._keep_pip_dependencies:
+            assert dist_md == wheel_md
+        else:
+            # Check extra == 'original' markers
+            dist_requires: dict[str, RequiresDistEntry] = {}
+            for entry in dist_md.get("requires_dist", ()):
+                require = RequiresDistEntry.parse(entry)
+                dist_requires[require.name] = require
+            wheel_requires: dict[str, RequiresDistEntry] = {}
+            for entry in wheel_md.get("requires_dist", ()):
+                require = RequiresDistEntry.parse(entry)
+                wheel_requires[require.name] = require
+            assert dist_requires.keys() == wheel_requires.keys()
+            for wheel_require in wheel_requires.values():
+                dist_require = dist_requires[wheel_require.name]
+                if wheel_require.extra_marker_name:
+                    assert dist_require == wheel_require
+                else:
+                    assert wheel_require.version == dist_require.version
+                    assert dist_require.extra_marker_name == "original"
+                    assert wheel_require.extras == dist_require.extras
+                    assert wheel_require.generic == dist_require.generic
+            for md in [dist_md, wheel_md]:
+                del md["requires-dist"]
+            provides_extra: list[str] = dist_md["provides-extra"]
+            assert 'original' in provides_extra
+            provides_extra.remove('original')
+            if not provides_extra:
+                del dist_md["provides-extra"]
+            assert dist_md == wheel_md
 
     def _validate_hash_input(self, info_dir: Path) -> None:
         hash_input_file = info_dir.joinpath("hash_input.json")
