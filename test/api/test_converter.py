@@ -19,6 +19,8 @@ from __future__ import annotations
 
 # standard
 import email
+import logging
+import re
 import shutil
 import subprocess
 import tempfile
@@ -170,6 +172,7 @@ class ConverterTestCase:
             wheel_path,
             package_path,
             std_renames=converter.std_renames,
+            extra=converter.extra_dependencies,
             keep_pip_dependencies=converter.keep_pip_dependencies,
         )
 
@@ -408,6 +411,12 @@ def test_simple_wheel(
     v1pkg = test_case(simple_wheel).build(CondaPackageFormat.V1)
     assert v1pkg.name.endswith(".tar.bz2")
 
+    treepkg = test_case(simple_wheel).build(CondaPackageFormat.TREE)
+    assert treepkg.is_dir()
+    with pytest.raises(FileExistsError):
+        test_case(simple_wheel).build(CondaPackageFormat.TREE)
+    test_case(simple_wheel, overwrite=True).build(CondaPackageFormat.TREE)
+
     # Repack wheel with build number
     dest_dir = test_case.tmp_path / "number"
     subprocess.check_call(
@@ -432,6 +441,34 @@ def test_simple_wheel(
         build42whl,
         overwrite=True,
     ).build()
+
+
+def test_debug_log(
+    test_case: ConverterTestCaseFactory,
+    simple_wheel: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test debug logging during conversion"""
+    caplog.set_level("DEBUG")
+
+    test_case(
+        simple_wheel,
+        extra_dependencies=["mypy"],
+    ).build()
+
+    messages: list[str] = []
+    for record in caplog.records:
+        if record.levelno == logging.DEBUG:
+            messages.append(record.message)
+    assert messages
+    debug_out = "\n".join(messages)
+
+    assert re.search(r"Extracted.*METADATA", debug_out)
+    assert "Packaging info/about.json" in debug_out
+    assert re.search(r"Skipping extra dependency.*pylint", debug_out)
+    assert re.search(r"Dependency copied.*black", debug_out)
+    assert re.search(r"Dependency renamed.*numpy-quaternion.*quaternion", debug_out)
+    assert re.search(r"Dependency added.*mypy", debug_out)
 
 
 def test_poetry(
@@ -480,6 +517,11 @@ def test_bad_wheels(
 
     with pytest.raises(Wheel2CondaError, match="unsupported wheel version"):
         test_case(bad_version_wheel).build()
+
+    case = test_case(bad_version_wheel)
+    case.converter.dry_run = True
+    with pytest.raises(Wheel2CondaError, match="unsupported wheel version"):
+        case.build()
 
     #
     # impure wheel

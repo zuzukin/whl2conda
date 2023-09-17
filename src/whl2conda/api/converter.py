@@ -614,9 +614,9 @@ class Wheel2CondaConverter:
                 from_files = [wheel_info_dir / license_path.name]
                 if not license_path.is_absolute():
                     from_files.insert(0, wheel_info_dir / license_path)
-                for from_file in filter(
+                for from_file in filter(  # pragma: no branch
                     lambda f: f.exists(), from_files
-                ):  # pragma: no branch
+                ):
                     to_file = to_license_dir / from_file.relative_to(wheel_info_dir)
                     if not to_file.exists():  # pragma: no branch
                         to_file.parent.mkdir(parents=True, exist_ok=True)
