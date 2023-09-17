@@ -37,7 +37,9 @@ setup(
     install_requires = [
         "tables",
         "wheel",
-        "black; extra == 'dev'",
     ],
+    extras_require = {
+        'bdev': [ 'black' ]
+    },
     packages=["mypkg"]
 )
