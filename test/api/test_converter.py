@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from time import sleep
 from typing import Generator, Optional, Sequence, Union
 
 # third party
@@ -168,17 +169,17 @@ class ConverterTestCase:
     def _validate(self, wheel_path: Path, package_path: Path) -> None:
         converter = self._converter
         assert converter is not None
-        self._validator.validate(
-            wheel_path,
-            package_path,
-            std_renames=converter.std_renames,
-            renamed={
-                r.pattern.pattern : r.replacement
-                for r in self.dependency_rename
-            },
-            extra=converter.extra_dependencies,
-            keep_pip_dependencies=converter.keep_pip_dependencies,
-        )
+        if not converter.dry_run:
+            self._validator.validate(
+                wheel_path,
+                package_path,
+                std_renames=converter.std_renames,
+                renamed={
+                    r.pattern.pattern: r.replacement for r in self.dependency_rename
+                },
+                extra=converter.extra_dependencies,
+                keep_pip_dependencies=converter.keep_pip_dependencies,
+            )
 
 
 class ConverterTestCaseFactory:
@@ -262,6 +263,15 @@ def check_dist_entry(entry: RequiresDistEntry) -> None:
     raw = str(entry)
     entry2 = RequiresDistEntry.parse(raw)
     assert entry == entry2
+
+    if not entry.extra_marker_name:
+        entry_with_extra = entry.with_extra('original')
+        assert entry_with_extra != entry
+        assert entry_with_extra.extra_marker_name == 'original'
+        assert entry_with_extra.generic == entry.generic
+        assert entry_with_extra.name == entry.name
+        assert entry_with_extra.version == entry.version
+        assert entry.marker in entry_with_extra.marker
 
 
 def test_requires_dist_entry() -> None:
@@ -363,6 +373,13 @@ def test_dependency_rename() -> None:
 # Converter test cases
 #
 
+# TODO: test interactive ovewrite prompt
+# TODO: test build number override
+# TODO: test non-generic dependency warning
+# TODO: test dropped dependency debug log
+# TODO: test bad Requires-Dist entry (shouldn't happen in real life)
+# TODO: test adding extra == original clause to non generic dist entry
+
 
 def test_this(test_case: ConverterTestCaseFactory) -> None:
     """Test using this own project's wheel"""
@@ -404,8 +421,24 @@ def test_simple_wheel(
 ) -> None:
     """Test converting wheel from 'simple' project"""
 
+    # Dry run should not create package
+    case = test_case(simple_wheel)
+    case.converter.dry_run = True
+    v2pkg_dr = case.build()
+    assert v2pkg_dr.suffix == ".conda"
+    assert not v2pkg_dr.exists()
+
+    # Normal run
     v2pkg = test_case(simple_wheel).build()
-    assert v2pkg.suffix == ".conda"
+    assert v2pkg == v2pkg_dr
+
+    # Do another dry run, show that old package not removed
+    mtime = v2pkg.stat().st_mtime_ns
+    sleep(0.01)
+    case = test_case(simple_wheel, overwrite=True)
+    case.converter.dry_run = True
+    assert case.build() == v2pkg
+    assert v2pkg.stat().st_mtime_ns == mtime
 
     with pytest.raises(FileExistsError):
         test_case(simple_wheel).build()
@@ -448,11 +481,10 @@ def test_simple_wheel(
 
     test_case(
         simple_wheel,
-        dependency_rename=[
-            ( "numpy-quaternion", "quaternion2")
-        ],
+        dependency_rename=[("numpy-quaternion", "quaternion2")],
         overwrite=True,
     ).build()
+
 
 def test_debug_log(
     test_case: ConverterTestCaseFactory,
