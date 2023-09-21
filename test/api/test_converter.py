@@ -172,6 +172,10 @@ class ConverterTestCase:
             wheel_path,
             package_path,
             std_renames=converter.std_renames,
+            renamed={
+                r.pattern.pattern : r.replacement
+                for r in self.dependency_rename
+            },
             extra=converter.extra_dependencies,
             keep_pip_dependencies=converter.keep_pip_dependencies,
         )
@@ -442,6 +446,13 @@ def test_simple_wheel(
         overwrite=True,
     ).build()
 
+    test_case(
+        simple_wheel,
+        dependency_rename=[
+            ( "numpy-quaternion", "quaternion2")
+        ],
+        overwrite=True,
+    ).build()
 
 def test_debug_log(
     test_case: ConverterTestCaseFactory,
