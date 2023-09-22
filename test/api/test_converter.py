@@ -373,10 +373,9 @@ def test_dependency_rename() -> None:
 # Converter test cases
 #
 
-# TODO: test interactive ovewrite prompt
+# TODO: test interactive overwrite prompt
 # TODO: test build number override
 # TODO: test non-generic dependency warning
-# TODO: test dropped dependency debug log
 # TODO: test bad Requires-Dist entry (shouldn't happen in real life)
 # TODO: test adding extra == original clause to non generic dist entry
 
@@ -492,19 +491,31 @@ def test_debug_log(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test debug logging during conversion"""
-    caplog.set_level("DEBUG")
-
-    test_case(
+    case = test_case(
         simple_wheel,
         extra_dependencies=["mypy"],
-    ).build()
+        dependency_rename= [
+            ("tables", "")
+        ],
+        overwrite=True,
+    )
+    case.build()
 
-    messages: list[str] = []
-    for record in caplog.records:
-        if record.levelno == logging.DEBUG:
-            messages.append(record.message)
-    assert messages
-    debug_out = "\n".join(messages)
+    def get_debug_out() -> str:
+        messages: list[str] = []
+        for record in caplog.records:
+            if record.levelno == logging.DEBUG:
+                messages.append(record.message)
+        return "\n".join(messages)
+
+    debug_out = get_debug_out()
+    assert not debug_out
+
+    caplog.set_level("DEBUG")
+
+    case.build()
+
+    debug_out = get_debug_out()
 
     assert re.search(r"Extracted.*METADATA", debug_out)
     assert "Packaging info/about.json" in debug_out
@@ -512,7 +523,6 @@ def test_debug_log(
     assert re.search(r"Dependency copied.*black", debug_out)
     assert re.search(r"Dependency renamed.*numpy-quaternion.*quaternion", debug_out)
     assert re.search(r"Dependency added.*mypy", debug_out)
-
 
 def test_poetry(
     test_case: ConverterTestCaseFactory,
