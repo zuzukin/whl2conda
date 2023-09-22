@@ -105,10 +105,10 @@ pytest:
 test: pytest
 
 coverage:
-	$(CONDA_RUN) pytest -s --cov=src --cov-report=json --cov-report=term test
+	$(CONDA_RUN) pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term test
 
 slow-coverage:
-	$(CONDA_RUN) pytest -s --cov=src --cov-report=json --cov-report=term test --run-slow
+	$(CONDA_RUN) pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term test --run-slow
 
 htmlcov/index.html: .coverage
 	$(CONDA_RUN) coverage html
