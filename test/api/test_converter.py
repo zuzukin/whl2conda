@@ -19,11 +19,12 @@ from __future__ import annotations
 
 # standard
 import email
-import shutil
+import logging
+import re
 import subprocess
-import tempfile
 from pathlib import Path
-from typing import Generator, Optional, Sequence, Union
+from time import sleep
+from typing import Iterator
 
 # third party
 import pytest
@@ -31,17 +32,17 @@ from wheel.wheelfile import WheelFile
 
 # this package
 from whl2conda.api.converter import (
-    Wheel2CondaConverter,
     CondaPackageFormat,
     DependencyRename,
     RequiresDistEntry,
     Wheel2CondaError,
 )
 from whl2conda.cli.convert import do_build_wheel
-from whl2conda.cli.install import install_main
-from .validator import PackageValidator
+from .converter import ConverterTestCaseFactory
+from .converter import test_case  # pylint: disable=unused-import
 
 from ..test_packages import (  # pylint: disable=unused-import
+    markers_wheel,
     setup_wheel,
     simple_wheel,
 )
@@ -49,187 +50,6 @@ from ..test_packages import (  # pylint: disable=unused-import
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent.parent
 test_projects = root_dir / "test-projects"
-
-#
-# Converter test fixture
-#
-
-
-class ConverterTestCase:
-    """
-    Runner for a test case
-    """
-
-    wheel_src: Union[Path, str]
-    dependency_rename: Sequence[DependencyRename]
-    extra_dependencies: Sequence[str]
-    overwrite: bool
-    package_name: str
-    tmp_dir: Path
-    project_dir: Path
-    out_dir: Path
-    pip_downloads: Path
-    was_run: bool = False
-
-    _converter: Optional[Wheel2CondaConverter] = None
-    _validator_dir: Path
-    _validator: PackageValidator
-
-    @property
-    def converter(self) -> Wheel2CondaConverter:
-        """Converter instance, constructed on demand."""
-        if self._converter is None:
-            self._converter = Wheel2CondaConverter(self._get_wheel(), self.out_dir)
-        assert self._converter is not None
-        return self._converter
-
-    def __init__(
-        self,
-        wheel_src: Union[Path, str],
-        *,
-        tmp_dir: Path,
-        project_dir: Path,
-        package_name: str = "",
-        dependency_rename: Sequence[tuple[str, str]] = (),
-        extra_dependencies: Sequence[str] = (),
-        overwrite: bool = False,
-    ) -> None:
-        if not str(wheel_src).startswith("pypi:"):
-            wheel_src = Path(wheel_src)
-            assert wheel_src.exists()
-        self.wheel_src = wheel_src
-        self.dependency_rename = tuple(
-            DependencyRename.from_strings(*dr) for dr in dependency_rename
-        )
-        self.extra_dependencies = tuple(extra_dependencies)
-        self.overwrite = overwrite
-        self.tmp_dir = tmp_dir
-        self.project_dir = project_dir
-        self.package_name = package_name
-        assert tmp_dir.is_dir()
-        self.out_dir = self.tmp_dir.joinpath("out")
-        self.pip_downloads = self.tmp_dir / "pip-downloads"
-        self.pip_downloads.mkdir(exist_ok=True)
-        self._validator_dir = self.tmp_dir.joinpath("validator")
-        if self._validator_dir.exists():
-            shutil.rmtree(self._validator_dir)
-        self._validator_dir.mkdir()
-        self._validator = PackageValidator(self._validator_dir)
-
-    def build(self, out_format: CondaPackageFormat = CondaPackageFormat.V2) -> Path:
-        """Run the build test case"""
-        self.was_run = True
-        wheel_path = self._get_wheel()
-        package_path = self._convert(out_format=out_format)
-        self._validate(wheel_path, package_path)
-        return package_path
-
-    def install(self, pkg_file: Path) -> Path:
-        """Install conda package file into new conda environment in test-env/ subdir"""
-        test_env = self.tmp_dir.joinpath("test-env")
-        install_main([str(pkg_file), "-p", str(test_env), "--yes", "--create"])
-        return test_env
-
-    def _convert(self, *, out_format: CondaPackageFormat) -> Path:
-        converter = self.converter
-        converter.dependency_rename = list(self.dependency_rename)
-        converter.extra_dependencies = list(self.extra_dependencies)
-        converter.package_name = self.package_name
-        converter.overwrite = self.overwrite
-        converter.out_format = out_format
-        self._converter = converter
-        return converter.convert()
-
-    def _get_wheel(self) -> Path:
-        if isinstance(self.wheel_src, Path):
-            return self.wheel_src
-
-        assert str(self.wheel_src).startswith("pypi:")
-        spec = str(self.wheel_src)[5:]
-
-        with tempfile.TemporaryDirectory(dir=self.pip_downloads) as tmpdir:
-            download_dir = Path(tmpdir)
-            try:
-                subprocess.check_call(
-                    ["pip", "download", spec, "--no-deps", "-d", str(download_dir)]
-                )
-            except subprocess.CalledProcessError as ex:
-                pytest.skip(f"Cannot download {spec} from pypi: {ex}")
-            downloaded_wheel = next(download_dir.glob("*.whl"))
-            target_wheel = self.pip_downloads / downloaded_wheel.name
-            if target_wheel.exists():
-                target_wheel.unlink()
-            shutil.copyfile(downloaded_wheel, target_wheel)
-
-        return target_wheel
-
-    def _validate(self, wheel_path: Path, package_path: Path) -> None:
-        converter = self._converter
-        assert converter is not None
-        self._validator.validate(
-            wheel_path,
-            package_path,
-            std_renames=converter.std_renames,
-            keep_pip_dependencies=converter.keep_pip_dependencies,
-        )
-
-
-class ConverterTestCaseFactory:
-    """
-    Factory for generating test case runners
-    """
-
-    tmp_path_factory: pytest.TempPathFactory
-    tmp_path: Path
-    project_dir: Path
-    _cases: list[ConverterTestCase]
-
-    def __init__(self, tmp_path_factory: pytest.TempPathFactory) -> None:
-        self.tmp_path_factory = tmp_path_factory
-        self.tmp_path = tmp_path_factory.mktemp("converter-test-cases-")
-        orig_project_dir = root_dir.joinpath("test-projects")
-        self.project_dir = self.tmp_path.joinpath("projects")
-        shutil.copytree(orig_project_dir, self.project_dir, dirs_exist_ok=True)
-        self._cases = []
-
-    def __call__(
-        self,
-        wheel_src: Union[Path, str],
-        *,
-        package_name: str = "",
-        dependency_rename: Sequence[tuple[str, str]] = (),
-        extra_dependencies: Sequence[str] = (),
-        overwrite: bool = False,
-    ) -> ConverterTestCase:
-        case = ConverterTestCase(
-            wheel_src,
-            tmp_dir=self.tmp_path,
-            package_name=package_name,
-            project_dir=self.project_dir,
-            dependency_rename=dependency_rename,
-            extra_dependencies=extra_dependencies,
-            overwrite=overwrite,
-        )
-        self._cases.append(case)
-        return case
-
-    def teardown(self) -> None:
-        """Make sure all test cases were actually run"""
-        for i, case in enumerate(self._cases):
-            assert case.was_run, f"Test case #{i} was not run"
-
-
-@pytest.fixture
-def test_case(
-    tmp_path_factory: pytest.TempPathFactory,
-) -> Generator[ConverterTestCaseFactory, None, None]:
-    """
-    Yields a TestCaseFactory for creating test cases
-    """
-    factory = ConverterTestCaseFactory(tmp_path_factory)
-    yield factory
-    factory.teardown()
-
 
 # pylint: disable=redefined-outer-name
 
@@ -255,6 +75,15 @@ def check_dist_entry(entry: RequiresDistEntry) -> None:
     raw = str(entry)
     entry2 = RequiresDistEntry.parse(raw)
     assert entry == entry2
+
+    if not entry.extra_marker_name:
+        entry_with_extra = entry.with_extra('original')
+        assert entry_with_extra != entry
+        assert entry_with_extra.extra_marker_name == 'original'
+        assert entry_with_extra.generic == entry.generic
+        assert entry_with_extra.name == entry.name
+        assert entry_with_extra.version == entry.version
+        assert entry.marker in entry_with_extra.marker
 
 
 def test_requires_dist_entry() -> None:
@@ -397,8 +226,24 @@ def test_simple_wheel(
 ) -> None:
     """Test converting wheel from 'simple' project"""
 
+    # Dry run should not create package
+    case = test_case(simple_wheel)
+    case.converter.dry_run = True
+    v2pkg_dr = case.build()
+    assert v2pkg_dr.suffix == ".conda"
+    assert not v2pkg_dr.exists()
+
+    # Normal run
     v2pkg = test_case(simple_wheel).build()
-    assert v2pkg.suffix == ".conda"
+    assert v2pkg == v2pkg_dr
+
+    # Do another dry run, show that old package not removed
+    mtime = v2pkg.stat().st_mtime_ns
+    sleep(0.01)
+    case = test_case(simple_wheel, overwrite=True)
+    case.converter.dry_run = True
+    assert case.build() == v2pkg
+    assert v2pkg.stat().st_mtime_ns == mtime
 
     with pytest.raises(FileExistsError):
         test_case(simple_wheel).build()
@@ -407,6 +252,12 @@ def test_simple_wheel(
 
     v1pkg = test_case(simple_wheel).build(CondaPackageFormat.V1)
     assert v1pkg.name.endswith(".tar.bz2")
+
+    treepkg = test_case(simple_wheel).build(CondaPackageFormat.TREE)
+    assert treepkg.is_dir()
+    with pytest.raises(FileExistsError):
+        test_case(simple_wheel).build(CondaPackageFormat.TREE)
+    test_case(simple_wheel, overwrite=True).build(CondaPackageFormat.TREE)
 
     # Repack wheel with build number
     dest_dir = test_case.tmp_path / "number"
@@ -432,6 +283,101 @@ def test_simple_wheel(
         build42whl,
         overwrite=True,
     ).build()
+
+    case = test_case(
+        build42whl,
+        overwrite=True,
+    )
+    case.converter.build_number = 23
+    case.build()
+
+    test_case(
+        simple_wheel,
+        dependency_rename=[("numpy-quaternion", "quaternion2")],
+        overwrite=True,
+    ).build()
+
+
+def test_debug_log(
+    test_case: ConverterTestCaseFactory,
+    simple_wheel: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test debug logging during conversion"""
+    case = test_case(
+        simple_wheel,
+        extra_dependencies=["mypy"],
+        dependency_rename=[("tables", "")],
+        overwrite=True,
+    )
+    case.build()
+
+    def get_debug_out() -> str:
+        messages: list[str] = []
+        for record in caplog.records:
+            if record.levelno == logging.DEBUG:
+                messages.append(record.message)
+        return "\n".join(messages)
+
+    debug_out = get_debug_out()
+    assert not debug_out
+
+    caplog.set_level("DEBUG")
+
+    case.build()
+
+    debug_out = get_debug_out()
+
+    assert re.search(r"Extracted.*METADATA", debug_out)
+    assert "Packaging info/about.json" in debug_out
+    assert re.search(r"Skipping extra dependency.*pylint", debug_out)
+    assert re.search(r"Dependency copied.*black", debug_out)
+    assert re.search(r"Dependency renamed.*numpy-quaternion.*quaternion", debug_out)
+    assert re.search(r"Dependency added.*mypy", debug_out)
+
+
+def test_warnings(
+    test_case: ConverterTestCaseFactory,
+    markers_wheel: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """
+    Test conversion warnings
+    """
+
+    def get_warn_out() -> str:
+        messages: list[str] = []
+        for record in caplog.records:
+            if record.levelno == logging.WARNING:
+                messages.append(record.message)
+        return "\n".join(messages)
+
+    test_case(markers_wheel).build()
+
+    warn_out = get_warn_out()
+    assert re.search(
+        r"Skipping.*with.*marker.*typing-extensions ; python_version < '3.9'", warn_out
+    )
+    assert re.search(r"Skipping.*ntfsdump", warn_out)
+    assert re.search(r"Skipping.*atomacos", warn_out)
+
+    # Make wheel with bad Requires-Dist entries
+    wheel = WheelFile(markers_wheel)
+    bad_wheel_dir = test_case.tmp_path / "bad-wheel"
+    wheel.extractall(bad_wheel_dir)
+    distinfo_dir = next(bad_wheel_dir.glob("*.dist-info"))
+    metadata_file = distinfo_dir / "METADATA"
+    contents = metadata_file.read_text("utf8")
+    # Add bogus !!! to Requires-Dist entries with markers
+    contents = re.sub(r"Requires-Dist:(.*);", r"Requires-Dist:!!!\1;", contents)
+    metadata_file.write_text(contents)
+    bad_wheel_file = bad_wheel_dir / markers_wheel.name
+    with WheelFile(str(bad_wheel_file), "w") as wf:
+        wf.write_files(str(bad_wheel_dir))
+
+    test_case(bad_wheel_file, overwrite=True).build()
+    warn_out = get_warn_out()
+    print(warn_out)
 
 
 def test_poetry(
@@ -481,6 +427,11 @@ def test_bad_wheels(
     with pytest.raises(Wheel2CondaError, match="unsupported wheel version"):
         test_case(bad_version_wheel).build()
 
+    case = test_case(bad_version_wheel)
+    case.converter.dry_run = True
+    with pytest.raises(Wheel2CondaError, match="unsupported wheel version"):
+        case.build()
+
     #
     # impure wheel
     #
@@ -516,3 +467,39 @@ def test_bad_wheels(
 
     with pytest.raises(Wheel2CondaError, match="unsupported metadata version"):
         test_case(bad_md_version_wheel).build()
+
+
+def test_overwrite_prompt(
+    test_case: ConverterTestCaseFactory,
+    simple_wheel: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Test interactive prompting for overwrite.
+    """
+    prompts: Iterator[str] = iter(())
+    responses: Iterator[str] = iter(())
+
+    def fake_input(prompt: str) -> str:
+        expected_prompt = next(prompts)
+        assert re.search(
+            expected_prompt, prompt
+        ), f"'{expected_prompt}' does not match prompt '{prompt}'"
+        return next(responses)
+
+    monkeypatch.setattr("builtins.input", fake_input)
+
+    case = test_case(simple_wheel)
+    case.converter.interactive = False
+    case.build()
+
+    case.converter.interactive = True
+    prompts = iter(["Overwrite?"])
+    responses = iter(["no"])
+    with pytest.raises(FileExistsError):
+        case.build()
+
+    case.converter.interactive = True
+    prompts = iter(["Overwrite?"])
+    responses = iter(["yes"])
+    case.build()

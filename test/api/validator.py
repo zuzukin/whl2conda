@@ -53,6 +53,7 @@ class PackageValidator:
     _std_renames: dict[str, Any]
     _extra_dependencies: Sequence[str]
     _keep_pip_dependencies: bool = False
+    _build_number: int | None = None
 
     def __init__(self, tmp_dir: Path) -> None:
         self.tmp_dir = tmp_dir
@@ -70,6 +71,7 @@ class PackageValidator:
         std_renames: Optional[dict[str, str]] = None,
         extra: Sequence[str] = (),
         keep_pip_dependencies: bool = False,
+        build_number: int | None = None,
     ) -> None:
         """Validate conda package against wheel from which it was generated"""
         self._override_name = name
@@ -77,6 +79,7 @@ class PackageValidator:
         self._std_renames = std_renames or {}
         self._extra_dependencies = extra
         self._keep_pip_dependencies = keep_pip_dependencies
+        self._build_number = build_number
 
         wheel_dir = self._unpack_wheel(wheel)
         self._unpack_package(conda_pkg)
@@ -276,10 +279,13 @@ class PackageValidator:
         assert index["arch"] is None
         assert index['build'] == 'py_0'
 
-        try:
-            build_number = int(wheel_md.get("build", 0))
-        except ValueError:
-            build_number = 0
+        if self._build_number is not None:
+            build_number = self._build_number
+        else:
+            try:
+                build_number = int(wheel_md.get("build", 0))
+            except ValueError:
+                build_number = 0
         assert index['build_number'] == build_number
 
         assert index["platform"] is None
@@ -298,7 +304,10 @@ class PackageValidator:
         if python_ver := wheel_md.get("requires-python"):
             expected_depends.add(f"python {python_ver}")
         for dep in wheel_md.get("requires-dist", []):
-            entry = RequiresDistEntry.parse(dep)
+            try:
+                entry = RequiresDistEntry.parse(dep)
+            except SyntaxError:
+                continue
             if entry.marker:
                 continue
             name = entry.name

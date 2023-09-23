@@ -24,7 +24,8 @@ classifiers = [
 
 dependencies = [
     "black[colorama] >=23.3",
-    "numpy-quaternion"
+    "numpy-quaternion",
+    "tables",
 ]
 
 [project.optional-dependencies]

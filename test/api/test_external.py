@@ -24,8 +24,9 @@ import pytest
 
 from whl2conda.api.converter import Wheel2CondaError
 
-from .test_converter import ConverterTestCaseFactory
-from .test_converter import test_case  # pylint: disable=unused-import
+from .converter import ConverterTestCaseFactory
+from .converter import test_case  # pylint: disable=unused-import
+
 
 # pylint: disable=redefined-outer-name
 

@@ -91,6 +91,17 @@ class RequiresDistEntry:
     generic: bool = True
     """True if marker is empty or only contains an extra expression"""
 
+    def set_marker(self, marker: str) -> None:
+        """Set marker value and update extra_marker_name and generic values"""
+        self.marker = marker
+        self.generic = False
+        for pat in _extra_marker_re:
+            if m := pat.search(marker):
+                self.extra_marker_name = m.group("name")
+                if m.group(0) == marker:
+                    self.generic = True
+                return
+
     @classmethod
     def parse(cls, raw: str) -> RequiresDistEntry:
         """
@@ -108,14 +119,17 @@ class RequiresDistEntry:
         if version := m.group("version"):
             entry.version = version
         if marker := m.group("marker"):
-            entry.marker = marker
-            entry.generic = False
-            for pat in _extra_marker_re:
-                if m := pat.search(marker):
-                    entry.extra_marker_name = m.group("name")
-                    if m.group(0) == marker:
-                        entry.generic = True
-                    break
+            entry.set_marker(marker)
+        return entry
+
+    def with_extra(self, name: str) -> RequiresDistEntry:
+        """Returns copy of entry with  an extra == '<name>' clause to marker"""
+        marker = f"extra == '{name}'"
+        if self.marker:
+            marker = f"({self.marker}) and {marker}"
+
+        entry = dataclasses.replace(self)
+        entry.set_marker(marker)
         return entry
 
     def __str__(self) -> str:
@@ -614,9 +628,9 @@ class Wheel2CondaConverter:
                 from_files = [wheel_info_dir / license_path.name]
                 if not license_path.is_absolute():
                     from_files.insert(0, wheel_info_dir / license_path)
-                for from_file in filter(
+                for from_file in filter(  # pragma: no branch
                     lambda f: f.exists(), from_files
-                ):  # pragma: no branch
+                ):
                     to_file = to_license_dir / from_file.relative_to(wheel_info_dir)
                     if not to_file.exists():  # pragma: no branch
                         to_file.parent.mkdir(parents=True, exist_ok=True)
@@ -677,13 +691,7 @@ class Wheel2CondaConverter:
             del md_msg["Requires-Dist"]
             for entry in requires:
                 if not entry.extra_marker_name:
-                    marker = entry.marker
-                    extra_clause = "extra == 'original'"
-                    if marker:
-                        marker = f"({entry.marker}) and {extra_clause}"
-                    else:
-                        marker = extra_clause
-                    entry = dataclasses.replace(entry, marker=marker)
+                    entry = entry.with_extra('original')
                 md_msg.add_header("Requires-Dist", str(entry))
             md_msg.add_header("Provides-Extra", "original")
             wheel_md_file.write_text(md_msg.as_string())
