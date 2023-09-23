@@ -59,6 +59,7 @@ help:
 	"build        - build wheel and conda package in dist/\n" \
 	"check-upload - check uploadable wheels in dist/\n" \
 	"upload       - upload the latest wheel in dist (requires pypi access)/\n" \
+	"update-stdrename - update stdrename.json file in source\n" \
 	"\n" \
 	"--- clean ---\n" \
 	"clean          - remove generated files\n" \
@@ -176,6 +177,9 @@ mike-serve: doc-serve-all
 #
 # Distribution targets
 #
+
+update-stdrename:
+	$(CONDA_RUN) whl2conda config --update-std-renames src/whl2conda/api/stdrename.json
 
 # TODO - add targets from version
 build-sdist:

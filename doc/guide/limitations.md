@@ -1,8 +1,8 @@
-*whl2conda* currently only supports conversion of generic pure python wheels
+*whl2conda* supports the conversion of generic pure python wheels
 into noarch python conda packages.
 
-It has the following limitations, some of which will be addressed in future
-releases.
+It has the following limitations and known issues, some of which 
+will be addressed in future releases.
 
 ## Version specifiers are not translated
 
@@ -15,9 +15,8 @@ properly in conda. Specifically,
 * the *compatible release* operator `~=` is not supported by conda.
     To translate, use a double expression with `>=` and `*`, e.g.:
     `~= 1.2.3` would become `>=1.2.3,1.2.*` in conda. This form is
-    also supported by pip, so this is a viable workaround for packages
-    you control.
-  
+    also supported by pip, so switching to this format is a viable 
+    workaround for packages under your control.
   
 * the *arbitrary equality* clause `===` is not supported by conda.
     I do not believe there is an equivalent to this in conda, but
@@ -35,7 +34,7 @@ back with compatible specifier syntax, e.g.:
 whl2conda mywheel-1.2.3-py3-none-any.whl -D foo -A 'foo >=1.2.3,1.2.*'
 ```
 
-This will be fixed in a future release 
+This will be fixed in a future release
 (see [issue 84](https://github.com/zuzukin/whl2conda/issues/84)).
 
 ## Wheel data directories not supported
@@ -48,9 +47,8 @@ This will be addressed in a future release
 
 ## Cannot convert from sdist
 
-Currently, only conversion from wheels is supported. Conversion from python sdist
-distributions are not currently supported. This could possibly be supported in 
-the future (see [issue 78](https://github.com/zuzukin/whl2conda/issues/78)).
+Conversion from python sdist distributions is not currently supported. 
+This could possibly be supported in the future (see [issue 78](https://github.com/zuzukin/whl2conda/issues/78)).
 
 ## Cannot convert from eggs
 
