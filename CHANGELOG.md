@@ -1,5 +1,9 @@
 # whl2conda changes
 
+## [23.9.0] - 2023-9-23
+
+* First official stable release
+
 ## [23.8.10] - 2023-9-16 (*prerelease*)
 
 * Fix generation of entry points
