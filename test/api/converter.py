@@ -170,6 +170,7 @@ class ConverterTestCase:
                 },
                 extra=converter.extra_dependencies,
                 keep_pip_dependencies=converter.keep_pip_dependencies,
+                build_number=converter.build_number,
             )
 
 

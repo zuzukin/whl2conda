@@ -24,6 +24,7 @@ import re
 import subprocess
 from pathlib import Path
 from time import sleep
+from typing import Iterator
 
 # third party
 import pytest
@@ -41,6 +42,7 @@ from .converter import ConverterTestCaseFactory
 from .converter import test_case  # pylint: disable=unused-import
 
 from ..test_packages import (  # pylint: disable=unused-import
+    markers_wheel,
     setup_wheel,
     simple_wheel,
 )
@@ -183,12 +185,6 @@ def test_dependency_rename() -> None:
 # Converter test cases
 #
 
-# TODO: test interactive overwrite prompt
-# TODO: test build number override
-# TODO: test non-generic dependency warning
-# TODO: test bad Requires-Dist entry (shouldn't happen in real life)
-# TODO: test adding extra == original clause to non generic dist entry
-
 
 def test_this(test_case: ConverterTestCaseFactory) -> None:
     """Test using this own project's wheel"""
@@ -288,6 +284,13 @@ def test_simple_wheel(
         overwrite=True,
     ).build()
 
+    case = test_case(
+        build42whl,
+        overwrite=True,
+    )
+    case.converter.build_number = 23
+    case.build()
+
     test_case(
         simple_wheel,
         dependency_rename=[("numpy-quaternion", "quaternion2")],
@@ -331,6 +334,50 @@ def test_debug_log(
     assert re.search(r"Dependency copied.*black", debug_out)
     assert re.search(r"Dependency renamed.*numpy-quaternion.*quaternion", debug_out)
     assert re.search(r"Dependency added.*mypy", debug_out)
+
+
+def test_warnings(
+    test_case: ConverterTestCaseFactory,
+    markers_wheel: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """
+    Test conversion warnings
+    """
+
+    def get_warn_out() -> str:
+        messages: list[str] = []
+        for record in caplog.records:
+            if record.levelno == logging.WARNING:
+                messages.append(record.message)
+        return "\n".join(messages)
+
+    test_case(markers_wheel).build()
+
+    warn_out = get_warn_out()
+    assert re.search(
+        r"Skipping.*with.*marker.*typing-extensions ; python_version < '3.9'", warn_out
+    )
+    assert re.search(r"Skipping.*ntfsdump", warn_out)
+    assert re.search(r"Skipping.*atomacos", warn_out)
+
+    # Make wheel with bad Requires-Dist entries
+    wheel = WheelFile(markers_wheel)
+    bad_wheel_dir = test_case.tmp_path / "bad-wheel"
+    wheel.extractall(bad_wheel_dir)
+    distinfo_dir = next(bad_wheel_dir.glob("*.dist-info"))
+    metadata_file = distinfo_dir / "METADATA"
+    contents = metadata_file.read_text("utf8")
+    # Add bogus !!! to Requires-Dist entries with markers
+    contents = re.sub(r"Requires-Dist:(.*);", r"Requires-Dist:!!!\1;", contents)
+    metadata_file.write_text(contents)
+    bad_wheel_file = bad_wheel_dir / markers_wheel.name
+    with WheelFile(str(bad_wheel_file), "w") as wf:
+        wf.write_files(str(bad_wheel_dir))
+
+    test_case(bad_wheel_file, overwrite=True).build()
+    warn_out = get_warn_out()
+    print(warn_out)
 
 
 def test_poetry(
@@ -420,3 +467,39 @@ def test_bad_wheels(
 
     with pytest.raises(Wheel2CondaError, match="unsupported metadata version"):
         test_case(bad_md_version_wheel).build()
+
+
+def test_overwrite_prompt(
+    test_case: ConverterTestCaseFactory,
+    simple_wheel: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Test interactive prompting for overwrite.
+    """
+    prompts: Iterator[str] = iter(())
+    responses: Iterator[str] = iter(())
+
+    def fake_input(prompt: str) -> str:
+        expected_prompt = next(prompts)
+        assert re.search(
+            expected_prompt, prompt
+        ), f"'{expected_prompt}' does not match prompt '{prompt}'"
+        return next(responses)
+
+    monkeypatch.setattr("builtins.input", fake_input)
+
+    case = test_case(simple_wheel)
+    case.converter.interactive = False
+    case.build()
+
+    case.converter.interactive = True
+    prompts = iter(["Overwrite?"])
+    responses = iter(["no"])
+    with pytest.raises(FileExistsError):
+        case.build()
+
+    case.converter.interactive = True
+    prompts = iter(["Overwrite?"])
+    responses = iter(["yes"])
+    case.build()

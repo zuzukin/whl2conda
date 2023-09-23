@@ -24,6 +24,7 @@ import pytest
 from whl2conda.cli.convert import convert_main, do_build_wheel
 
 __all__ = [
+    "markers_wheel",
     "project_dir",
     "setup_wheel",
     "simple_conda_package",
@@ -33,6 +34,7 @@ __all__ = [
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent
 project_dir = root_dir.joinpath("test-projects")
+markers_project = project_dir.joinpath("markers")
 simple_project = project_dir.joinpath("simple")
 setup_project = project_dir.joinpath("setup")
 
@@ -69,6 +71,21 @@ def simple_conda_package(
         ]
     )
     yield list(simple_wheel.parent.glob("*.conda"))[0]
+
+
+@pytest.fixture(scope="session")
+def markers_wheel(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Generator[Path, None, None]:
+    """Provides pip wheel for "markers" test project"""
+    distdir = tmp_path_factory.mktemp("dist")
+    yield do_build_wheel(
+        markers_project,
+        distdir,
+        no_deps=True,
+        no_build_isolation=True,
+        capture_output=True,
+    )
 
 
 @pytest.fixture(scope="session")
