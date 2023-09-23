@@ -65,29 +65,4 @@
          <lastmod>2023-09-23</lastmod>
          <changefreq>daily</changefreq>
     </url>
-    <url>
-         <loc>https://zuzukin.github.io/whl2conda/stable/reference/cli/whl2conda-config.html</loc>
-         <lastmod>2023-09-23</lastmod>
-         <changefreq>daily</changefreq>
-    </url>
-    <url>
-         <loc>https://zuzukin.github.io/whl2conda/stable/reference/cli/whl2conda-convert.html</loc>
-         <lastmod>2023-09-23</lastmod>
-         <changefreq>daily</changefreq>
-    </url>
-    <url>
-         <loc>https://zuzukin.github.io/whl2conda/stable/reference/cli/whl2conda-diff.html</loc>
-         <lastmod>2023-09-23</lastmod>
-         <changefreq>daily</changefreq>
-    </url>
-    <url>
-         <loc>https://zuzukin.github.io/whl2conda/stable/reference/cli/whl2conda-install.html</loc>
-         <lastmod>2023-09-23</lastmod>
-         <changefreq>daily</changefreq>
-    </url>
-    <url>
-         <loc>https://zuzukin.github.io/whl2conda/stable/reference/cli/whl2conda.html</loc>
-         <lastmod>2023-09-23</lastmod>
-         <changefreq>daily</changefreq>
-    </url>
 </urlset>
