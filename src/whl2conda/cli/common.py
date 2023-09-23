@@ -43,7 +43,7 @@ class MarkdownHelpFormatter(argparse.RawTextHelpFormatter):
         super().__init__(prog, max_help_position=12, width=80)
 
     def add_usage(self, usage, actions, groups, prefix=None):
-        self.add_text(f"## {self._prog}")
+        self.add_text(f"# {self._prog}")
         self.start_section("Usage")
         super().add_usage(usage, actions, groups, prefix)
         self.end_section()

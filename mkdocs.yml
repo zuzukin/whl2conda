@@ -7,31 +7,6 @@ site_author: Christopher Barber
 repo_name: GitHub
 copyright: Copyright &copy; 2023 Christopher Barber
 
-nav:
-  - User Guide:
-    - Basic Usage: basic-usage.md
-    - Dependency Modification: renaming.md
-    - Configuring pyproject.toml: pyproject.md
-    - Installing and Testing: testing.md
-    - Limitations: limitations.md
-  - Installation: install.md
-  - Reference:
-      - Command line:
-        - wl2conda: cli/whl2conda.md
-        - whl2conda config: cli/whl2conda-config.md
-        - whl2conda convert: cli/whl2conda-convert.md
-        - whl2conda diff: cli/whl2conda-diff.md
-        - whl2conda install: cli/whl2conda-install.md
-      - API (<i>not stable!</i>):
-          - api/converter.md
-          - api/stdrename.md
-      - Reference Material: links.md
-
-  - About:
-      - Getting help: support.md
-      - Release notes: changelog.md
-      - License: license.md
-
 # https://squidfunk.github.io/mkdocs-material/setup/changing-the-colors/
 #extra_css:
 #  - style.css
@@ -49,7 +24,6 @@ theme:
 #    - navigation.instant # browser back doesn't work well with this option
     - navigation.expand
     - navigation.top
-#    - toc.integrate
     - search.suggest
     - search.highlight
   highlight_js: true
@@ -88,6 +62,8 @@ plugins:
   - search
   - autorefs
   - offline
+  - awesome-pages:
+      filename: nav.yml
   - mike:
       # These fields are all optional; the defaults are as below...
       canonical_version: stable

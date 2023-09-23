@@ -59,6 +59,7 @@ help:
 	"build        - build wheel and conda package in dist/\n" \
 	"check-upload - check uploadable wheels in dist/\n" \
 	"upload       - upload the latest wheel in dist (requires pypi access)/\n" \
+	"update-stdrename - update stdrename.json file in source\n" \
 	"\n" \
 	"--- clean ---\n" \
 	"clean          - remove generated files\n" \
@@ -124,14 +125,15 @@ open-coverage: htmlcov/index.html
 
 MKDOCS_FILE := mkdocs.yml
 CLI_SUBCMDS := $(shell $(CONDA_RUN) whl2conda --list-subcommands)
-CLI_DOCS := doc/cli/whl2conda.md $(foreach subcmd,$(CLI_SUBCMDS),doc/cli/whl2conda-$(subcmd).md)
+CLI_DIR := doc/reference/cli
+CLI_DOCS := $(CLI_DIR)/whl2conda.md $(foreach subcmd,$(CLI_SUBCMDS),$(CLI_DIR)/whl2conda-$(subcmd).md)
 
 # Build main cli man page
-doc/cli/whl2conda.md: src/whl2conda/cli/main.py
+$(CLI_DIR)/whl2conda.md: src/whl2conda/cli/main.py
 	$(CONDA_RUN) whl2conda --markdown-help > $@
 
 # Build subcommand cli man page
-doc/cli/whl2conda-%.md: src/whl2conda/cli/%.py
+$(CLI_DIR)/whl2conda-%.md: src/whl2conda/cli/%.py
 	$(CONDA_RUN) whl2conda $* --markdown-help > $@
 
 site/index.html: $(CLI_DOCS) $(MKDOCS_FILE) doc/*.md src/whl2conda/api/*.py
@@ -176,6 +178,9 @@ mike-serve: doc-serve-all
 # Distribution targets
 #
 
+update-stdrename:
+	$(CONDA_RUN) whl2conda config --update-std-renames src/whl2conda/api/stdrename.json
+
 # TODO - add targets from version
 build-sdist:
 	$(CONDA_RUN) python -m build --sdist --no-isolation --outdir dist
@@ -213,7 +218,7 @@ clean-coverage:
 	$(RMDIR) htmlcov .coverage coverage.json coverage.xml
 
 clean-doc:
-	$(RMDIR) site doc/whl2conda-cli.md
+	$(RMDIR) site $(CLI_DIR)/whl2conda*.md
 
 doc-clean: clean-doc
 

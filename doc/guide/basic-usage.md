@@ -25,13 +25,13 @@ This is described in the section on [Dependency Modification](renaming.md)
 
 ## Downloading wheels
 
-If you want to create a conda package for a pure pytyhon package on pypi that doesn't
+If you want to create a conda package for a pure python package from [pypi] that doesn't
 currently have one available on a public channel, you can download the wheel
-using [pip download][pip-download]. You do not need to download depenences and do not want
-an sdist, e.g.
+using [pip download][pip-download]. You do not need to download dependencies and 
+want a wheel, not an sdist, so use:
 
 ```bash
-$ pip download --only-binary:all: --no-deps some-package
+$ pip download --only-binary:all: --no-deps <some-package>
 ```
 
 Then you can convert the downloaded wheel using `whl2conda convert`.
@@ -48,7 +48,7 @@ $ whl2conda convert my-project/
 ```
 
 When run this way, there must be a `pyproject.toml` or `setup.py` file 
-in the directory. If there isa `pyrpoject.toml` file, *whl2conda* will
+in the specified directory. If there isa `pyproject.toml` file, *whl2conda* will
 read any project-specific options from the `[tool.whl2conda]` section
 (see [Configuring pyproject.toml](pyproject.md) for details) and will
 then look for a wheel in the `dist/` subdirectory of the project.
@@ -84,3 +84,5 @@ debugging purposes.
 
 [pip-download]: https://pip.pypa.io/en/stable/cli/pip_download/
 [pip-wheel]: https://pip.pypa.io/en/stable/cli/pip_wheel/
+[pypi]: https://pypi.org
+

@@ -16,9 +16,9 @@ using [conda]. For instance, you can install `pylint` using:
     $ conda install -c conda-forge pylint
     ```
 
-But pypi and conda are actually totally separate packaging systems and there
-is no inherent requirement that package names match, and indeed there are some
-exceptions, for example:
+However, pip and conda use totally separate packaging systems and there
+is no inherent requirement that package names match between the two, and 
+indeed there are quite a few exceptions, for example:
 
 === "pip"
 
@@ -42,10 +42,10 @@ these differences be handled by the tool.
 ## Standard renames
 
 The *whl2conda* tool maintains a table of automatic renaming rules that
-is taken from mappings collected aumatically from tools supporting the
+is taken from mappings collected automatically from tools supporting the
 public [conda-forge] repository. *whl2conda* includes a static copy of
-this table collated when *whl2conda* was built, but also supports the
-ability to maintain and update a locally cached copy dynmically. If
+this table collated when the *whl2conda* package was built, but also 
+supports the ability to maintain and update a locally cached copy dynamically. If
 there is package new to [conda-forge] that may have appeared since installing
 *whl2conda*, you can update your local cache using:
 
@@ -109,7 +109,7 @@ drop any package that matches a pattern:
 $ whl2conda -D 'acme-.*'
 ```
 
-### Renaming dependencies
+### <a name="manual-rename">Renaming dependencies</a>
 
 To rename dependencies, use `-R` / `--dependency-rename` with two
 arguments, the pypi name followed by the conda name. 
@@ -152,17 +152,24 @@ If you are using a `pyproject.toml` file for your project, you can
 instead specify how dependencies are modified in the tool options.
 This is described in the [next section](pyproject.md).
 
-## Hiding pip dependencies in dist-info directory for conda
+## <a name="hide-pip">Hiding pip dependencies in dist-info directory for conda</a>
 
-We have sometimes seen problems in packages built using conda-build
-in which the pip dependencies listed in the python packages
-dist-info directory in the site-packages directory in the conda
-environment where the conda package is installed can clash with
-conda dependencies. To avoid this kind of problem, the `whl2conda`
-by default will turn all regular dependencies in the dist-info
-into extra dependencies using the name `original`. So if you
-look at the `METADATA` file in the dist-info of the generated
-conda package, you will see entries like:
+The standard method of building python conda package involves
+running `pip install` or the equivalent, which results in a
+the package's original pip dependencies and other metadata
+being saved to the `METADATA` file in the package's `.dist-info`
+directory in `site-packages/` for the environment in which it
+is installed. However, in a conda environment, these dependencies
+may seem to be incompatible with what is actually installed by conda.
+This can sometimes cause serious problems if pip or other standard 
+python packaging tools attempt to check or update these dependencies.
+
+Since the actual dependencies for packages installed by conda
+are described by the conda package's metadata, and not the metadata
+saved in the `.dist-info`, *whl2conda* by default will turn all
+regular dependencies in the dist-info into extra dependencies using 
+the name `original`. So if you look at the `METADATA` file in the 
+dist-info of the generated conda package, you will see entries like:
 
 ```email
 Requires-Dist: some-package >=1.2; extra == 'original'

@@ -11,7 +11,6 @@ dependencies:
   - wheel >=0.41
   # build
   - build >=0.7.0
-  - pip >=23.2.1
   - hatchling >=1.18,<2.0
   - make >=4.3
   # testing
@@ -27,5 +26,12 @@ dependencies:
   - mkdocs-material >9.1
   - mkdocstrings-python-xref >=1.5.2,<2.0
   - linkchecker >=10.2.1
+  # for mkdocs-awesome-pages-plugin
+  - natsort >=8.4
+  - wcmatch >=8.5
+  - pip >=23.2.1
+  - pip:
+      - mkdocs-awesome-pages-plugin >=2.9.2
+
 
 
