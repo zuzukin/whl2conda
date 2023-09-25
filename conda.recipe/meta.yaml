@@ -12,8 +12,11 @@ source:
     folder: src
   - path: ../LICENSE.md
   - path: ../README.md
+  - path: ../conftest.py
   - path: ../test
     folder: test
+  - path: ../test-projects
+    folder: test-projects
 
 build:
   noarch: python
@@ -42,18 +45,26 @@ requirements:
 test:
   source_files:
     - test
+    - test-projects
+    - conftest.py
+    # need for self test
+    - pyproject.toml
+    - LICENSE.md
+    - README.md
+    - src
   requires:
+    - hatchling
     - pytest
   imports:
     - whl2conda.api
   commands:
-    - pytest test
+    - pytest -s test
 
 about:
   home: {{ project['urls']['homepage']}}
-  readme: {{ project['readme'] }}
+#  readme: {{ project['readme'] }}
   summary: {{ project['summary'] }}
-  description: {{ project['description'] }}
+#  description: {{ project['description'] }}
   keywords:
     {% for keyword in project['keywords'] %}
     - '{{ keyword }}'

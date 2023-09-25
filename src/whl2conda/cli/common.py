@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import json
+import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -228,3 +230,18 @@ class Subcommands:
             parsed: parsed arguments
         """
         parsed.main(parsed.args, prog=f'{self._parser.prog} {parsed.subcmd}')
+
+
+def get_conda_bld_path() -> Path:
+    """Lookup conda-bld directory path from conda config"""
+    config = json.loads(
+        subprocess.check_output(
+            ["conda", "config", "--show", "--json"],
+            encoding="utf8",
+        )
+    )
+    conda_bld = config.get("bld_path") or config.get("croot")
+    if not conda_bld:  # pragma: no cover
+        # this is extremely unlikely to ever occur
+        raise LookupError("Cannot find conda-bld location")
+    return Path(conda_bld)

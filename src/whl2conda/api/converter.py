@@ -252,7 +252,7 @@ class Wheel2CondaConverter:
     out_dir: Path
     dry_run: bool = False
     wheel: Optional[WheelFile]
-    out_format: CondaPackageFormat
+    out_format: CondaPackageFormat = CondaPackageFormat.V2
     overwrite: bool = False
     keep_pip_dependencies: bool = False
     dependency_rename: list[DependencyRename]
