@@ -16,12 +16,12 @@ jobs:
       with:
         miniforge-version: latest
         conda-version: ">=23.7.4"
+        # auto-update-conda: true
         conda-build-version: ">=3.26"
         environment-file: environment.yml
         activate-environment: whl2conda-dev
         python-version: ${{ matrix.python-version }}
         auto-activate-base: true
-        auto-update-conda: true
         condarc-file: github-condarc.yml
         use-mamba: true
     - name: show conda versions
