@@ -15,17 +15,20 @@ jobs:
     - uses: goanpeca/setup-miniconda@v2.2.0
       with:
         miniforge-version: latest
+        conda-version: ">=23.7.4"
         conda-build-version: ">=3.26"
         environment-file: environment.yml
         activate-environment: whl2conda-dev
         python-version: ${{ matrix.python-version }}
+        auto-activate-base: true
         auto-update-conda: true
         condarc-file: github-condarc.yml
         auto-activate-base: true
         use-mamba: true
-    - name: install conda-index
+    - name: show conda versions
       run: |
-        conda install -n base conda-index --yes
+        conda list -n base conda
+        conda list -n base mamba
     - name: Dev install whl2conda
       run: |
         conda run -n whl2conda-dev pip install -e . --no-deps --no-build-isolation
