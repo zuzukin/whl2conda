@@ -93,6 +93,9 @@ max-returns = 6
 max-statements = 50
 min-public-methods = 1
 
+[tool.pylint.similarities]
+min-similarity-lines = 6
+
 [tool.pylint.variables]
 allowed-redefined-builtins = ["help", "license"]
 
@@ -106,6 +109,7 @@ disable = [
     "locally-disabled",
     "raw-checker-failed",
     "suppressed-message",
+    "too-many-arguments",
     "trailing-newlines",
     "unspecified-encoding",
     "use-dict-literal",
