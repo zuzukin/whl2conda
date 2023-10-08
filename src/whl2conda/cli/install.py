@@ -211,11 +211,9 @@ def conda_bld_install(parsed: InstallArgs, subdir: str):
         shutil.copyfile(
             parsed.package_file, subdir_path.joinpath(parsed.package_file.name)
         )
-        # subprocess.check_call(
-        #     ["conda", "index", "--subdir", subdir, str(conda_bld_path)]
-        # )
-        # Really just want subdir, but having problems in CI. See if this works:
-        subprocess.check_call(["conda", "index", str(conda_bld_path)])
+        subprocess.check_call(
+            ["conda", "index", "--subdir", subdir, str(conda_bld_path)]
+        )
 
 
 def conda_env_install(parsed: InstallArgs, dependencies: list[str]):
