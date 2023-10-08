@@ -75,7 +75,8 @@ help:
 DEV_INSTALL := $(CONDA_RUN) pip install -e . --no-deps --no-build-isolation
 
 createdev:
-	conda env create -f environment.yml -n $(DEV_ENV) --yes
+	conda create -n $(DEV_ENV) python=3.12 --yes
+	conda env update -f environment.yml -n $(DEV_ENV)
 	$(MAKE) dev-install
 
 updatedev:
