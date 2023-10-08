@@ -29,10 +29,9 @@ build:
 
 requirements:
   build:
-    - python 3.11
+    - python 3.12
     - hatchling
     - setuptools
-
 
   run:
     - python {{ project['requires-python'] }}
@@ -41,6 +40,10 @@ requirements:
     - {{ dep.lower() }}
     {% endfor %}
 
+whl2conda:
+  something:
+    - foo
+    - bar
 
 test:
   source_files:
