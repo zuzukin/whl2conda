@@ -56,15 +56,14 @@ def build_main(
     parser = argparse.ArgumentParser(
         description=dedent(
             """
-            Compare the content of two conda packages
-
-            This will unpack each conda packaeg into temporary
-            directories, normalize the layout of files in the 
-            input directory to minimize line differences, and
-            will run the specified diff tool and arguments.
-
-            This can be used to compare packages generated using
-            this tool against those created using conda-build.            
+            Build a conda package from a pure python wheel.
+            
+            This command is limited drop-in replacement for `conda build`.
+            It requires that the conda recipe has a build script entry
+            of the form `pip install` or `pip wheel`.
+            
+            This is an experimental feature and is still under active
+            change and development.
             """
         ),
         formatter_class=argparse.RawTextHelpFormatter,
