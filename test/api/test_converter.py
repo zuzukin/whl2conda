@@ -480,6 +480,7 @@ def test_overwrite_prompt(
     prompts: Iterator[str] = iter(())
     responses: Iterator[str] = iter(())
 
+    # pylint: disable=duplicate-code
     def fake_input(prompt: str) -> str:
         expected_prompt = next(prompts)
         assert re.search(

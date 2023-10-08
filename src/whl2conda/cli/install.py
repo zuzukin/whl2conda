@@ -29,7 +29,7 @@ from typing import Optional, Sequence
 
 from conda_package_handling.api import extract as extract_conda_pkg
 
-from .common import dedent, existing_path, add_markdown_help
+from .common import dedent, existing_path, add_markdown_help, get_conda_bld_path
 
 __all__ = ["install_main"]
 
@@ -202,17 +202,7 @@ def install_main(
 
 def conda_bld_install(parsed: InstallArgs, subdir: str):
     """Install package into conda-bld directory"""
-    config = json.loads(
-        subprocess.check_output(
-            ["conda", "config", "--show", "--json"],
-            encoding="utf8",
-        )
-    )
-    conda_bld = config.get("bld_path") or config.get("croot")
-    if not conda_bld:  # pragma: no cover
-        # this is extremely unlikely to ever occur
-        raise LookupError("Cannot find conda-bld location")
-    conda_bld_path = Path(conda_bld)
+    conda_bld_path = get_conda_bld_path()
     subdir_path = conda_bld_path.joinpath(subdir)  # e.g. noarch/
 
     print(f"Installing {parsed.package_file} into {subdir_path}")
@@ -221,9 +211,8 @@ def conda_bld_install(parsed: InstallArgs, subdir: str):
         shutil.copyfile(
             parsed.package_file, subdir_path.joinpath(parsed.package_file.name)
         )
-        # TODO: use conda-index instead
         subprocess.check_call(
-            ["conda", "index", str(conda_bld_path), "--subdir", subdir]
+            ["conda", "index", "--subdir", subdir, str(conda_bld_path)]
         )
 
 
