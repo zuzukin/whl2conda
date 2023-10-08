@@ -23,6 +23,9 @@ jobs:
         condarc-file: github-condarc.yml
         auto-activate-base: true
         use-mamba: true
+    - name: install conda-index
+      run: |
+        conda install -n base conda-index --yes
     - name: Dev install whl2conda
       run: |
         conda run -n whl2conda-dev pip install -e . --no-deps --no-build-isolation
