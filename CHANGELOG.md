@@ -1,5 +1,10 @@
 # whl2conda changes
 
+## *in progress*
+
+* Add `whl2conda build` - limited drop-in replacement for `conda build`
+* Support translation of `~=` and `===` version specification operators.
+
 ## [23.9.0] - 2023-9-23
 
 * First official stable release

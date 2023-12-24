@@ -35,7 +35,7 @@ from whl2conda.api.converter import (
     CondaPackageFormat,
     DependencyRename,
     RequiresDistEntry,
-    Wheel2CondaError,
+    Wheel2CondaError, Wheel2CondaConverter,
 )
 from whl2conda.cli.convert import do_build_wheel
 from .converter import ConverterTestCaseFactory
@@ -504,3 +504,33 @@ def test_overwrite_prompt(
     prompts = iter(["Overwrite?"])
     responses = iter(["yes"])
     case.build()
+
+
+def test_version_translation(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test for Wheel2CondaConverter.translate_version_spec"""
+    converter = Wheel2CondaConverter(tmp_path, tmp_path)
+    for spec, expected in {
+        "~= 1.2.3" : ">=1.2.3,==1.2.*",
+        "~=1" : ">=1",
+        ">=3.2 , ~=1.2.4.dev4" : ">=3.2,>=1.2.4.dev4,==1.2.*",
+        " >=1.2.3 , <4.0" : ">=1.2.3,<4.0",
+        " >v1.2+foo" : ">1.2+foo"
+    }.items():
+        assert converter.translate_version_spec(spec) == expected
+
+    caplog.clear()
+    assert converter.translate_version_spec("bad-version") =="bad-version"
+    assert len(caplog.records) == 1
+    logrec = caplog.records[0]
+    assert logrec.levelname == "WARNING"
+    assert "Cannot convert bad version" in logrec.message
+
+    caplog.clear()
+    assert converter.translate_version_spec("===1.2.3") == "==1.2.3"
+    assert len(caplog.records) == 1
+    logrec = caplog.records[0]
+    assert logrec.levelname == "WARNING"
+    assert "Converted arbitrary equality" in logrec.message

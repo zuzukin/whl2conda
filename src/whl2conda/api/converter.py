@@ -71,6 +71,47 @@ _extra_marker_re = [
     re.compile(r"""\b(['"])(?P<name>\w+)\1\s*==\s*extra"""),
 ]
 
+# Version pattern from official python packaging spec:
+# https://packaging.python.org/en/latest/specifications/version-specifiers/#appendix-parsing-version-strings-with-regular-expressions
+# which original comes from:
+# https://github.com/pypa/packaging (either Apache or BSD license)
+
+PIP_VERSION_PATTERN = r"""
+    v?
+    (?:
+        (?:(?P<epoch>[0-9]+)!)?                           # epoch
+        (?P<release>[0-9]+(?:\.[0-9]+)*)                  # release segment
+        (?P<pre>                                          # pre-release
+            [-_\.]?
+            (?P<pre_l>(a|b|c|rc|alpha|beta|pre|preview))
+            [-_\.]?
+            (?P<pre_n>[0-9]+)?
+        )?
+        (?P<post>                                         # post release
+            (?:-(?P<post_n1>[0-9]+))
+            |
+            (?:
+                [-_\.]?
+                (?P<post_l>post|rev|r)
+                [-_\.]?
+                (?P<post_n2>[0-9]+)?
+            )
+        )?
+        (?P<dev>                                          # dev release
+            [-_\.]?
+            (?P<dev_l>dev)
+            [-_\.]?
+            (?P<dev_n>[0-9]+)?
+        )?
+    )
+    (?:\+(?P<local>[a-z0-9]+(?:[-_\.][a-z0-9]+)*))?       # local version
+"""
+
+_pip_version_re = re.compile(
+    r"^\s*(?P<operator>[=<>!~]+)\s*(?P<version>" + PIP_VERSION_PATTERN + r")\s*$",
+    re.VERBOSE | re.IGNORECASE,
+)
+
 
 @dataclass
 class RequiresDistEntry:
@@ -560,7 +601,8 @@ class Wheel2CondaConverter:
                 continue
 
             conda_name = pip_name = entry.name
-            version = entry.version
+            version = self.translate_version_spec(entry.version)
+
             # TODO - do something with extras (#36)
             #   download target pip package and its extra dependencies
             # check manual renames first
@@ -718,6 +760,49 @@ class Wheel2CondaConverter:
             wheel_info_dir=wheel_info_dir,
         )
         return self.wheel_md
+
+    def translate_version_spec(self, pip_version: str) -> str:
+        """
+        Convert a pip version spec to a conda version spec.
+
+        Compatible release specs using the `~=` operator will be turned
+        into two clauses using ">=" and "==", for example
+        `~=1.2.3` will become `>=1.2.3,1.2.*`.
+
+        Arbitrary equality clauses using the `===` operator will be
+        converted to use `==`, but such clauses are likely to fail
+        so a warning will be produced.
+
+        Any leading "v" character in the version will be dropped.
+        (e.g. `v1.2.3` changes to `1.2.3`).
+        """
+        pip_version = pip_version.strip()
+        version_specs = re.split("\s*,\s*", pip_version)
+        for i, spec in enumerate(version_specs):
+            # spec for '~= <version>'
+            # https://packaging.python.org/en/latest/specifications/version-specifiers/#compatible-release
+            if m := _pip_version_re.match(spec):
+                operator = m.group("operator")
+                v = m.group("version")
+                if v.startswith("v"): # e.g. convert v1.2 to 1.2
+                    v = v[1:]
+                if operator == "~=":
+                    # compatible operator, e.g. convert ~=1.2.3 to >=1.2.3,==1.2.*
+                    rv = m.group("release")
+                    rv_parts = rv.split(".")
+                    operator = ">="
+                    if len(rv_parts) > 1:
+                        # technically ~=1 is not valid, but if we see it, turn it into >=1
+                        v += f",=={'.'.join(rv_parts[:-1])}.*"
+                elif operator == "===":
+                    operator = "=="
+                    # TODO perhaps treat as an error in "strict" mode
+                    self._warn("Converted arbitrary equality clause %s to ==%s - may not match!", spec, v)
+                version_specs[i] = f"{operator}{v}"
+            else:
+                self._warn("Cannot convert bad version spec: '%s'", spec)
+
+        return ",".join(version_specs)
 
     def _extract_wheel(self, temp_dir: Path) -> Path:
         self.logger.info("Reading %s", self.wheel_path)
