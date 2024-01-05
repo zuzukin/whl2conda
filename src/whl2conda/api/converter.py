@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -559,10 +559,11 @@ class Wheel2CondaConverter:
             whl2conda_version=__version__,
         )
 
-        proj_url_pat = re.compile(r"\s*(?P<key>\w+)\s*,\s*(?P<url>\w.*)\s*")
+        proj_url_pat = re.compile(r"\s*(?P<key>\w+(\s+\w+)*)\s*,\s*(?P<url>\w.*)\s*")
         doc_url: Optional[str] = None
         dev_url: Optional[str] = None
         for urlline in md.get("project-url", ()):
+            print(urlline)
             if m := proj_url_pat.match(urlline):  # pragma: no branch
                 key = m.group("key")
                 url = m.group("url")
