@@ -22,6 +22,7 @@ from __future__ import annotations
 import configparser
 import dataclasses
 import email
+import email.policy
 import io
 import json
 import logging
@@ -64,7 +65,7 @@ def __compile_requires_dist_re() -> re.Pattern:
     )
 
 
-_requires_dist_re = __compile_requires_dist_re()
+requires_dist_re = __compile_requires_dist_re()
 
 _extra_marker_re = [
     re.compile(r"""\bextra\s*==\s*(['"])(?P<name>\w+)\1"""),
@@ -107,10 +108,13 @@ PIP_VERSION_PATTERN = r"""
     (?:\+(?P<local>[a-z0-9]+(?:[-_\.][a-z0-9]+)*))?       # local version
 """
 
-_pip_version_re = re.compile(
+pip_version_re = re.compile(
     r"^\s*(?P<operator>[=<>!~]+)\s*(?P<version>" + PIP_VERSION_PATTERN + r")\s*$",
     re.VERBOSE | re.IGNORECASE,
 )
+"""
+Regular expression matching pip version spec
+"""
 
 
 @dataclass
@@ -151,7 +155,7 @@ class RequiresDistEntry:
         Raises:
             SyntaxError: if entry is not properly formatted.
         """
-        m = _requires_dist_re.fullmatch(raw)
+        m = requires_dist_re.fullmatch(raw)
         if not m:
             raise SyntaxError(f"Cannot parse Requires-Dist entry: {repr(raw)}")
         entry = RequiresDistEntry(name=m.group("name"))
@@ -362,6 +366,22 @@ class Wheel2CondaConverter:
             self._write_conda_package(conda_dir, conda_pkg_path)
 
             return conda_pkg_path
+
+    @classmethod
+    def read_metadata_file(cls, file: Path) -> email.message.Message:
+        """
+        Read a wheel email-formatted metadata file (e.g. METADATA, WHEEL)
+
+        Args:
+            file: path to file
+
+        Returns:
+            Message object
+        """
+        return email.message_from_string(
+            file.read_text(encoding="utf8"),
+            policy=email.policy.EmailPolicy(utf8=True, refold_source="none"),
+        )
 
     def _conda_package_path(self, package_name: str, version: str) -> Path:
         """Construct conda package file path"""
@@ -683,7 +703,7 @@ class Wheel2CondaConverter:
     def _parse_wheel_metadata(self, wheel_dir: Path) -> MetadataFromWheel:
         wheel_info_dir = next(wheel_dir.glob("*.dist-info"))
         WHEEL_file = wheel_info_dir.joinpath("WHEEL")
-        WHEEL_msg = email.message_from_string(WHEEL_file.read_text("utf8"))
+        WHEEL_msg = self.read_metadata_file(WHEEL_file)
         # https://peps.python.org/pep-0427/#what-s-the-deal-with-purelib-vs-platlib
 
         is_pure_lib = WHEEL_msg.get("Root-Is-Purelib", "").lower() == "true"
@@ -702,7 +722,7 @@ class Wheel2CondaConverter:
         md: dict[str, list[Any]] = {}
         # Metdata spec: https://packaging.python.org/en/latest/specifications/core-metadata/
         # Required keys: Metadata-Version, Name, Version
-        md_msg = email.message_from_string(wheel_md_file.read_text())
+        md_msg = self.read_metadata_file(wheel_md_file)
         md_version_str = md_msg.get("Metadata-Version")
         if md_version_str not in self.SUPPORTED_METADATA_VERSIONS:
             # TODO - perhaps just warn about this if not in "strict" mode
@@ -781,7 +801,7 @@ class Wheel2CondaConverter:
         for i, spec in enumerate(version_specs):
             # spec for '~= <version>'
             # https://packaging.python.org/en/latest/specifications/version-specifiers/#compatible-release
-            if m := _pip_version_re.match(spec):
+            if m := pip_version_re.match(spec):
                 operator = m.group("operator")
                 v = m.group("version")
                 if v.startswith("v"): # e.g. convert v1.2 to 1.2

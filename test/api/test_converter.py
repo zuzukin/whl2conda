@@ -410,7 +410,7 @@ def test_bad_wheels(
     extract_info_dir = next(extract_dir.glob("*.dist-info"))
 
     WHEEL_file = extract_info_dir / 'WHEEL'
-    WHEEL_msg = email.message_from_string(WHEEL_file.read_text("utf8"))
+    WHEEL_msg = Wheel2CondaConverter.read_metadata_file(WHEEL_file)
 
     #
     # write bad wheelversion
@@ -456,7 +456,7 @@ def test_bad_wheels(
     WHEEL_file.write_text(WHEEL_msg.as_string())
 
     METADATA_file = extract_info_dir / 'METADATA'
-    METADATA_msg = email.message_from_string(METADATA_file.read_text("utf8"))
+    METADATA_msg = Wheel2CondaConverter.read_metadata_file(METADATA_file)
     METADATA_msg.replace_header("Metadata-Version", "999.2")
     METADATA_file.write_text(METADATA_msg.as_string())
 
