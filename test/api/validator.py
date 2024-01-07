@@ -18,7 +18,6 @@ Conda package validator for unit tests.
 from __future__ import annotations
 
 import configparser
-import email
 import hashlib
 import json
 import os.path

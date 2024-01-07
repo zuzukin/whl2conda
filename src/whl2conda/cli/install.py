@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
 import subprocess
 import tempfile
@@ -239,6 +238,7 @@ def conda_bld_install(parsed: InstallArgs, subdir: str):
 
 def conda_env_install(parsed: InstallArgs, dependencies: list[str]):
     """Install package into an environment"""
+    # pylint: disable=too-many-branches
     common_opts: list[str] = []
     env_opts: list[str] = []
     if parsed.prefix:

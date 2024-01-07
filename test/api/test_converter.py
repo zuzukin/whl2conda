@@ -18,7 +18,6 @@ Unit tests for converter module
 from __future__ import annotations
 
 # standard
-import email
 import logging
 import re
 import subprocess

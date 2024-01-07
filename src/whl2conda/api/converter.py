@@ -797,7 +797,7 @@ class Wheel2CondaConverter:
         (e.g. `v1.2.3` changes to `1.2.3`).
         """
         pip_version = pip_version.strip()
-        version_specs = re.split("\s*,\s*", pip_version)
+        version_specs = re.split(r"\s*,\s*", pip_version)
         for i, spec in enumerate(version_specs):
             # spec for '~= <version>'
             # https://packaging.python.org/en/latest/specifications/version-specifiers/#compatible-release
