@@ -799,6 +799,8 @@ class Wheel2CondaConverter:
         pip_version = pip_version.strip()
         version_specs = re.split(r"\s*,\s*", pip_version)
         for i, spec in enumerate(version_specs):
+            if not spec:
+                continue
             # spec for '~= <version>'
             # https://packaging.python.org/en/latest/specifications/version-specifiers/#compatible-release
             if m := pip_version_re.match(spec):
@@ -826,7 +828,7 @@ class Wheel2CondaConverter:
             else:
                 self._warn("Cannot convert bad version spec: '%s'", spec)
 
-        return ",".join(version_specs)
+        return ",".join(filter(bool, version_specs))
 
     def _extract_wheel(self, temp_dir: Path) -> Path:
         self.logger.info("Reading %s", self.wheel_path)
