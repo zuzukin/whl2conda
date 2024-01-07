@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -30,7 +31,6 @@ from typing import Optional, Sequence
 from conda_package_handling.api import extract as extract_conda_pkg
 
 from .common import dedent, existing_path, add_markdown_help, get_conda_bld_path
-from ..api.converter import pip_version_re, requires_dist_re
 
 __all__ = ["install_main"]
 
@@ -297,6 +297,9 @@ def conda_env_install(parsed: InstallArgs, dependencies: list[str]):
             subprocess.check_call(set_solver_cmd)
 
 
+conda_depend_re = re.compile(r"\s*(?P<name>[\w\d.-]+)\s*(?P<version>.*)")
+
+
 def _prune_dependencies(
     dependencies: list[str], file_specs: list[tuple[str, str]]
 ) -> list[str]:
@@ -308,7 +311,7 @@ def _prune_dependencies(
     - Removes references to packages in file_specs
 
     Arguments:
-        dependencies: input list of dependency strings (package and optional version match specifier)
+        dependencies: input list of conda dependency strings (package and optional version match specifier)
         file_specs: list of package name/version tuple for packages being installed from file
 
     Returns:
@@ -319,27 +322,17 @@ def _prune_dependencies(
     deps: set[str] = set()
 
     for dep in dependencies:
-        if m := requires_dist_re.match(dep):
+        if m := conda_depend_re.fullmatch(dep):  # pragma: no branch
             name = m.group("name")
-            extra = m.group("extra")
             version = m.group("version")
-            marker = m.group("marker")
-            if vm := pip_version_re.match(dep):
-                # normalize version
-                operator = vm.group("operator")
-                version_number = vm.group("version")
-                if version.startswith("v"):
-                    version = version[1:]
-                version = f"{operator}{version_number}"
+            if version:
+                version = version.replace(" ", "")  # remove spaces from version spec
             if name in exclude_packages:
                 # TODO check version and warn or error if not match dependency
                 continue
             dep = name
-            if extra:
-                dep += f"[{extra}]"
-            dep += f" {version}"
-            if marker:
-                dep += f" ; {marker}"
+            if version:
+                dep += f" {version}"
         deps.add(dep)
 
     return sorted(deps)

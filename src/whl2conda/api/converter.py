@@ -57,11 +57,11 @@ def __compile_requires_dist_re() -> re.Pattern:
     # NOTE: these are currently fairly forgiving and will accept bad syntax
     name_re = r"(?P<name>[a-zA-Z0-9_.-]+)"
     extra_re = r"(?:\[(?P<extra>.+?)\])?"
-    version_re = r"(?:\(?(?P<version>.*?)\)?)?"
+    version_re = r"(?:\(?(?P<version>[^;]*?)\)?)?"
     marker_re = r"(?:;\s*(?P<marker>.*?)\s*)?"
     space = r"\s*"
     return re.compile(
-        name_re + space + extra_re + space + version_re + space + marker_re
+        space + name_re + space + extra_re + space + version_re + space + marker_re
     )
 
 
