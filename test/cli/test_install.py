@@ -233,7 +233,7 @@ def test_env_install_whitebox(
 
     main(cmd_start + ["--prefix", str(prefix), "--yes"])
 
-    assert len(call_args) == 2
+    assert len(call_args) == 3
     call1 = call_args[0]
     assert call1[0] == "conda"
     assert call1[1] == "install"
@@ -251,7 +251,7 @@ def test_env_install_whitebox(
     call_args.clear()
 
     main(cmd_start + ["--name", "test-env", "--create", "--mamba"])
-    assert len(call_args) == 2
+    assert len(call_args) == 3
     call1 = call_args[0]
     call2 = call_args[1]
     assert call1[:2] == ["mamba", "create"]
