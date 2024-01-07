@@ -31,17 +31,21 @@ jobs:
     - name: Dev install whl2conda
       run: |
         conda run -n whl2conda-dev pip install -e . --no-deps --no-build-isolation
+    - name: ruff
+      run: |
+        make ruff
     - name: pylint
+      if: success() || failure()
       run: |
         make pylint
     - name: mypy
       if: success() || failure()
       run: |
         make mypy
-    - name: check black formatting
+    - name: check formatting
       if: success() || failure()
       run: |
-        make black-check
+        make check-format
     - name: Test with pytest
       if: success() || failure()
       run: |
