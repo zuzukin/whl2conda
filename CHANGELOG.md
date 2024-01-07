@@ -1,9 +1,16 @@
 # whl2conda changes
 
-## *in progress*
+## [24.1.0] - *in progress*
 
-* Add `whl2conda build` - limited drop-in replacement for `conda build`
+### Features
+* Add `whl2conda build` - limited experimental drop-in replacement for `conda build`
 * Support translation of `~=` and `===` version specification operators.
+* `whl2conda install` now supports installing multiple package files at once
+
+### Bug fixes
+* Use classic installer in `whl2conda install` environments to work around conda bug (#114)
+* Include project URLs in metadata that have multi-word keys (#113)
+* Write METADATA file in dist-info using UTF8 (#112)
 
 ## [23.9.0] - 2023-9-23
 
