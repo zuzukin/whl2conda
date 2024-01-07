@@ -18,7 +18,7 @@
 
 ## pyproject.toml metadata format:
 
-* [Current specification](https://packaging.python.org/en/latest/specifications/declaring-project-metadata/)
+* [Current specification](https://packaging.python.org/en/latest/specifications/pyproject-toml/)
 * [PEP 621](https://peps.python.org/pep-0621/)
 * [PEP 639](https://peps.python.org/pep-0639/) - license files
 * [PEP 725](https://peps.python.org/pep-0725/) - external dependencies
