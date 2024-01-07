@@ -38,13 +38,15 @@ from whl2conda.api.converter import (
 )
 from whl2conda.cli.convert import do_build_wheel
 from .converter import ConverterTestCaseFactory
-from .converter import test_case  # pylint: disable=unused-import
 
-from ..test_packages import (  # pylint: disable=unused-import
-    markers_wheel,
-    setup_wheel,
-    simple_wheel,
+# pylint: disable=unused-import
+from .converter import test_case  # noqa: F401
+from ..test_packages import (
+    markers_wheel,  # noqa: F401
+    setup_wheel,  # noqa: F401
+    simple_wheel,  # noqa: F401
 )
+# pylint: enable=unused-import
 
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent.parent
@@ -184,6 +186,8 @@ def test_dependency_rename() -> None:
 # Converter test cases
 #
 
+# ignore redefinition of test_case
+# ruff: noqa: F811
 
 def test_this(test_case: ConverterTestCaseFactory) -> None:
     """Test using this own project's wheel"""

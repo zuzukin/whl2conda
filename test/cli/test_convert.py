@@ -43,7 +43,7 @@ from whl2conda.impl.prompt import is_interactive
 
 from ..impl.test_prompt import monkeypatch_interactive
 
-from ..test_packages import simple_wheel  # pylint: disable=unused-import
+from ..test_packages import simple_wheel  # pylint: disable=unused-import # noqa: F401
 
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent.parent
@@ -623,6 +623,8 @@ def test_do_build_wheel(
         project_root, wheel_dir, no_deps=False, no_build_isolation=True
     )
 
+# ignore redefinition of test_case
+# ruff: noqa: F811
 
 def test_input_wheel(
     test_case: CliTestCaseFactory,

@@ -28,7 +28,7 @@ from whl2conda.cli import main
 from ..test_conda import conda_config, conda_output, conda_json
 
 # pylint: disable=unused-import
-from ..test_packages import simple_conda_package, simple_wheel
+from ..test_packages import simple_conda_package, simple_wheel  # noqa: F401
 
 # pylint: disable=redefined-outer-name
 
@@ -64,6 +64,8 @@ def test_errors(capsys: pytest.CaptureFixture, tmp_path: Path):
     _out, err = capsys.readouterr()
     assert "Cannot extract" in err
 
+# ignore redefinition of simple_conda_package
+# ruff: noqa: F811
 
 # pylint: disable=too-many-locals
 def test_bld_install(
