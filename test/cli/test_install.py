@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -185,6 +185,10 @@ def test_env_install(
     assert "pytest" in packages_by_name
     assert "quaternion" in packages_by_name
     assert "simple" in packages_by_name
+
+    # solver should be set to classic to avoid https://github.com/conda/conda/issues/13479
+    d = conda_json("run", "-p", str(prefix), "conda", "config", "--json", "--show", "solver")
+    assert d["solver"] == "classic"
 
     conda_output("create", "-n", "test-env", "python=3.9")
     assert test_env.is_dir()
