@@ -43,9 +43,7 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "external: mark test as depending on extenral pypi package to run"
     )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow to run"
-    )
+    config.addinivalue_line("markers", "slow: mark test as slow to run")
 
 
 def pytest_collection_modifyitems(config, items):

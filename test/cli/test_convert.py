@@ -623,8 +623,10 @@ def test_do_build_wheel(
         project_root, wheel_dir, no_deps=False, no_build_isolation=True
     )
 
+
 # ignore redefinition of test_case
 # ruff: noqa: F811
+
 
 def test_input_wheel(
     test_case: CliTestCaseFactory,

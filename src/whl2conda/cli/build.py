@@ -232,17 +232,15 @@ class CondaBuild:
 
             if import_names := test_section.get("imports", []):
                 for import_name in import_names:
-                    subprocess.check_call(
-                        [
-                            "conda",
-                            "run",
-                            "-p",
-                            str(test_prefix),
-                            "python",
-                            "-c",
-                            f"import {import_name}",
-                        ]
-                    )
+                    subprocess.check_call([
+                        "conda",
+                        "run",
+                        "-p",
+                        str(test_prefix),
+                        "python",
+                        "-c",
+                        f"import {import_name}",
+                    ])
 
             if commands := test_section.get("commands", []):
                 for command in commands:

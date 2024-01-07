@@ -64,8 +64,10 @@ def test_errors(capsys: pytest.CaptureFixture, tmp_path: Path):
     _out, err = capsys.readouterr()
     assert "Cannot extract" in err
 
+
 # ignore redefinition of simple_conda_package
 # ruff: noqa: F811
+
 
 # pylint: disable=too-many-locals
 def test_bld_install(
@@ -152,33 +154,29 @@ def test_env_install(
         "config", "--file", str(condarc_file), "--append", "envs_dirs", str(envs)
     )
 
-    main(
-        [
-            "install",
-            str(simple_conda_package),
-            "-p",
-            str(prefix),
-            "--create",
-            "--yes",
-            "--dry-run",
-        ]
-    )
+    main([
+        "install",
+        str(simple_conda_package),
+        "-p",
+        str(prefix),
+        "--create",
+        "--yes",
+        "--dry-run",
+    ])
 
     assert not prefix.exists()
 
-    main(
-        [
-            "install",
-            str(simple_conda_package),
-            "-p",
-            str(prefix),
-            "--create",
-            "--yes",
-            "--extra",
-            "python=3.9",
-            "pytest >=7.4",
-        ]
-    )
+    main([
+        "install",
+        str(simple_conda_package),
+        "-p",
+        str(prefix),
+        "--create",
+        "--yes",
+        "--extra",
+        "python=3.9",
+        "pytest >=7.4",
+    ])
 
     assert prefix.is_dir()
     packages = conda_json("list", "-p", str(prefix))
@@ -189,15 +187,22 @@ def test_env_install(
     assert "simple" in packages_by_name
 
     # solver should be set to classic to avoid https://github.com/conda/conda/issues/13479
-    d = conda_json("run", "-p", str(prefix), "conda", "config", "--json", "--show", "solver")
+    d = conda_json(
+        "run", "-p", str(prefix), "conda", "config", "--json", "--show", "solver"
+    )
     assert d["solver"] == "classic"
 
     conda_output("create", "-n", "test-env", "python=3.9")
     assert test_env.is_dir()
 
-    main(
-        ["install", str(simple_conda_package), "-n", "test-env", "--yes", "--only-deps"]
-    )
+    main([
+        "install",
+        str(simple_conda_package),
+        "-n",
+        "test-env",
+        "--yes",
+        "--only-deps",
+    ])
 
     packages = conda_json("list", "-n", "test-env")
     packages_by_name = {p["name"]: p for p in packages}

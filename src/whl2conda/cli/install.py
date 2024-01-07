@@ -144,7 +144,7 @@ def install_main(
     deps_options.add_argument(
         "--no-deps",
         action="store_true",
-        help="Only packages themselves without any dependencies."
+        help="Only packages themselves without any dependencies.",
     )
 
     env_options.add_argument(
@@ -188,7 +188,9 @@ def install_main(
 
     subdir = "noarch"
     dependencies: list[str] = []
-    file_specs: list[tuple[str,str]] = [] # name/version pairs of package files being installed
+    file_specs: list[
+        tuple[str, str]
+    ] = []  # name/version pairs of package files being installed
 
     for conda_file in conda_files:
         conda_fname = str(conda_file.name)
@@ -201,7 +203,9 @@ def install_main(
                 # provides an extra validity check on the file.
                 tmp_path = Path(tmpdir)
                 extract_conda_pkg(str(conda_file), dest_dir=tmp_path)
-                index = json.loads(tmp_path.joinpath("info", "index.json").read_text("utf"))
+                index = json.loads(
+                    tmp_path.joinpath("info", "index.json").read_text("utf")
+                )
                 subdir = index["subdir"]
                 package_name = index["name"]
                 package_version = index.get("version", "")
@@ -227,13 +231,15 @@ def conda_bld_install(parsed: InstallArgs, subdir: str):
         print(f"Installing {package_file} into {subdir_path}")
         if not parsed.dry_run:
             subdir_path.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(
-                package_file, subdir_path.joinpath(package_file.name)
-            )
+            shutil.copyfile(package_file, subdir_path.joinpath(package_file.name))
     if not parsed.dry_run:
-        subprocess.check_call(
-            ["conda", "index", "--subdir", subdir, str(conda_bld_path)]
-        )
+        subprocess.check_call([
+            "conda",
+            "index",
+            "--subdir",
+            subdir,
+            str(conda_bld_path),
+        ])
 
 
 def conda_env_install(parsed: InstallArgs, dependencies: list[str]):
@@ -280,13 +286,20 @@ def conda_env_install(parsed: InstallArgs, dependencies: list[str]):
 
         # Workaround for https://github.com/conda/conda/issues/13479
         # If a package is installed directly from file, then set solver to classic
-        set_solver_cmd = ["conda", "run"] + env_opts + ["conda", "config", "--env", "--set", "solver", "classic"]
+        set_solver_cmd = (
+            ["conda", "run"]
+            + env_opts
+            + ["conda", "config", "--env", "--set", "solver", "classic"]
+        )
         if parsed.dry_run:
             print("Running ", set_solver_cmd)
         else:
             subprocess.check_call(set_solver_cmd)
 
-def _prune_dependencies(dependencies: list[str], file_specs: list[tuple[str,str]]) -> list[str]:
+
+def _prune_dependencies(
+    dependencies: list[str], file_specs: list[tuple[str, str]]
+) -> list[str]:
     """
     Prunes dependencies list according to arguments
 
@@ -302,7 +315,7 @@ def _prune_dependencies(dependencies: list[str], file_specs: list[tuple[str,str]
         List of pruned dependencies.
     """
 
-    exclude_packages: dict[str,str] = dict(file_specs)
+    exclude_packages: dict[str, str] = dict(file_specs)
     deps: set[str] = set()
 
     for dep in dependencies:
@@ -330,5 +343,3 @@ def _prune_dependencies(dependencies: list[str], file_specs: list[tuple[str,str]
         deps.add(dep)
 
     return sorted(deps)
-
-

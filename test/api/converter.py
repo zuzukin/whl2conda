@@ -28,6 +28,7 @@
 """
 Test fixtures for the converter module
 """
+
 from __future__ import annotations
 
 import shutil
@@ -144,9 +145,14 @@ class ConverterTestCase:
         with tempfile.TemporaryDirectory(dir=self.pip_downloads) as tmpdir:
             download_dir = Path(tmpdir)
             try:
-                subprocess.check_call(
-                    ["pip", "download", spec, "--no-deps", "-d", str(download_dir)]
-                )
+                subprocess.check_call([
+                    "pip",
+                    "download",
+                    spec,
+                    "--no-deps",
+                    "-d",
+                    str(download_dir),
+                ])
             except subprocess.CalledProcessError as ex:
                 pytest.skip(f"Cannot download {spec} from pypi: {ex}")
             downloaded_wheel = next(download_dir.glob("*.whl"))

@@ -34,7 +34,8 @@ from whl2conda.api.converter import (
     CondaPackageFormat,
     DependencyRename,
     RequiresDistEntry,
-    Wheel2CondaError, Wheel2CondaConverter,
+    Wheel2CondaError,
+    Wheel2CondaConverter,
 )
 from whl2conda.cli.convert import do_build_wheel
 from .converter import ConverterTestCaseFactory
@@ -189,6 +190,7 @@ def test_dependency_rename() -> None:
 # ignore redefinition of test_case
 # ruff: noqa: F811
 
+
 def test_this(test_case: ConverterTestCaseFactory) -> None:
     """Test using this own project's wheel"""
     wheel_dir = test_case.tmp_path_factory.mktemp("test_this_wjheel_dir")
@@ -264,22 +266,24 @@ def test_simple_wheel(
 
     # Repack wheel with build number
     dest_dir = test_case.tmp_path / "number"
-    subprocess.check_call(
-        ["wheel", "unpack", str(simple_wheel), "--dest", str(dest_dir)]
-    )
+    subprocess.check_call([
+        "wheel",
+        "unpack",
+        str(simple_wheel),
+        "--dest",
+        str(dest_dir),
+    ])
     unpack_dir = next(dest_dir.glob("*"))
     assert unpack_dir.is_dir()
-    subprocess.check_call(
-        [
-            "wheel",
-            "pack",
-            str(unpack_dir),
-            "--build-number",
-            "42",
-            "--dest",
-            str(dest_dir),
-        ]
-    )
+    subprocess.check_call([
+        "wheel",
+        "pack",
+        str(unpack_dir),
+        "--build-number",
+        "42",
+        "--dest",
+        str(dest_dir),
+    ])
     build42whl = next(dest_dir.glob("*.whl"))
 
     test_case(
@@ -509,23 +513,20 @@ def test_overwrite_prompt(
     case.build()
 
 
-def test_version_translation(
-    tmp_path: Path,
-    caplog: pytest.LogCaptureFixture
-) -> None:
+def test_version_translation(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     """Test for Wheel2CondaConverter.translate_version_spec"""
     converter = Wheel2CondaConverter(tmp_path, tmp_path)
     for spec, expected in {
-        "~= 1.2.3" : ">=1.2.3,==1.2.*",
-        "~=1" : ">=1",
-        ">=3.2 , ~=1.2.4.dev4" : ">=3.2,>=1.2.4.dev4,==1.2.*",
-        " >=1.2.3 , <4.0" : ">=1.2.3,<4.0",
-        " >v1.2+foo" : ">1.2+foo"
+        "~= 1.2.3": ">=1.2.3,==1.2.*",
+        "~=1": ">=1",
+        ">=3.2 , ~=1.2.4.dev4": ">=3.2,>=1.2.4.dev4,==1.2.*",
+        " >=1.2.3 , <4.0": ">=1.2.3,<4.0",
+        " >v1.2+foo": ">1.2+foo",
     }.items():
         assert converter.translate_version_spec(spec) == expected
 
     caplog.clear()
-    assert converter.translate_version_spec("bad-version") =="bad-version"
+    assert converter.translate_version_spec("bad-version") == "bad-version"
     assert len(caplog.records) == 1
     logrec = caplog.records[0]
     assert logrec.levelname == "WARNING"

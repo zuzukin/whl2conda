@@ -15,6 +15,7 @@
 """
 Main module allows invocation using `python -m whl2conda`
 """
+
 from .cli.main import main
 
 if __name__ == "__main__":  # pragma: no cover

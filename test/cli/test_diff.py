@@ -34,6 +34,7 @@ from ..test_packages import simple_conda_package, simple_wheel  # noqa: F401
 # ignore redefinition of simple_conda_package
 # ruff: noqa: F811
 
+
 def test_diff_errors(
     capsys: pytest.CaptureFixture,
     tmp_path: Path,

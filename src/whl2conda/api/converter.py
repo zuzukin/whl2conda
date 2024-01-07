@@ -804,7 +804,7 @@ class Wheel2CondaConverter:
             if m := pip_version_re.match(spec):
                 operator = m.group("operator")
                 v = m.group("version")
-                if v.startswith("v"): # e.g. convert v1.2 to 1.2
+                if v.startswith("v"):  # e.g. convert v1.2 to 1.2
                     v = v[1:]
                 if operator == "~=":
                     # compatible operator, e.g. convert ~=1.2.3 to >=1.2.3,==1.2.*
@@ -817,7 +817,11 @@ class Wheel2CondaConverter:
                 elif operator == "===":
                     operator = "=="
                     # TODO perhaps treat as an error in "strict" mode
-                    self._warn("Converted arbitrary equality clause %s to ==%s - may not match!", spec, v)
+                    self._warn(
+                        "Converted arbitrary equality clause %s to ==%s - may not match!",
+                        spec,
+                        v,
+                    )
                 version_specs[i] = f"{operator}{v}"
             else:
                 self._warn("Cannot convert bad version spec: '%s'", spec)
