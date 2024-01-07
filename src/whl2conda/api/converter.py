@@ -563,7 +563,6 @@ class Wheel2CondaConverter:
         doc_url: Optional[str] = None
         dev_url: Optional[str] = None
         for urlline in md.get("project-url", ()):
-            print(urlline)
             if m := proj_url_pat.match(urlline):  # pragma: no branch
                 key = m.group("key")
                 url = m.group("url")
