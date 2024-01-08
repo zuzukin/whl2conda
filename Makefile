@@ -16,7 +16,7 @@ else
 endif
 
 VERSION_FILE := src/whl2conda/VERSION
-VERSION := $(file < $(VERSION_FILE))
+VERSION := $(strip $(file < $(VERSION_FILE)))
 
 -include custom.mk
 
