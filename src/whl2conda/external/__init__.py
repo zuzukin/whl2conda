@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -13,10 +13,5 @@
 #  limitations under the License.
 #
 """
-Main module allows invocation using `python -m whl2conda`
+Code copied from external projects
 """
-
-from .cli.main import main
-
-if __name__ == "__main__":  # pragma: no cover
-    main()

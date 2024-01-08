@@ -15,6 +15,7 @@
 """
 Main whl2conda CLI
 """
+
 from __future__ import annotations
 
 import argparse
@@ -46,6 +47,11 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None) -> No
     )
 
     subcmds = Subcommands(parser)
+    subcmds.add_subcommand(
+        "build",
+        "whl2conda.cli.build.build_main",
+        "conda-build replacement",
+    )
     subcmds.add_subcommand(
         "config",
         "whl2conda.cli.config.config_main",

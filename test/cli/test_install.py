@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -25,10 +25,11 @@ from typing import Any, Sequence
 import pytest
 
 from whl2conda.cli import main
+from whl2conda.cli.install import InstallFileInfo, _prune_dependencies
 from ..test_conda import conda_config, conda_output, conda_json
 
 # pylint: disable=unused-import
-from ..test_packages import simple_conda_package, simple_wheel
+from ..test_packages import simple_conda_package, simple_wheel  # noqa: F401
 
 # pylint: disable=redefined-outer-name
 
@@ -63,6 +64,10 @@ def test_errors(capsys: pytest.CaptureFixture, tmp_path: Path):
         main(["install", str(pkg_file), "-n", "foo"])
     _out, err = capsys.readouterr()
     assert "Cannot extract" in err
+
+
+# ignore redefinition of simple_conda_package
+# ruff: noqa: F811
 
 
 # pylint: disable=too-many-locals
@@ -150,33 +155,29 @@ def test_env_install(
         "config", "--file", str(condarc_file), "--append", "envs_dirs", str(envs)
     )
 
-    main(
-        [
-            "install",
-            str(simple_conda_package),
-            "-p",
-            str(prefix),
-            "--create",
-            "--yes",
-            "--dry-run",
-        ]
-    )
+    main([
+        "install",
+        str(simple_conda_package),
+        "-p",
+        str(prefix),
+        "--create",
+        "--yes",
+        "--dry-run",
+    ])
 
     assert not prefix.exists()
 
-    main(
-        [
-            "install",
-            str(simple_conda_package),
-            "-p",
-            str(prefix),
-            "--create",
-            "--yes",
-            "--extra",
-            "python=3.9",
-            "pytest >=7.4",
-        ]
-    )
+    main([
+        "install",
+        str(simple_conda_package),
+        "-p",
+        str(prefix),
+        "--create",
+        "--yes",
+        "--extra",
+        "python=3.9",
+        "pytest >=7.4",
+    ])
 
     assert prefix.is_dir()
     packages = conda_json("list", "-p", str(prefix))
@@ -186,12 +187,23 @@ def test_env_install(
     assert "quaternion" in packages_by_name
     assert "simple" in packages_by_name
 
+    # solver should be set to classic to avoid https://github.com/conda/conda/issues/13479
+    d = conda_json(
+        "run", "-p", str(prefix), "conda", "config", "--json", "--show", "solver"
+    )
+    assert d["solver"] == "classic"
+
     conda_output("create", "-n", "test-env", "python=3.9")
     assert test_env.is_dir()
 
-    main(
-        ["install", str(simple_conda_package), "-n", "test-env", "--yes", "--only-deps"]
-    )
+    main([
+        "install",
+        str(simple_conda_package),
+        "-n",
+        "test-env",
+        "--yes",
+        "--only-deps",
+    ])
 
     packages = conda_json("list", "-n", "test-env")
     packages_by_name = {p["name"]: p for p in packages}
@@ -222,7 +234,7 @@ def test_env_install_whitebox(
 
     main(cmd_start + ["--prefix", str(prefix), "--yes"])
 
-    assert len(call_args) == 2
+    assert len(call_args) == 3
     call1 = call_args[0]
     assert call1[0] == "conda"
     assert call1[1] == "install"
@@ -240,7 +252,7 @@ def test_env_install_whitebox(
     call_args.clear()
 
     main(cmd_start + ["--name", "test-env", "--create", "--mamba"])
-    assert len(call_args) == 2
+    assert len(call_args) == 3
     call1 = call_args[0]
     call2 = call_args[1]
     assert call1[:2] == ["mamba", "create"]
@@ -270,3 +282,31 @@ def test_env_install_whitebox(
 
     out, err = capsys.readouterr()
     assert "Running" in out
+
+
+def test_prune_dependencies() -> None:
+    """Unit test for internal _prune_dependencies function"""
+    assert _prune_dependencies([], []) == []
+
+    assert _prune_dependencies([" foo ", "bar >= 1.2.3", "baz   1.5.*"], []) == [
+        "bar >=1.2.3",
+        "baz 1.5.*",
+        "foo",
+    ]
+
+    assert _prune_dependencies(
+        [" foo ", "bar >= 1.2.3", "baz   1.5.*"],
+        [
+            InstallFileInfo(Path("bar-1.2.3.conda"), "bar", "1.2.3"),
+            InstallFileInfo(Path("blah-3.4.5.tar.bz2"), "blah", "3.4.5"),
+        ],
+    ) == ["baz 1.5.*", "foo"]
+
+    with pytest.raises(ValueError, match="does not match dependency"):
+        _prune_dependencies(
+            [" foo ", "bar >= 1.2.4", "baz   1.5.*"],
+            [
+                InstallFileInfo(Path("bar-1.2.3.conda"), "bar", "1.2.3"),
+                InstallFileInfo(Path("blah-3.4.5.tar.bz2"), "blah", "3.4.5"),
+            ],
+        )

@@ -15,6 +15,7 @@
 """
 Unit tests for main `whl2conda` CLI
 """
+
 from __future__ import annotations
 
 import re
@@ -40,7 +41,7 @@ def test_help(
     assert "usage: whl2conda2" in out
     assert "--markdown-help" not in out
 
-    subcmds = ["convert", "config", "diff", "install"]
+    subcmds = ["build", "convert", "config", "diff", "install"]
     for subcmd in subcmds:
         assert re.search(rf"^\s+{subcmd}\s+\w+", out, flags=re.MULTILINE)
 

@@ -39,9 +39,10 @@ help:
 	"--- testing ---\n" \
 	"pylint        - run pylint checks\n" \
 	"mypy          - run mypy type checks\n" \
-	"black-check   - check black formatting\n" \
+	"check-format  - check formatting\n" \
 	"lint          - run all lint checkers\n" \
 	"pytest        - run pytests\n" \
+	"ruff          - run ruff checker\n" \
 	"coverage      - run pytests with test coverage\n" \
 	"open-coverage - open HTML coverage report\n" \
 	"\n" \
@@ -75,7 +76,8 @@ help:
 DEV_INSTALL := $(CONDA_RUN) pip install -e . --no-deps --no-build-isolation
 
 createdev:
-	conda env create -f environment.yml -n $(DEV_ENV) --yes
+	conda create -n $(DEV_ENV) python=3.12 --yes
+	conda env update -f environment.yml -n $(DEV_ENV)
 	$(MAKE) dev-install
 
 updatedev:
@@ -89,8 +91,8 @@ dev-install:
 # Test and lint targets
 #
 
-black-check:
-	$(CONDA_RUN) black --check src test
+# backward support - just use ruff-format-check instead
+black-check: check-format
 
 pylint:
 	$(CONDA_RUN) pylint src test
@@ -98,10 +100,16 @@ pylint:
 mypy:
 	$(CONDA_RUN) mypy
 
-lint: pylint mypy black-check
+lint: ruff pylint mypy black-check
 
 pytest:
 	$(CONDA_RUN) pytest -s test
+
+ruff:
+	$(CONDA_RUN) ruff check
+
+check-format:
+	$(CONDA_RUN) ruff format --check src test
 
 test: pytest
 

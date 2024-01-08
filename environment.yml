@@ -3,35 +3,35 @@ channels:
   - conda-forge
   - garpy # for mkdocstrings-python-xref
 dependencies:
-  - python >=3.8,<3.12
+  - python >=3.8,<3.13
   # runtime
   - conda-package-handling >=2.2,<3.0
   - platformdirs >=3.10
+  - pyyaml >=6.0
   - tomlkit >=0.12
   - wheel >=0.41
   # build
   - build >=0.7.0
-  - hatchling >=1.18,<2.0
+  - hatchling >=1.21,<2.0
   - make >=4.3
   # testing
-  - mypy >=1.5,<2.0
-  - pylint >=2.17,<3.0
+  - mypy >=1.8,<2.0
+  - pylint >=3.0,<4.0
   - pytest >=7.4,<8.0
   - pytest-cov >=4.1.0,<5.0
+  - ruff >=0.1.11
+  - types-pyyaml >=6.0
   # documentation
-  - black >=23.7
+  - black >=23.12
   - mike >=1.1,<2.0
   - mkdocs >=1.5,<2.0
-  - mkdocstrings-python >=1.3,<2.0
+  - mkdocstrings-python >=1.7,<2.0
   - mkdocs-material >9.1
-  - mkdocstrings-python-xref >=1.5.2,<2.0
-  - linkchecker >=10.2.1
+  - mkdocstrings-python-xref >=1.5.3,<2.0
+  - linkchecker >=10.4
   # for mkdocs-awesome-pages-plugin
   - natsort >=8.4
   - wcmatch >=8.5
   - pip >=23.2.1
   - pip:
       - mkdocs-awesome-pages-plugin >=2.9.2
-
-
-

@@ -77,11 +77,11 @@ def test_download_mappings() -> None:
     del d.headers["Etag"]
     assert d.etag == ""
     del d.headers["Cache-Control"]
-    assert d.max_age == (d.expires - d.date).seconds
+    assert d.max_age == (d.expires - d.date).seconds  # type: ignore[operator]
     now = email.utils.localtime()
     del d.headers["Date"]
     later = email.utils.localtime()
-    assert (d.expires - later).seconds <= d.max_age <= (d.expires - now).seconds
+    assert (d.expires - later).seconds <= d.max_age <= (d.expires - now).seconds  # type: ignore[operator]
     del d.headers["Expires"]
     assert d.max_age == -1
     d.headers.add_header("Cache-Control", "max-age=42")

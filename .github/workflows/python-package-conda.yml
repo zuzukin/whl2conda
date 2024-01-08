@@ -9,34 +9,43 @@ jobs:
       fail-fast: true
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.8", "3.10", "3.11"]
+        python-version: ["3.8", "3.10", "3.12"]
     steps:
     - uses: actions/checkout@v3
     - uses: goanpeca/setup-miniconda@v2.2.0
       with:
-        miniforge-variant: Mambaforge-pypy3
+        miniforge-version: latest
+        conda-version: ">=23.7.4"
+        # auto-update-conda: true
         conda-build-version: ">=3.26"
         environment-file: environment.yml
         activate-environment: whl2conda-dev
         python-version: ${{ matrix.python-version }}
-        auto-update-conda: true
-        condarc-file: github-condarc.yml
         auto-activate-base: true
+        condarc-file: github-condarc.yml
         use-mamba: true
+    - name: show conda versions
+      run: |
+        conda list -n base conda
+        conda list -n base mamba
     - name: Dev install whl2conda
       run: |
         conda run -n whl2conda-dev pip install -e . --no-deps --no-build-isolation
+    - name: ruff
+      run: |
+        make ruff
     - name: pylint
+      if: success() || failure()
       run: |
         make pylint
     - name: mypy
       if: success() || failure()
       run: |
         make mypy
-    - name: check black formatting
+    - name: check formatting
       if: success() || failure()
       run: |
-        make black-check
+        make check-format
     - name: Test with pytest
       if: success() || failure()
       run: |

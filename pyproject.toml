@@ -20,12 +20,14 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 keywords = ["conda", "wheel", "build"]
 requires-python = ">=3.8"
 dependencies = [
     "conda-package-handling >=2.2",
     "platformdirs >=3.10",
+    "pyyaml >=6.0",
     "tomlkit >=0.12",
     "wheel >=0.41",
 ]
@@ -74,6 +76,9 @@ module = [
 ]
 ignore_missing_imports = true
 
+[tool.pylint.main]
+ignore-paths=['^src/whl2conda/external/.*$']
+
 [tool.pylint.build_main]
 jobs = 0  # enable parallel checks
 py-version = "3.8" # min python version
@@ -91,6 +96,9 @@ max-returns = 6
 max-statements = 50
 min-public-methods = 1
 
+[tool.pylint.similarities]
+min-similarity-lines = 6
+
 [tool.pylint.variables]
 allowed-redefined-builtins = ["help", "license"]
 
@@ -101,9 +109,11 @@ disable = [
     "file-ignored",
     "fixme",
     "invalid-name",
+    "line-too-long",
     "locally-disabled",
     "raw-checker-failed",
     "suppressed-message",
+    "too-many-arguments",
     "trailing-newlines",
     "unspecified-encoding",
     "use-dict-literal",
@@ -111,3 +121,17 @@ disable = [
     "useless-suppression",
     "wrong-import-order"
 ]
+
+[tool.ruff]
+line-length = 88
+exclude = [
+    "src/whl2conda/external"
+]
+
+[tool.ruff.format]
+line-ending = "lf"
+preview = true
+quote-style = "preserve"
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

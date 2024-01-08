@@ -1,9 +1,9 @@
 ## Installing into a test environment
 
-You will probably want to test your generated conda package before deploying
+You will probably want to test your generated conda packages before deploying
 it. Currently, `conda install` only supports installing conda package files
 without their dependencies, so `whl2conda` provides an `install` subcommand
-to install a package into a test environment along with its dependencies:
+to install one or more package files into a test environment along with its dependencies:
 
 ```bash
 $ whl2conda install mypackage-1.2.3-py_0.conda -n test-env
@@ -23,6 +23,18 @@ $ whl2conda install mypackage-1.2.3-py_0.conda \
    --create -p tmp-dir \
    --extra pytest -c my-channel
 ```
+
+If you are building multiple packages with an interdependency you should install
+them in a single install command, e.g.:
+
+```bash
+$ whl2conda install mypackage-1.2.3-py_0.conda mycorepackage-1.2.3-py_0.conda ...
+```
+
+**NOTE**: *in order to work around an [issue](https://github.com/conda/conda/issues/13479)
+with conda install when using the default libmamba solver, `whl2conda install` will
+configure the target environment to use the classic solver, which can result in slower installs.
+If this is a problem, you can instead use mamba.*
 
 ## Installing into conda-bld
 

@@ -18,7 +18,6 @@ Unit tests for converter module
 from __future__ import annotations
 
 # standard
-import email
 import logging
 import re
 import subprocess
@@ -36,16 +35,19 @@ from whl2conda.api.converter import (
     DependencyRename,
     RequiresDistEntry,
     Wheel2CondaError,
+    Wheel2CondaConverter,
 )
 from whl2conda.cli.convert import do_build_wheel
 from .converter import ConverterTestCaseFactory
-from .converter import test_case  # pylint: disable=unused-import
 
-from ..test_packages import (  # pylint: disable=unused-import
-    markers_wheel,
-    setup_wheel,
-    simple_wheel,
+# pylint: disable=unused-import
+from .converter import test_case  # noqa: F401
+from ..test_packages import (
+    markers_wheel,  # noqa: F401
+    setup_wheel,  # noqa: F401
+    simple_wheel,  # noqa: F401
 )
+# pylint: enable=unused-import
 
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent.parent
@@ -185,6 +187,9 @@ def test_dependency_rename() -> None:
 # Converter test cases
 #
 
+# ignore redefinition of test_case
+# ruff: noqa: F811
+
 
 def test_this(test_case: ConverterTestCaseFactory) -> None:
     """Test using this own project's wheel"""
@@ -261,22 +266,24 @@ def test_simple_wheel(
 
     # Repack wheel with build number
     dest_dir = test_case.tmp_path / "number"
-    subprocess.check_call(
-        ["wheel", "unpack", str(simple_wheel), "--dest", str(dest_dir)]
-    )
+    subprocess.check_call([
+        "wheel",
+        "unpack",
+        str(simple_wheel),
+        "--dest",
+        str(dest_dir),
+    ])
     unpack_dir = next(dest_dir.glob("*"))
     assert unpack_dir.is_dir()
-    subprocess.check_call(
-        [
-            "wheel",
-            "pack",
-            str(unpack_dir),
-            "--build-number",
-            "42",
-            "--dest",
-            str(dest_dir),
-        ]
-    )
+    subprocess.check_call([
+        "wheel",
+        "pack",
+        str(unpack_dir),
+        "--build-number",
+        "42",
+        "--dest",
+        str(dest_dir),
+    ])
     build42whl = next(dest_dir.glob("*.whl"))
 
     test_case(
@@ -410,7 +417,7 @@ def test_bad_wheels(
     extract_info_dir = next(extract_dir.glob("*.dist-info"))
 
     WHEEL_file = extract_info_dir / 'WHEEL'
-    WHEEL_msg = email.message_from_string(WHEEL_file.read_text("utf8"))
+    WHEEL_msg = Wheel2CondaConverter.read_metadata_file(WHEEL_file)
 
     #
     # write bad wheelversion
@@ -456,7 +463,7 @@ def test_bad_wheels(
     WHEEL_file.write_text(WHEEL_msg.as_string())
 
     METADATA_file = extract_info_dir / 'METADATA'
-    METADATA_msg = email.message_from_string(METADATA_file.read_text("utf8"))
+    METADATA_msg = Wheel2CondaConverter.read_metadata_file(METADATA_file)
     METADATA_msg.replace_header("Metadata-Version", "999.2")
     METADATA_file.write_text(METADATA_msg.as_string())
 
@@ -480,6 +487,7 @@ def test_overwrite_prompt(
     prompts: Iterator[str] = iter(())
     responses: Iterator[str] = iter(())
 
+    # pylint: disable=duplicate-code
     def fake_input(prompt: str) -> str:
         expected_prompt = next(prompts)
         assert re.search(
@@ -503,3 +511,30 @@ def test_overwrite_prompt(
     prompts = iter(["Overwrite?"])
     responses = iter(["yes"])
     case.build()
+
+
+def test_version_translation(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """Test for Wheel2CondaConverter.translate_version_spec"""
+    converter = Wheel2CondaConverter(tmp_path, tmp_path)
+    for spec, expected in {
+        "~= 1.2.3": ">=1.2.3,==1.2.*",
+        "~=1": ">=1",
+        ">=3.2 , ~=1.2.4.dev4": ">=3.2,>=1.2.4.dev4,==1.2.*",
+        " >=1.2.3 , <4.0": ">=1.2.3,<4.0",
+        " >v1.2+foo": ">1.2+foo",
+    }.items():
+        assert converter.translate_version_spec(spec) == expected
+
+    caplog.clear()
+    assert converter.translate_version_spec("bad-version") == "bad-version"
+    assert len(caplog.records) == 1
+    logrec = caplog.records[0]
+    assert logrec.levelname == "WARNING"
+    assert "Cannot convert bad version" in logrec.message
+
+    caplog.clear()
+    assert converter.translate_version_spec("===1.2.3") == "==1.2.3"
+    assert len(caplog.records) == 1
+    logrec = caplog.records[0]
+    assert logrec.levelname == "WARNING"
+    assert "Converted arbitrary equality" in logrec.message

@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ Conda package validator for unit tests.
 from __future__ import annotations
 
 import configparser
-import email
 import hashlib
 import json
 import os.path
@@ -93,7 +92,7 @@ class PackageValidator:
     def _parse_wheel_metadata(cls, wheel_dir: Path) -> dict[str, Any]:
         dist_info_dir = next(wheel_dir.glob("*.dist-info"))
         md_file = dist_info_dir / "METADATA"
-        md_msg = email.message_from_string(md_file.read_text())
+        md_msg = Wheel2CondaConverter.read_metadata_file(md_file)
 
         list_keys = set(s.lower() for s in Wheel2CondaConverter.MULTI_USE_METADATA_KEYS)
         md: dict[str, Any] = {}
@@ -105,7 +104,7 @@ class PackageValidator:
                 md[key] = value
 
         wheel_file = dist_info_dir / "WHEEL"
-        wheel_msg = email.message_from_string(wheel_file.read_text())
+        wheel_msg = Wheel2CondaConverter.read_metadata_file(wheel_file)
         if build := wheel_msg.get("Build"):
             md["build"] = build
 
@@ -189,7 +188,7 @@ class PackageValidator:
         doc_url = ""
         for urlpair in md.get("project-url", ()):
             key, url = re.split(r"\s*,\s*", urlpair)
-            assert extra.get(key) == url
+            assert extra.get(key) == url, f"{key=} {extra.get(key)} != {url}"
             first_word = re.split(r"\W+", key)[0].lower()
             if first_word in {"doc", "documentation"}:
                 doc_url = url
@@ -246,13 +245,21 @@ class PackageValidator:
                     assert wheel_require.extras == dist_require.extras
                     assert wheel_require.generic == dist_require.generic
             for md in [dist_md, wheel_md]:
-                del md["requires-dist"]
+                try:
+                    del md["requires-dist"]
+                except KeyError:
+                    pass
             provides_extra: list[str] = dist_md["provides-extra"]
             assert 'original' in provides_extra
             provides_extra.remove('original')
             if not provides_extra:
                 del dist_md["provides-extra"]
-            assert dist_md == wheel_md
+            if dist_md != wheel_md:
+                print("== dist-info metadata ==")
+                print(json.dumps(dist_md, sort_keys=True, indent=2))
+                print("== original wheel metadata ==")
+                print(json.dumps(wheel_md, sort_keys=True, indent=2))
+                assert dist_md == wheel_md
 
     def _validate_hash_input(self, info_dir: Path) -> None:
         hash_input_file = info_dir.joinpath("hash_input.json")

@@ -33,3 +33,4 @@ test = ["pytest", "pylint"]
 
 [project.urls]
 Homepage = "https://github.com/analog-cbarber/tree/main/test-projects/simple"
+"Issue Tracker" = "https://github.com/analog-cbarber/tree/main/test-projects/simple/issues"

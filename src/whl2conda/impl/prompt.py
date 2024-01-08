@@ -15,6 +15,7 @@
 """
 Interactive prompt utilities.
 """
+
 from __future__ import annotations
 
 import io
