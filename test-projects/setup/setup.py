@@ -17,29 +17,27 @@ import os
 from setuptools import setup
 
 setup(
-    name = "mypkg",
-    version = "1.3.4",
-    description = "Test package using setup.py",
-    author = "John Doe",
+    name="mypkg",
+    version="1.3.4",
+    description="Test package using setup.py",
+    author="John Doe",
     author_email="jdoe@nowhere.com",
-    classifiers = [
+    classifiers=[
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
     ],
-    keywords=["python","test"],
-    maintainer = "Zuzu",
-    maintainer_email= "zuzu@nowhere.com",
+    keywords=["python", "test"],
+    maintainer="Zuzu",
+    maintainer_email="zuzu@nowhere.com",
     license_files=[
         "LICENSE.md",
         os.path.abspath("LICENSE2.rst"),
     ],
-    install_requires = [
+    install_requires=[
         "tables",
         "wheel",
     ],
-    extras_require = {
-        'bdev': [ 'black' ]
-    },
-    packages=["mypkg"]
+    extras_require={'bdev': ['black']},
+    packages=["mypkg"],
 )

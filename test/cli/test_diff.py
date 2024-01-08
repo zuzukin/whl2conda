@@ -27,9 +27,12 @@ import pytest
 from whl2conda.cli import main
 
 # pylint: disable=unused-import
-from ..test_packages import simple_conda_package, simple_wheel
+from ..test_packages import simple_conda_package, simple_wheel  # noqa: F401
 
 # pylint: disable=redefined-outer-name
+
+# ignore redefinition of simple_conda_package
+# ruff: noqa: F811
 
 
 def test_diff_errors(

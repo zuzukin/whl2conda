@@ -76,6 +76,9 @@ module = [
 ]
 ignore_missing_imports = true
 
+[tool.pylint.main]
+ignore-paths=['^src/whl2conda/external/.*$']
+
 [tool.pylint.build_main]
 jobs = 0  # enable parallel checks
 py-version = "3.8" # min python version
@@ -106,6 +109,7 @@ disable = [
     "file-ignored",
     "fixme",
     "invalid-name",
+    "line-too-long",
     "locally-disabled",
     "raw-checker-failed",
     "suppressed-message",
@@ -117,3 +121,17 @@ disable = [
     "useless-suppression",
     "wrong-import-order"
 ]
+
+[tool.ruff]
+line-length = 88
+exclude = [
+    "src/whl2conda/external"
+]
+
+[tool.ruff.format]
+line-ending = "lf"
+preview = true
+quote-style = "preserve"
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

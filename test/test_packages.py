@@ -15,6 +15,7 @@
 """
 Test fixtures providing wheels and conda packages for tests
 """
+
 import shutil
 from pathlib import Path
 from typing import Generator
@@ -62,14 +63,12 @@ def simple_conda_package(
 ) -> Generator[Path, None, None]:
     """Provides conda package for "simple" test project"""
     # Use whl2conda build to create conda package
-    convert_main(
-        [
-            str(simple_wheel),
-            "--batch",
-            "--yes",
-            "--quiet",
-        ]
-    )
+    convert_main([
+        str(simple_wheel),
+        "--batch",
+        "--yes",
+        "--quiet",
+    ])
     yield list(simple_wheel.parent.glob("*.conda"))[0]
 
 

@@ -25,7 +25,7 @@ import pytest
 from whl2conda.api.converter import Wheel2CondaError
 
 from .converter import ConverterTestCaseFactory
-from .converter import test_case  # pylint: disable=unused-import
+from .converter import test_case  # pylint: disable=unused-import # noqa: F401
 
 
 # pylint: disable=redefined-outer-name
@@ -33,6 +33,9 @@ from .converter import test_case  # pylint: disable=unused-import
 #
 # External pypi tests
 #
+
+# ignore redefinition of test_case
+# ruff: noqa: F811
 
 
 @pytest.mark.external
@@ -83,16 +86,14 @@ def test_pypi_orix(test_case: ConverterTestCaseFactory) -> None:
 
     subprocess.check_call(["conda", "install", "-p", str(test_env), "pytest", "--yes"])
 
-    subprocess.check_call(
-        [
-            "conda",
-            "run",
-            "-p",
-            str(test_env),
-            "pytest",
-            "--pyargs",
-            "orix.tests",
-            "-k",
-            "not test_restrict_to_fundamental_sector",
-        ]
-    )
+    subprocess.check_call([
+        "conda",
+        "run",
+        "-p",
+        str(test_env),
+        "pytest",
+        "--pyargs",
+        "orix.tests",
+        "-k",
+        "not test_restrict_to_fundamental_sector",
+    ])
