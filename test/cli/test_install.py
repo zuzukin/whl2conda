@@ -25,7 +25,7 @@ from typing import Any, Sequence
 import pytest
 
 from whl2conda.cli import main
-from whl2conda.cli.install import _prune_dependencies
+from whl2conda.cli.install import InstallFileInfo, _prune_dependencies
 from ..test_conda import conda_config, conda_output, conda_json
 
 # pylint: disable=unused-import
@@ -296,5 +296,17 @@ def test_prune_dependencies() -> None:
 
     assert _prune_dependencies(
         [" foo ", "bar >= 1.2.3", "baz   1.5.*"],
-        [("bar", "1.2.3"), ("blah", "3.4.5")],
+        [
+            InstallFileInfo(Path("bar-1.2.3.conda"), "bar", "1.2.3"),
+            InstallFileInfo(Path("blah-3.4.5.tar.bz2"), "blah", "3.4.5"),
+        ],
     ) == ["baz 1.5.*", "foo"]
+
+    with pytest.raises(ValueError, match="does not match dependency"):
+        _prune_dependencies(
+            [" foo ", "bar >= 1.2.4", "baz   1.5.*"],
+            [
+                InstallFileInfo(Path("bar-1.2.3.conda"), "bar", "1.2.3"),
+                InstallFileInfo(Path("blah-3.4.5.tar.bz2"), "blah", "3.4.5"),
+            ],
+        )

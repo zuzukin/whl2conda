@@ -76,6 +76,9 @@ module = [
 ]
 ignore_missing_imports = true
 
+[tool.pylint.main]
+ignore-paths=['^src/whl2conda/external/.*$']
+
 [tool.pylint.build_main]
 jobs = 0  # enable parallel checks
 py-version = "3.8" # min python version
@@ -121,6 +124,9 @@ disable = [
 
 [tool.ruff]
 line-length = 88
+exclude = [
+    "src/whl2conda/external"
+]
 
 [tool.ruff.format]
 line-ending = "lf"

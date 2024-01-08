@@ -26,11 +26,12 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import NamedTuple, Optional, Sequence
 
 from conda_package_handling.api import extract as extract_conda_pkg
 
 from .common import dedent, existing_path, add_markdown_help, get_conda_bld_path
+from ..external.version import ver_eval
 
 __all__ = ["install_main"]
 
@@ -60,6 +61,14 @@ class InstallArgs:
         """Parses and returns parsed args"""
         ns = parser.parse_args(args)
         return cls(**vars(ns))
+
+
+class InstallFileInfo(NamedTuple):
+    """Holds information about a conda file to be installed"""
+
+    path: Path
+    name: str
+    version: str
 
 
 # pylint: disable=too-many-locals
@@ -188,9 +197,7 @@ def install_main(
 
     subdir = "noarch"
     dependencies: list[str] = []
-    file_specs: list[
-        tuple[str, str]
-    ] = []  # name/version pairs of package files being installed
+    file_specs: list[InstallFileInfo] = []
 
     for conda_file in conda_files:
         conda_fname = str(conda_file.name)
@@ -209,7 +216,9 @@ def install_main(
                 subdir = index["subdir"]
                 package_name = index["name"]
                 package_version = index.get("version", "")
-                file_specs.append((package_name, package_version))
+                file_specs.append(
+                    InstallFileInfo(conda_file, package_name, package_version)
+                )
                 dependencies.extend(index.get("depends", []))
             except Exception as ex:  # pylint: disable=broad-exception-caught
                 parser.error(f"Cannot extract conda package '{conda_file}:\n{ex}'")
@@ -218,7 +227,10 @@ def install_main(
         # Install into conda-bld dir
         conda_bld_install(parsed, subdir)
     else:
-        dependencies = _prune_dependencies(dependencies, file_specs)
+        try:
+            dependencies = _prune_dependencies(dependencies, file_specs)
+        except Exception as ex:  # pylint: disable=broad-exception-caught
+            parser.error(str(ex))
         conda_env_install(parsed, dependencies)
 
 
@@ -301,7 +313,7 @@ conda_depend_re = re.compile(r"\s*(?P<name>[\w\d.-]+)\s*(?P<version>.*)")
 
 
 def _prune_dependencies(
-    dependencies: list[str], file_specs: list[tuple[str, str]]
+    dependencies: list[str], file_specs: list[InstallFileInfo]
 ) -> list[str]:
     """
     Prunes dependencies list according to arguments
@@ -312,13 +324,18 @@ def _prune_dependencies(
 
     Arguments:
         dependencies: input list of conda dependency strings (package and optional version match specifier)
-        file_specs: list of package name/version tuple for packages being installed from file
+        file_specs: list of information on package files being installed
 
     Returns:
         List of pruned dependencies.
+
+    Raises:
+        ValueError if a dependency for a package file in file_specs does not match
     """
 
-    exclude_packages: dict[str, str] = dict(file_specs)
+    exclude_packages: dict[str, InstallFileInfo] = {
+        spec.name: spec for spec in file_specs
+    }
     deps: set[str] = set()
 
     for dep in dependencies:
@@ -327,8 +344,11 @@ def _prune_dependencies(
             version = m.group("version")
             if version:
                 version = version.replace(" ", "")  # remove spaces from version spec
-            if name in exclude_packages:
-                # TODO check version and warn or error if not match dependency
+            if exclude := exclude_packages.get(name):
+                if not ver_eval(exclude.version, version):
+                    raise ValueError(
+                        f"{exclude.path} does not match dependency '{dep}'"
+                    )
                 continue
             dep = name
             if version:
