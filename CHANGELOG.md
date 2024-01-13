@@ -1,6 +1,6 @@
 # whl2conda changes
 
-## [24.1.0] - *in progress*
+## [24.1.0] - 2024-1-8
 
 ### Features
 * Add `whl2conda build` - limited experimental drop-in replacement for `conda build`
