@@ -150,7 +150,7 @@ site/index.html: $(CLI_DOCS) $(MKDOCS_FILE) doc/*.md src/whl2conda/api/*.py
 doc: site/index.html
 
 site/.doc-strict: site/index.html
-	$(CONDA_RUN) linkchecker -f likcheckerrc.ini site
+	$(CONDA_RUN) linkchecker -f linkcheckerrc.ini site
 	$(TOUCH) $@
 
 doc-strict: site/.doc-strict
