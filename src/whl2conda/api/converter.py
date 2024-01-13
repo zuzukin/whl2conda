@@ -343,8 +343,15 @@ class Wheel2CondaConverter:
             conda_info_dir = conda_dir.joinpath("info")
             conda_dir.mkdir()
 
-            # Copy files into site packages and get relative paths
-            rel_files = self._copy_site_packages(extracted_wheel_dir, conda_dir)
+            # Copy files into conda package
+            self._copy_wheel_files(extracted_wheel_dir, conda_dir)
+
+            # collect relative paths before constructing info/ directory
+            rel_files = list(
+                str(f.relative_to(conda_dir))
+                for f in conda_dir.glob("**/*")
+                if f.is_file()
+            )
 
             conda_dependencies = self._compute_conda_dependencies(wheel_md.dependencies)
 
@@ -648,24 +655,54 @@ class Wheel2CondaConverter:
             conda_dependencies.append(dep)
         return conda_dependencies
 
-    def _copy_site_packages(self, wheel_dir: Path, conda_dir: Path) -> list[str]:
+    def _copy_wheel_files(self, wheel_dir: Path, conda_dir: Path) -> None:
+        """
+        Copies files from wheels to corresponding location in conda package:
+
+        This copies files using the mapping:
+        - <wheel-dir>/*.data/data/* -> <conda-dir>/*
+        - <wheel-dir>/*.data/scripts/* -> <conda-dir>/python-scripts/*
+        - <wheel-dir>/*.data/* -> ignored
+        - <wheel-dir>/* -> <conda-dir>/site-packages
+        """
         conda_site_packages = conda_dir.joinpath("site-packages")
         conda_site_packages.mkdir()
         conda_info_dir = conda_dir.joinpath("info")
         conda_info_dir.mkdir()
-        shutil.copytree(wheel_dir, conda_site_packages, dirs_exist_ok=True)
+        for entry in wheel_dir.iterdir():
+            if not entry.is_dir():
+                shutil.copyfile(entry, conda_site_packages / entry.name)
+            elif not entry.name.endswith(".data"):
+                shutil.copytree(
+                    entry, conda_site_packages / entry.name, dirs_exist_ok=True
+                )
+            else:
+                for datapath in entry.iterdir():
+                    if not datapath.is_dir():
+                        self._warn(
+                            "Do not support top level file '%s' in '%s' directory - ignored",
+                            datapath.name,
+                            entry.relative_to(wheel_dir),
+                        )
+                    if datapath.name == "data":
+                        conda_target = conda_dir
+                    elif datapath.name == "scripts":
+                        conda_target = conda_dir / "python-scripts"
+                    else:
+                        self._warn(
+                            "Do not support '%s' path in '%s' directory - ignored",
+                            datapath.name,
+                            entry.relative_to(wheel_dir),
+                        )
+                        continue
+                    shutil.copytree(datapath, conda_target, dirs_exist_ok=True)
+
         assert self.wheel_md is not None
         dist_info_dir = conda_site_packages / self.wheel_md.wheel_info_dir.name
         installer_file = dist_info_dir / "INSTALLER"
         installer_file.write_text("whl2conda")
         requested_file = dist_info_dir / "REQUESTED"
         requested_file.write_text("")
-        rel_files = list(
-            str(f.relative_to(conda_dir))
-            for f in conda_site_packages.glob("**/*")
-            if f.is_file()
-        )
-        return rel_files
 
     def _copy_licenses(self, conda_info_dir: Path, wheel_md: MetadataFromWheel) -> None:
         to_license_dir = conda_info_dir / "licenses"
