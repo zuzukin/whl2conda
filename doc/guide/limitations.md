@@ -13,14 +13,6 @@ in dependencies and probably will not occur that often in practice.
 We handle this by simplying changinge `===` to `==` but
 since this will often not work we also issue a warning.
 
-## Wheel data directories not supported
-
-Wheels with `*.data` directies are not fully supported.
-Any such data directories will not be copied.
-
-This will be addressed in a future release
-(see [issue 91](https://github.com/zuzukin/whl2conda/issues/91))
-
 ## Cannot convert from sdist
 
 Conversion from python sdist distributions is not currently supported. 
