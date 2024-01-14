@@ -54,8 +54,7 @@ def build_main(
 ) -> None:
     """Main procedure for `whl2conda build` command"""
     parser = argparse.ArgumentParser(
-        description=dedent(
-            """
+        description=dedent("""
             Build a conda package from a pure python wheel.
             
             This command is limited drop-in replacement for `conda build`.
@@ -64,8 +63,7 @@ def build_main(
             
             This is an experimental feature and is still under active
             change and development.
-            """
-        ),
+            """),
         formatter_class=argparse.RawTextHelpFormatter,
         prog=prog,
     )
@@ -137,13 +135,11 @@ class CondaBuild:
                 "base",
                 "python",
                 "-c",
-                dedent(
-                    f"""
+                dedent(f"""
                     import conda_build.api as api
                     mds = api.render("{self.args.recipe_path}", bypass_env_check=True)
                     api.output_yaml(mds[0][0], file_path="{tmp_recipe_file}")
-                    """
-                ),
+                    """),
             ]
 
             with subprocess.Popen(cmd, encoding="utf8", stdout=subprocess.PIPE) as p:

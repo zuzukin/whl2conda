@@ -36,14 +36,12 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None) -> No
         prog=prog,
         usage="%(prog)s [options] <command> ...",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=dedent(
-            """
+        description=dedent("""
             Utility for building and testing conda package generated
             directly from a python wheel.
             
             See `%(prog)s build --help` for more information.
-            """
-        ),
+            """),
     )
 
     subcmds = Subcommands(parser)

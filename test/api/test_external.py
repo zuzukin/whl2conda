@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -70,6 +70,30 @@ def test_pypi_colorama(test_case: ConverterTestCaseFactory):
     """
     test_case(
         "pypi:colorama",
+    ).build()
+
+
+@pytest.mark.external
+def test_argcomplete(test_case: ConverterTestCaseFactory):
+    """
+    Test argcomplete package
+
+    This package uses *.data/scripts (at least as of 3.2.1)
+    """
+    test_case(
+        "pypi:argcomplete ==3.2.1",
+    ).build()
+
+
+@pytest.mark.external
+def test_linkchecker(test_case: ConverterTestCaseFactory):
+    """
+    Test linkchecker package
+
+    This package uses *.data/data/
+    """
+    test_case(
+        "pypi:linkchecker ==10.4.0",
     ).build()
 
 

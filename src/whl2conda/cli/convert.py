@@ -76,18 +76,14 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     Whl2CondaArgs
     """
     parser = argparse.ArgumentParser(
-        usage=dedent(
-            """
+        usage=dedent("""
             %(prog)s <wheel> [options]
                    %(prog)s [<project-root>] [options]
-            """
-        ),
+            """),
         prog=prog,
-        description=dedent(
-            """
+        description=dedent("""
             Generates a conda package from a pure python wheel
-            """
-        ),
+            """),
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )
@@ -103,12 +99,10 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         nargs="?",
         metavar="[<wheel> | <project-root>]",
         type=existing_path,
-        help=dedent(
-            """
+        help=dedent("""
         Either path to a wheel file to convert or a project root
         directory containing a pyproject.toml or setup.py file.
-        """
-        ),
+        """),
     )
 
     input_opts.add_argument(
@@ -117,8 +111,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         dest="project_root",
         metavar="<dir>",
         type=existing_dir,
-        help=dedent(
-            """
+        help=dedent("""
             Project root directory. This is a directory containing either a
             pyproject.toml or a (deprecated) setup.py file. This option may
             not be used if the project directory was given as the positional
@@ -127,8 +120,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
             If not specified, the project root will be located by searching
             the wheel directory and its parent directories, or if no wheel
             given, will default to the current directory.
-        """
-        ),
+        """),
     )
 
     input_opts.add_argument(
@@ -136,12 +128,10 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         "--wheel-dir",
         metavar="<dir>",
         type=maybe_existing_dir,
-        help=dedent(
-            """
+        help=dedent("""
             Location of wheel directory. Defaults to dist/ subdirectory of 
             project.
-            """
-        ),
+            """),
     )
 
     input_opts.add_argument(
@@ -156,22 +146,18 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         dest="out_dir",
         metavar="<dir>",
         type=maybe_existing_dir,
-        help=dedent(
-            """
+        help=dedent("""
             Output directory for conda package. Defaults to wheel directory
             or else project dist directory.
-            """
-        ),
+            """),
     )
 
     output_opts.add_argument(
         "--overwrite",
         action="store_true",
-        help=dedent(
-            """
+        help=dedent("""
             Overwrite existing output files.
-            """
-        ),
+            """),
     )
 
     output_opts.add_argument(
@@ -184,11 +170,9 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     output_opts.add_argument(
         "--build-wheel",
         action="store_true",
-        help=dedent(
-            """
+        help=dedent("""
             Build wheel
-            """
-        ),
+            """),
     )
     output_opts.add_argument(
         "--build-number",
@@ -209,11 +193,9 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         action="append",
         default=[],
         dest="dep_renames",
-        help=dedent(
-            """
+        help=dedent("""
         Rename pip dependency for conda. May be specified muliple times.
-        """
-        ),
+        """),
     )
     override_opts.add_argument(
         "-A",
@@ -222,11 +204,9 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         metavar="<conda-dep>",
         action="append",
         default=[],
-        help=dedent(
-            """
+        help=dedent("""
             Add an additional conda dependency. May be specified multiple times.
-            """
-        ),
+            """),
     )
     override_opts.add_argument(
         "-D",
@@ -235,12 +215,10 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         dest="dropped_deps",
         action="append",
         default=[],
-        help=dedent(
-            """
+        help=dedent("""
             Drop dependency with given name from conda dependency list.
             May be specified multiple times.
-            """
-        ),
+            """),
     )
     override_opts.add_argument(
         "-K",

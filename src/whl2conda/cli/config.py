@@ -40,11 +40,9 @@ def config_main(
     """Main routine for `whl2conda config` subcommand"""
 
     parser = argparse.ArgumentParser(
-        description=dedent(
-            """
+        description=dedent("""
             whl2conda configuration
-            """
-        ),
+            """),
         formatter_class=argparse.RawTextHelpFormatter,
         prog=prog,
     )
@@ -54,8 +52,7 @@ def config_main(
         metavar="<dir-or-toml>",
         nargs='?',
         const='out',
-        help=dedent(
-            """
+        help=dedent("""
             Add default whl2conda tool entries to a pyproject file. 
             If argument is a directory entries will be added to 
             `pyproject.toml` in that directory. If argument ends
@@ -64,8 +61,7 @@ def config_main(
             will be written to stdout. Other values will result in an error.
             This will create file if it does not already exist.
             It will not overwrite existing entires.
-            """
-        ),
+            """),
     )
 
     parser.add_argument(
@@ -74,13 +70,11 @@ def config_main(
         metavar="<file>",
         const=user_stdrenames_path(),
         type=Path,
-        help=dedent(
-            """
+        help=dedent("""
             Update list of standard pypi to conda renames from internet and exit.
             If a <file> is not named, the default copy will be updated at
             %(const)s.
-            """
-        ),
+            """),
     )
     parser.add_argument(
         "-n",

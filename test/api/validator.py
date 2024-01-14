@@ -155,7 +155,10 @@ class PackageValidator:
         self._validate_index(info_dir)
         self._validate_link(info_dir)
         self._validate_paths(info_dir)
+        self._validate_file_copy()
         self._validate_hash_input(info_dir)
+
+        # TODO - validate *.data/ files
 
         self._validate_dist_info()
 
@@ -304,6 +307,9 @@ class PackageValidator:
         self._validate_dependencies(index["depends"])
 
     def _validate_dependencies(self, dependencies: Sequence[str]) -> None:
+        """
+        Validates dependencies
+        """
         output_depends = set(dependencies)
         expected_depends: set[str] = set()
 
@@ -340,6 +346,9 @@ class PackageValidator:
             )
 
     def _validate_link(self, info_dir: Path) -> None:
+        """
+        Validates the contents of the info/link.json file
+        """
         link_file = info_dir / "link.json"
         assert link_file.is_file()
         jobj = json.loads(link_file.read_text("utf8"))
@@ -354,6 +363,17 @@ class PackageValidator:
         assert entry_points == expected_entry_points
 
     def _validate_paths(self, info_dir: Path) -> None:
+        """
+        Validate info/files and info/paths.json files
+
+        Performs the following checks:
+        - checks correspondence betweens files and paths.json entries
+        - checks size an hash values of paths.json entries
+        - verifies that file/paths.json entries exist in the conda distribution
+
+        Args:
+            info_dir: location of info/ conda subdirectory
+        """
         rel_files = info_dir.joinpath("files").read_text().splitlines()
         pkg_dir = self._unpacked_conda
         files: set[Path] = set(
@@ -384,8 +404,69 @@ class PackageValidator:
         all_files = set(f for f in pkg_dir.glob("**/*") if f.is_file())
         info_files = set(info_dir.glob("**/*"))
         non_info_files = all_files - info_files
-
         assert files == non_info_files
+
+    def _validate_file_copy(self) -> None:
+        """
+        Validates that files have been copied from wheel into corresponding location in conda package
+        """
+        pkg_dir = self._unpacked_conda
+        wheel_dir = self._unpacked_wheel
+        assert wheel_dir.is_dir()
+        all_wheel_files = set(wheel_dir.glob("**/*"))
+        wheel_distinfo_files = set(wheel_dir.glob("*.dist-info/**/*"))
+        wheel_data_files = set(wheel_dir.glob("*.data/**/*"))
+        wheel_site_package_files = (
+            all_wheel_files - wheel_distinfo_files
+        ) - wheel_data_files
+
+        # Check that all package files were copied into site-packages/
+        site_packages_dir = pkg_dir / "site-packages"
+        for wheel_file in wheel_site_package_files:
+            if wheel_file.is_dir():
+                continue
+            rel_path = wheel_file.relative_to(wheel_dir)
+            conda_file = site_packages_dir / rel_path
+            assert (
+                conda_file.exists()
+            ), f"{conda_file.relative_to(pkg_dir)} does not exist"
+            assert wheel_file.read_bytes() == conda_file.read_bytes()
+
+        # Check that all *.data/data/ files get copied into top level
+        wheel_data_data_files = set(wheel_dir.glob("*.data/data/**/*"))
+        for wheel_file in wheel_data_data_files:
+            if wheel_file.is_dir():
+                continue
+            rel_path = wheel_file.relative_to(wheel_dir)
+            rel_path = Path(
+                *rel_path.parts[2:]
+            )  # strip *.data/data/ from head of rel path
+            conda_file = pkg_dir / rel_path
+            assert (
+                conda_file.exists()
+            ), f"{conda_file.relative_to(pkg_dir)} does not exist"
+            # NOTE: in theory this could fail if there is more than one *.data dir that
+            #  specify the same file path with different contents, but in practice we do not
+            #  expect that to ever happen.
+            assert wheel_file.read_bytes() == conda_file.read_bytes()
+
+        # Check that all *.data/script/ files get copied into python-scripts/
+        wheel_data_script_files = set(wheel_dir.glob("*.data/scripts/**/*"))
+        for wheel_file in wheel_data_script_files:
+            if wheel_file.is_dir():
+                continue
+            rel_path = wheel_file.relative_to(wheel_dir)
+            rel_path = Path(
+                *rel_path.parts[2:]
+            )  # strip *.data/scripts/ from head of rel path
+            conda_file = pkg_dir / "python-scripts" / rel_path
+            assert (
+                conda_file.exists()
+            ), f"{conda_file.relative_to(pkg_dir)} does not exist"
+            # NOTE: in theory this could fail if there is more than one *.data dir that
+            #  specify the same file path with different contents, but in practice we do not
+            #  expect that to ever happen.
+            assert wheel_file.read_bytes() == conda_file.read_bytes()
 
     __call__ = validate
 

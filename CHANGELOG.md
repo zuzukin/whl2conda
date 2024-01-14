@@ -1,5 +1,10 @@
 # whl2conda changes
 
+## [24.1.1] - *in progress*
+
+### Features
+* Support wheels containing `*.data` directories
+
 ## [24.1.0] - 2024-1-8
 
 ### Features

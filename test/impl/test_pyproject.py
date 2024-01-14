@@ -77,8 +77,7 @@ def test_read_pyproject(tmp_path: Path) -> None:
 
     # write a sample file
     proj_file.write_text(
-        dedent(
-            r"""
+        dedent(r"""
             [build-system]
             requires = ["hatchling"]
             build-backend = "hatchling"
@@ -96,8 +95,7 @@ def test_read_pyproject(tmp_path: Path) -> None:
             ]
             extra-dependencies = [ "conda-only" ]
             conda-format = ".tar.bz2"
-            """
-        ),
+            """),
         encoding="ascii",
     )
 
@@ -119,8 +117,7 @@ def test_read_pyproject(tmp_path: Path) -> None:
     # Test poetry name
     #
     proj_file.write_text(
-        dedent(
-            r"""
+        dedent(r"""
             [build-system]
             requires = ["poetry-core","setuptools"]
             build-backend = "poetry.core.masonry.api"
@@ -128,8 +125,7 @@ def test_read_pyproject(tmp_path: Path) -> None:
             [tool.poetry]
             name = "poetry.example"
             version = "1.0.2"
-            """
-        ),
+            """),
         encoding="ascii",
     )
     pyproj4 = read_pyproject(tmp_path)
@@ -143,12 +139,10 @@ def test_read_pyproject(tmp_path: Path) -> None:
         key: str, value: Any, expected_warning: str, is_value: bool = False
     ) -> None:
         proj_file.write_text(
-            dedent(
-                f"""
+            dedent(f"""
                 [tool.whl2conda]
                 {key} = {repr(value)}
-                """
-            )
+                """)
         )
         inval = "value in " if is_value else ""
         full_expected_warning = re.compile(

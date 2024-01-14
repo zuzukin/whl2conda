@@ -53,8 +53,7 @@ def diff_main(
     """Main routine for `whl2conda diff` subcommand"""
 
     parser = argparse.ArgumentParser(
-        description=dedent(
-            """
+        description=dedent("""
             Compare the content of two conda packages
             
             This will unpack each conda packaeg into temporary
@@ -64,8 +63,7 @@ def diff_main(
             
             This can be used to compare packages generated using
             this tool against those created using conda-build.            
-            """
-        ),
+            """),
         formatter_class=argparse.RawTextHelpFormatter,
         prog=prog,
     )
@@ -89,15 +87,13 @@ def diff_main(
         "--diff-tool",
         metavar="<tool>",
         required=True,
-        help=dedent(
-            """
+        help=dedent("""
             Diff tool to use. This is currently required.
             
             The tool is expected to take positional arguments
             for each directory. Additional arguments may be
             passed after --args.
-            """
-        ),
+            """),
     )
 
     parser.add_argument(
