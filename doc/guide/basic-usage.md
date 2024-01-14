@@ -31,10 +31,17 @@ using [pip download][pip-download]. You do not need to download dependencies and
 want a wheel, not an sdist, so use:
 
 ```bash
-$ pip download --only-binary:all: --no-deps <some-package>
+$ pip download --only-binary:all: --no-deps <some-package-spec>
 ```
 
 Then you can convert the downloaded wheel using `whl2conda convert`.
+
+Or you can use either the `--from-pypi` or `--from-index` options to `whl2conda convert`
+to do this download for you, for example:
+
+```bash
+$ whl2conda convert --from-pypi 'some-package ==1.2.3'
+```
 
 ## Building from project directories
 
