@@ -19,8 +19,9 @@ Support for downloading wheels
 from __future__ import annotations
 
 import shutil
+import subprocess
+import sys
 import tempfile
-from subprocess import check_call
 from pathlib import Path
 from typing import Optional
 
@@ -65,14 +66,15 @@ def download_wheel(
         cmd.extend(["-d", str(tmpdirname)])
         cmd.append(spec)
 
-        check_call(cmd)
+        stderr = subprocess.run(cmd, check=True, stderr=subprocess.PIPE)
+        print(stderr, file=sys.stderr)
 
         wheels = list(tmpdir.glob("*.whl"))
 
         # these should not happen if check_call does not throw, but check anyway
-        if not wheels:  # pragma: no branch
+        if not wheels:
             raise FileNotFoundError("No wheels downloaded")
-        if len(wheels) > 1:  # pragma: no branch
+        if len(wheels) > 1:
             raise AssertionError(
                 f"More than one wheel downloaded: {list(w.name for w in wheels)}"
             )
