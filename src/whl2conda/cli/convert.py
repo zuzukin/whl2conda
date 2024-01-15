@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -342,9 +342,11 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
         download_index, download_spec = parsed.from_index
 
     wheel_or_root = parsed.wheel_or_root
+    default_project_root = False
     saw_positional_root = False
     if not wheel_or_root:
         project_root = Path.cwd()
+        default_project_root = True
     else:
         if wheel_or_root.is_dir():
             project_root = wheel_or_root
@@ -375,7 +377,9 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
 
     if project_root:
         project_root = project_root.expanduser().absolute()
-        if not _is_project_root(project_root):
+        if not download_spec and not _is_project_root(project_root):
+            # Note: don't complain about missing project file if using
+            #  a download spec.
             parser.error(
                 f"No pyproject.toml or setup.py in project root '{project_root}'"
             )
@@ -475,7 +479,7 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
                     into=Path(tmpdirname),
                     index=download_index,
                 )
-            elif build_wheel:
+            elif build_wheel:  # pragma: no branch
                 assert project_root and wheel_dir
                 wheel_file = do_build_wheel(
                     project_root,
