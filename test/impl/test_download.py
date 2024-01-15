@@ -19,6 +19,7 @@ Unit tests for whl2conda.impl.download module
 import argparse
 import subprocess
 from pathlib import Path
+from typing import List
 
 import pytest
 
@@ -39,7 +40,7 @@ def test_download_wheel_whitebox(
     download_args: list[argparse.Namespace] = []
     stderr = b""
 
-    def call_pip_download(cmd: list[str], **_kwargs) -> subprocess.CompletedProcess:
+    def call_pip_download(cmd: List[str], **_kwargs) -> subprocess.CompletedProcess:
         """
         Fake implementation of check_call for pip download
         """
