@@ -44,6 +44,8 @@ help:
 	"pytest        - run pytests\n" \
 	"ruff          - run ruff checker\n" \
 	"coverage      - run pytests with test coverage\n" \
+	"external-coverage - run pytests with tests coverage including external tests\n" \
+	"slow-coverage - run pytests with test coverage including slow tests\n" \
 	"open-coverage - open HTML coverage report\n" \
 	"\n" \
 	"--- documentation ---\n" \
@@ -115,6 +117,9 @@ test: pytest
 
 coverage:
 	$(CONDA_RUN) pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term test
+
+external-coverage:
+	$(CONDA_RUN) pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term --run-external test
 
 slow-coverage:
 	$(CONDA_RUN) pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term test --run-slow
