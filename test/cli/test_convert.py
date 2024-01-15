@@ -191,7 +191,7 @@ class CliTestCase:
             assert spec == self.expected_download_spec
             assert index == self.expected_download_index
             _into = into or Path.cwd()
-            return into / "fake-1.0-py3-none-any.whl"
+            return _into / "fake-1.0-py3-none-any.whl"
 
         def fake_input(prompt: str) -> str:
             expected_prompt = next(prompts)
@@ -344,7 +344,7 @@ class CliTestCaseFactory:
         interactive: Optional[bool] = None,
         expected_build_number: Optional[int] = None,
         expected_download_index: str = "",
-        expected_download_spec: str= "",
+        expected_download_spec: str = "",
         expected_dry_run: bool = False,
         expected_package_name: str = "",
         expected_parser_error: str = "",
@@ -755,7 +755,7 @@ def test_choose_wheel(
 
 def test_download_wheel(
     test_case: CliTestCaseFactory,
-    simple_wheel: Path,
+    simple_wheel: Path,  # pylint: disable=unused-argument
 ) -> None:
     """Test downloading wheel"""
 
@@ -770,7 +770,7 @@ def test_download_wheel(
         ["--from-index", "https://somewhere.com/pypi", "simple >=1.2.3"],
         interactive=False,
         expected_download_spec="simple >=1.2.3",
-        expected_download_index="https://somewhere.com/pypi"
+        expected_download_index="https://somewhere.com/pypi",
     )
     case.run()
 

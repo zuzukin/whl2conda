@@ -342,11 +342,9 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
         download_index, download_spec = parsed.from_index
 
     wheel_or_root = parsed.wheel_or_root
-    default_project_root = False
     saw_positional_root = False
     if not wheel_or_root:
         project_root = Path.cwd()
-        default_project_root = True
     else:
         if wheel_or_root.is_dir():
             project_root = wheel_or_root
