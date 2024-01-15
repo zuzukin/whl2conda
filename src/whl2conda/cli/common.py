@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -155,11 +155,11 @@ class _SubcommandParser(argparse.ArgumentParser):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.main = lambda args, prog=None: 0
+        self.main = lambda args, prog=None: 0  # pragma: no cover
 
     def parse_known_args(self, args=None, namespace=None):
         """Puts all arguments into args attribute, and copies main to main attribute."""
-        if namespace is None:
+        if namespace is None:  # pragma: no branch
             namespace = argparse.Namespace()
         setattr(namespace, 'args', args)
         setattr(namespace, 'main', self.main)
