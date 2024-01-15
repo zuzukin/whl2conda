@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -78,6 +78,8 @@ class CliTestCase:
     interactive: bool
     expected_build_number: Optional[int] = None
     expected_dependency_renames: list[DependencyRename]
+    expected_download_spec: str = ""
+    expected_download_index: str = ""
     expected_dry_run: bool = False
     expected_extra_dependencies: Sequence[str] = ()
     expected_interactive: bool = True
@@ -118,6 +120,8 @@ class CliTestCase:
         expected_build_number: Optional[int] = None,
         expected_dry_run: bool = False,
         expected_extra_dependencies: Sequence[str] = (),
+        expected_download_index: str = "",
+        expected_download_spec: str = "",
         expected_interactive: bool = True,
         expected_keep_pip: bool = False,
         expected_out_dir: str = "",
@@ -139,6 +143,8 @@ class CliTestCase:
         self.expected_build_number = expected_build_number
         self.expected_dry_run = expected_dry_run
         self.expected_dependency_renames = []
+        self.expected_download_index = expected_download_index
+        self.expected_download_spec = expected_download_spec
         self.expected_extra_dependencies = list(expected_extra_dependencies)
         self.expected_interactive = expected_interactive
         self.expected_keep_pip = expected_keep_pip
@@ -176,6 +182,17 @@ class CliTestCase:
             # TODO validate no_deps, dry_run
             return wheel_dir.joinpath("fake-1.0-py3-none-any.whl")
 
+        def fake_download_wheel(
+            spec: str,
+            index: str = "",
+            into: Optional[Path] = None,
+        ) -> Path:
+            """Fake version of download_wheel"""
+            assert spec == self.expected_download_spec
+            assert index == self.expected_download_index
+            _into = into or Path.cwd()
+            return into / "fake-1.0-py3-none-any.whl"
+
         def fake_input(prompt: str) -> str:
             expected_prompt = next(prompts)
             assert re.search(
@@ -206,6 +223,8 @@ class CliTestCase:
             mp.setattr(Wheel2CondaConverter, "convert", fake_convert)
             mp.setattr("builtins.input", fake_input)
             mp.setattr("whl2conda.cli.convert.do_build_wheel", fake_build_wheel)
+            mp.setattr("whl2conda.impl.download.download_wheel", fake_download_wheel)
+            mp.setattr("whl2conda.cli.convert.download_wheel", fake_download_wheel)
             if self.interactive is not is_interactive():
                 monkeypatch_interactive(mp, self.interactive)
             mp.chdir(self.from_dir)
@@ -324,6 +343,8 @@ class CliTestCaseFactory:
         *,
         interactive: Optional[bool] = None,
         expected_build_number: Optional[int] = None,
+        expected_download_index: str = "",
+        expected_download_spec: str= "",
         expected_dry_run: bool = False,
         expected_package_name: str = "",
         expected_parser_error: str = "",
@@ -346,6 +367,8 @@ class CliTestCaseFactory:
             args=args,
             interactive=interactive,
             expected_build_number=expected_build_number,
+            expected_download_index=expected_download_index,
+            expected_download_spec=expected_download_spec,
             expected_dry_run=expected_dry_run,
             expected_package_name=expected_package_name,
             expected_parser_error=expected_parser_error,
@@ -726,6 +749,28 @@ def test_choose_wheel(
         interactive=False,
         expected_project_root="simple",
         expected_wheel_path=str(dist_wheel2),
+    )
+    case.run()
+
+
+def test_download_wheel(
+    test_case: CliTestCaseFactory,
+    simple_wheel: Path,
+) -> None:
+    """Test downloading wheel"""
+
+    case = test_case(
+        ["--from-pypi", "simple"],
+        interactive=False,
+        expected_download_spec="simple",
+    )
+    case.run()
+
+    case = test_case(
+        ["--from-index", "https://somewhere.com/pypi", "simple >=1.2.3"],
+        interactive=False,
+        expected_download_spec="simple >=1.2.3",
+        expected_download_index="https://somewhere.com/pypi"
     )
     case.run()
 
