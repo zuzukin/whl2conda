@@ -3,7 +3,8 @@
 ## [24.1.1] - *in progress*
 
 ### Features
-* Support wheels containing `*.data` directories
+* Support conversion of wheels containing `*.data` directories
+* Support direct download of wheels to convert from pypi repositories
 
 ## [24.1.0] - 2024-1-8
 

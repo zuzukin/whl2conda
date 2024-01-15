@@ -20,12 +20,14 @@ from __future__ import annotations
 import argparse
 import logging
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Sequence
 
 # this project
+from ..impl.download import download_wheel
 from ..impl.prompt import is_interactive, choose_wheel
 from ..api.converter import Wheel2CondaConverter, CondaPackageFormat, DependencyRename
 from ..impl.pyproject import read_pyproject, PyProjInfo
@@ -53,6 +55,8 @@ class Whl2CondaArgs:
     dropped_deps: Sequence[str]
     dry_run: bool
     extra_deps: list[str]
+    from_index: Optional[tuple[str, str]]
+    from_pypi: Optional[str]
     ignore_pyproject: bool
     interactive: bool
     keep_pip_deps: bool
@@ -120,6 +124,23 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
             If not specified, the project root will be located by searching
             the wheel directory and its parent directories, or if no wheel
             given, will default to the current directory.
+        """),
+    )
+
+    download_opts = input_opts.add_mutually_exclusive_group()
+    download_opts.add_argument(
+        "--from-pypi",
+        metavar="<package-spec>",
+        help=dedent("""
+            Download package satisfying <package-spec> from standard pypi.org repository.
+        """),
+    )
+    download_opts.add_argument(
+        "--from-index",
+        nargs=2,
+        metavar=("<index-url>", "<package-spec>"),
+        help=dedent("""
+            Download package satisfying <package-spec> from repository at <index-url>.
         """),
     )
 
@@ -313,6 +334,13 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     build_wheel = parsed.build_wheel
     build_no_deps = True  # pylint: disable=unused-variable
 
+    download_index = ""
+    download_spec = ""
+    if parsed.from_pypi:
+        download_spec = parsed.from_pypi
+    elif parsed.from_index:
+        download_index, download_spec = parsed.from_index
+
     wheel_or_root = parsed.wheel_or_root
     saw_positional_root = False
     if not wheel_or_root:
@@ -322,7 +350,6 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
             project_root = wheel_or_root
             saw_positional_root = True
         else:
-            # TODO - also support "pypi:<name> <version>" ?
             wheel_file = wheel_or_root
             if wheel_file.suffix != ".whl":
                 parser.error(f"Input file '{wheel_file} does not have .whl suffix")
@@ -380,7 +407,15 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     except ValueError as ex:
         parser.error(f"Bad rename pattern from {source}:\n{ex}")
 
-    if not wheel_file and wheel_dir and not build_wheel:
+    out_dir: Optional[Path] = None
+    if parsed.out_dir:
+        out_dir = parsed.out_dir.expanduser().absolute()
+    elif pyproj_info.out_dir:
+        out_dir = pyproj_info.out_dir
+    else:
+        out_dir = wheel_dir
+
+    if not wheel_file and wheel_dir and not build_wheel and not download_spec:
         # find wheel in directory
         try:
             wheel_file = choose_wheel(
@@ -403,14 +438,6 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
                 parser.error(str(ex))
         except Exception as ex:  # pylint: disable=broad-except
             parser.error(str(ex))
-
-    out_dir: Optional[Path] = None
-    if parsed.out_dir:
-        out_dir = parsed.out_dir.expanduser().absolute()
-    elif pyproj_info.out_dir:
-        out_dir = pyproj_info.out_dir
-    else:
-        out_dir = wheel_dir
 
     if fmtname := parsed.out_format:
         if fmtname in ("V1", "tar.bz2"):
@@ -438,33 +465,44 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     logging.getLogger().setLevel(level)
     logging.basicConfig(level=level, format="%(message)s")
 
-    if not wheel_file:
-        if build_wheel:
-            assert project_root and wheel_dir
-            wheel_file = do_build_wheel(
-                project_root,
-                wheel_dir,
-                no_deps=build_no_deps,
-                dry_run=dry_run,
-                capture_output=level > logging.INFO,
-            )
+    with tempfile.TemporaryDirectory(
+        dir=Path.cwd(), prefix="whl2conda-convert-"
+    ) as tmpdirname:
+        if not wheel_file:
+            if download_spec:
+                wheel_file = download_wheel(
+                    download_spec,
+                    into=Path(tmpdirname),
+                    index=download_index,
+                )
+            elif build_wheel:
+                assert project_root and wheel_dir
+                wheel_file = do_build_wheel(
+                    project_root,
+                    wheel_dir,
+                    no_deps=build_no_deps,
+                    dry_run=dry_run,
+                    capture_output=level > logging.INFO,
+                )
 
-    assert wheel_file
+        assert wheel_file
 
-    converter = Wheel2CondaConverter(wheel_file, out_dir)
-    converter.dry_run = parsed.dry_run
-    converter.package_name = parsed.name or pyproj_info.conda_name or pyproj_info.name
-    converter.out_format = out_fmt
-    converter.overwrite = parsed.overwrite
-    converter.keep_pip_dependencies = parsed.keep_pip_deps
-    converter.extra_dependencies.extend(pyproj_info.extra_dependencies)
-    converter.extra_dependencies.extend(parsed.extra_deps)
-    converter.interactive = interactive
-    converter.build_number = parsed.build_number
+        converter = Wheel2CondaConverter(wheel_file, out_dir)
+        converter.dry_run = parsed.dry_run
+        converter.package_name = (
+            parsed.name or pyproj_info.conda_name or pyproj_info.name
+        )
+        converter.out_format = out_fmt
+        converter.overwrite = parsed.overwrite
+        converter.keep_pip_dependencies = parsed.keep_pip_deps
+        converter.extra_dependencies.extend(pyproj_info.extra_dependencies)
+        converter.extra_dependencies.extend(parsed.extra_deps)
+        converter.interactive = interactive
+        converter.build_number = parsed.build_number
 
-    converter.dependency_rename.extend(renames)
+        converter.dependency_rename.extend(renames)
 
-    _conda_package = converter.convert()
+        _conda_package = converter.convert()
 
 
 def do_build_wheel(
