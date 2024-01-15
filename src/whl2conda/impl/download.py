@@ -66,8 +66,9 @@ def download_wheel(
         cmd.extend(["-d", str(tmpdirname)])
         cmd.append(spec)
 
-        stderr = subprocess.run(cmd, check=True, stderr=subprocess.PIPE)
-        print(stderr, file=sys.stderr)
+        p = subprocess.run(cmd, check=True, stderr=subprocess.PIPE)
+        if p.stderr:
+            print(p.stderr, file=sys.stderr)
 
         wheels = list(tmpdir.glob("*.whl"))
 

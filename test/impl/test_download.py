@@ -28,7 +28,7 @@ from whl2conda.impl.download import download_wheel
 
 
 def test_download_wheel_whitebox(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture
 ) -> None:
     """
     Whitebox test of download_wheel function. This does not do any
@@ -37,8 +37,9 @@ def test_download_wheel_whitebox(
     """
     n_wheels = 1
     download_args: list[argparse.Namespace] = []
+    stderr = b""
 
-    def call_pip_download(cmd: list[str]) -> None:
+    def call_pip_download(cmd: list[str], **_kwargs) -> subprocess.CompletedProcess:
         """
         Fake implementation of check_call for pip download
         """
@@ -71,9 +72,9 @@ def test_download_wheel_whitebox(
             fake_wheel_file = download_tmpdir / f"fake{n}.whl"
             fake_wheel_file.write_text(parsed.spec)
 
-    monkeypatch.setattr(subprocess, "check_call", call_pip_download)
+        return subprocess.CompletedProcess(cmd, 0, "", stderr)
+
     monkeypatch.setattr(subprocess, "run", call_pip_download)
-    monkeypatch.setattr(subprocess, "check_output", call_pip_download)
 
     home_dir = tmp_path / "home"
     home_dir.mkdir()
@@ -86,16 +87,25 @@ def test_download_wheel_whitebox(
     assert whl.read_text() == "pylint"
     assert download_args[0].spec == "pylint"
     assert download_args[0].index is None
+    out, err = capsys.readouterr()
+    assert not out and not err
 
     alt_dir = tmp_path / "alt"
     assert not alt_dir.exists()
 
+    stderr = b"something happened"
     whl = download_wheel("foobar >=1.2.3", index="alt-index", into=alt_dir)
     assert whl.parent == alt_dir
     assert whl.name == "fake.whl"
     assert whl.is_file()
     assert whl.read_text() == "foobar >=1.2.3"
     assert download_args[0].index == "alt-index"
+
+    # Make sure stderr from subprcess gets output
+    out, err = capsys.readouterr()
+    assert not out
+    assert "something happened" in err
+    stderr = b""
 
     n_wheels = 0
     with pytest.raises(FileNotFoundError, match="No wheels downloaded"):
