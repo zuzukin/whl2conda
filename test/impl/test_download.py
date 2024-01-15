@@ -37,7 +37,7 @@ def test_download_wheel_whitebox(
     issued.
     """
     n_wheels = 1
-    download_args: list[argparse.Namespace] = []
+    download_args: List[argparse.Namespace] = []
     stderr = b""
 
     def call_pip_download(cmd: List[str], **_kwargs) -> subprocess.CompletedProcess:
