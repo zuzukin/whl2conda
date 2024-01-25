@@ -1,5 +1,8 @@
 # whl2conda changes
 
+## [24.1.2] - *in progress*
+* Added one-line description to whl2conda package
+
 ## [24.1.1] - 2024-1-15
 
 ### Features
