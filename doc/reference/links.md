@@ -4,6 +4,7 @@
 * [conda file format](https://docs.conda.io/projects/conda/en/latest/user-guide/concepts/packages.html)
 * [package spec](https://docs.conda.io/projects/conda-build/en/stable/resources/package-spec.html)
 * [conda-package-handling tool (cph)](https://conda.github.io/conda-package-handling/)
+* [conda-build](https://docs.conda.io/projects/conda-build/)
 
 ## Wheels:
 
