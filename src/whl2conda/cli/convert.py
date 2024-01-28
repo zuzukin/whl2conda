@@ -251,6 +251,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     override_opts.add_argument(
         "--python",
         metavar="<version-spec>",
+        default="",
         help="Set/override python dependency.",
     )
 
@@ -499,6 +500,7 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
         converter.keep_pip_dependencies = parsed.keep_pip_deps
         converter.extra_dependencies.extend(pyproj_info.extra_dependencies)
         converter.extra_dependencies.extend(parsed.extra_deps)
+        converter.python_version = parsed.python
         converter.interactive = interactive
         converter.build_number = parsed.build_number
 

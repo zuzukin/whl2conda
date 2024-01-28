@@ -53,6 +53,7 @@ class PackageValidator:
     _extra_dependencies: Sequence[str]
     _keep_pip_dependencies: bool = False
     _build_number: int | None = None
+    _expected_python_version: str = ""
 
     def __init__(self, tmp_dir: Path) -> None:
         self.tmp_dir = tmp_dir
@@ -69,6 +70,7 @@ class PackageValidator:
         renamed: Optional[dict[str, str]] = None,
         std_renames: Optional[dict[str, str]] = None,
         extra: Sequence[str] = (),
+        expected_python_version: str = "",
         keep_pip_dependencies: bool = False,
         build_number: int | None = None,
     ) -> None:
@@ -77,6 +79,7 @@ class PackageValidator:
         self._renamed_dependencies = renamed or {}
         self._std_renames = std_renames or {}
         self._extra_dependencies = extra
+        self._expected_python_version = expected_python_version
         self._keep_pip_dependencies = keep_pip_dependencies
         self._build_number = build_number
 
@@ -314,7 +317,9 @@ class PackageValidator:
         expected_depends: set[str] = set()
 
         wheel_md = self._wheel_md
-        if python_ver := wheel_md.get("requires-python"):
+        if self._expected_python_version:
+            expected_depends.add(f"python {self._expected_python_version}")
+        elif python_ver := wheel_md.get("requires-python"):
             expected_depends.add(f"python {python_ver}")
         for dep in wheel_md.get("requires-dist", []):
             try:

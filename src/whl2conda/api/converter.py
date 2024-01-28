@@ -33,7 +33,7 @@ import time
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, Optional, Sequence, NamedTuple
+from typing import Any, NamedTuple, Optional, Sequence
 
 # third party
 from wheel.wheelfile import WheelFile
@@ -302,6 +302,7 @@ class Wheel2CondaConverter:
     keep_pip_dependencies: bool = False
     dependency_rename: list[DependencyRename]
     extra_dependencies: list[str]
+    python_version: str = ""
     interactive: bool = False
     build_number: Optional[int] = None
 
@@ -618,6 +619,8 @@ class Wheel2CondaConverter:
     ) -> list[str]:
         conda_dependencies: list[str] = []
 
+        saw_python = False
+
         for entry in dependencies:
             if entry.extra_marker_name:
                 self._debug("Skipping extra dependency: %s", entry)
@@ -629,6 +632,14 @@ class Wheel2CondaConverter:
 
             conda_name = pip_name = entry.name
             version = self.translate_version_spec(entry.version)
+            if saw_python := conda_name == "python":
+                if self.python_version and version != self.python_version:
+                    self._info(
+                        "Overriding python version '%s' with '%s'",
+                        version,
+                        self.python_version,
+                    )
+                    version = self.python_version
 
             # TODO - do something with extras (#36)
             #   download target pip package and its extra dependencies
@@ -650,6 +661,11 @@ class Wheel2CondaConverter:
                 conda_dependencies.append(conda_dep)
             else:
                 self._debug("Dependency dropped: %s", entry)
+
+        if not saw_python and self.python_version:
+            self._info("Added 'python %s' dependency", self.python_version)
+            conda_dependencies.append(f"python {self.python_version}")
+
         for dep in self.extra_dependencies:
             self._debug("Dependency added:  '%s'", dep)
             conda_dependencies.append(dep)

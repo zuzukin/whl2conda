@@ -1,5 +1,10 @@
 # whl2conda changes
 
+## [24.1.2] - 2024-1-28
+
+### Features
+* Support `whl2conda convert --python` override.
+
 ## [24.1.1] - 2024-1-15
 
 ### Features

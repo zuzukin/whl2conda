@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -175,6 +175,7 @@ class ConverterTestCase:
                     r.pattern.pattern: r.replacement for r in self.dependency_rename
                 },
                 extra=converter.extra_dependencies,
+                expected_python_version=converter.python_version,
                 keep_pip_dependencies=converter.keep_pip_dependencies,
                 build_number=converter.build_number,
             )
