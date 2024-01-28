@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "whl2conda"
-summary = "build conda packages directly from pure python wheels"
+description = "Build conda packages directly from pure python wheels"
 readme = "README.md"
 dynamic = ["version"]
 license = "Apache-2.0"
