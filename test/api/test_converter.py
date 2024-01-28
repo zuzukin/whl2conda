@@ -304,6 +304,13 @@ def test_simple_wheel(
         overwrite=True,
     ).build()
 
+    case = test_case(
+        simple_wheel,
+        overwrite=True,
+    )
+    case.converter.python_version = ">=3.9"
+    case.build()
+
 
 def test_debug_log(
     test_case: ConverterTestCaseFactory,

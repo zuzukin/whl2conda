@@ -91,6 +91,7 @@ class CliTestCase:
     expected_parser_error: str = ""
     """Relative path from projects dir"""
     expected_project_root: str = ""
+    expected_python_version: str = ""
     expected_wheel_path: str = ""
 
     expected_prompts: list[str]
@@ -130,6 +131,7 @@ class CliTestCase:
         expected_package_name: str = "",
         expected_parser_error: str = "",
         expected_project_root: str = "",
+        expected_python_version: str = "",
         expected_wheel_path: str = "",
         from_dir: str = "",
     ):
@@ -155,6 +157,7 @@ class CliTestCase:
         self.expected_parser_error = expected_parser_error
         self.expected_project_root = expected_project_root
         self.expected_prompts = []
+        self.expected_python_version = expected_python_version
         self.expected_wheel_path = expected_wheel_path
         self.responses = []
 
@@ -297,6 +300,7 @@ class CliTestCase:
         assert converter.keep_pip_dependencies is self.expected_keep_pip
         assert converter.extra_dependencies == list(self.expected_extra_dependencies)
         assert converter.dependency_rename == list(self.expected_dependency_renames)
+        assert converter.python_version == self.expected_python_version
 
 
 class CliTestCaseFactory:
@@ -355,6 +359,7 @@ class CliTestCaseFactory:
         expected_extra_dependencies: Sequence[str] = (),
         expected_interactive: bool = True,
         expected_project_root: str = "",
+        expected_python_version: str = "",
         expected_wheel_path: str = "",
         from_dir: str = "",
     ) -> CliTestCase:
@@ -379,6 +384,7 @@ class CliTestCaseFactory:
             expected_extra_dependencies=expected_extra_dependencies,
             expected_interactive=expected_interactive,
             expected_project_root=expected_project_root,
+            expected_python_version=expected_python_version,
             expected_wheel_path=expected_wheel_path,
             from_dir=from_dir,
         )
@@ -875,4 +881,14 @@ def test_build_number(
     test_case(
         [str(simple_wheel), "--build-number", "42"],
         expected_build_number=42,
+    ).run()
+
+
+def test_python_override(
+    test_case: CliTestCaseFactory,
+    simple_wheel: Path,
+) -> None:
+    """Test --python option"""
+    test_case(
+        [str(simple_wheel), "--python", ">=3.10"], expected_python_version=">=3.10"
     ).run()

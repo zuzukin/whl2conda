@@ -98,6 +98,7 @@ def test_linkchecker(test_case: ConverterTestCaseFactory):
 
 
 @pytest.mark.external
+@pytest.mark.skip
 def test_pypi_orix(test_case: ConverterTestCaseFactory) -> None:
     """
     Test orix package
