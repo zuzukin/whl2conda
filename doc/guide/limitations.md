@@ -4,7 +4,7 @@ into noarch python conda packages.
 It has the following limitations and known issues, some of which 
 will be addressed in future releases.
 
-## Arbitrary equality clause in version specifiers don't have a coda equivalent
+## Arbitrary equality clause in version specifiers don't have a conda equivalent
 
 The *arbitrary equality* clause `===` is not supported by conda
 and there is no equivalent. This clause is also heavily discouraged 

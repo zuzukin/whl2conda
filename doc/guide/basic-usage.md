@@ -6,7 +6,7 @@ run `whl2conda convert`:
 ```bash
 $ whl2conda convert mypackage-1.2.3-py3-none-any.whl
 Reading mypackage-1.2.3-py3-none-any.whl
-Writing mypackage-1.2.3-py_0.coda
+Writing mypackage-1.2.3-py_0.conda
 ```
 
 By default, this will create the conda package in the same directory
