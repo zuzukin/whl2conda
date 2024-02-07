@@ -1,5 +1,7 @@
 # whl2conda changes
 
+## [24.2.0] - *in progress*
+
 ## [24.1.2] - 2024-1-28
 
 ### Features
