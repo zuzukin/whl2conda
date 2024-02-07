@@ -87,7 +87,7 @@ You can add one or more extra package dependencies using the `-A` / `--add-depen
 option. This can be a conda package name and version spec, e.g.:
 
 ```bash
-$ whl2conda -A 'extra-package >=1.2.3' ...
+$ whl2conda convert -A 'extra-package >=1.2.3' ...
 ```
 
 You can use this to add dependencies for conda packages that perhaps
@@ -99,14 +99,14 @@ Likewise, you can drop packages using `-D` / `--drop-dependency` with
 just the package name:
 
 ```bash
-$ whl2conda -D 'some-pypi-only-package'
+$ whl2conda convert -D 'some-pypi-only-package'
 ```
 
 This option also allows you to use [python regular expressions][python-re] to
 drop any package that matches a pattern:
 
 ```bash
-$ whl2conda -D 'acme-.*'
+$ whl2conda convert -D 'acme-.*'
 ```
 
 ### <a name="manual-rename">Renaming dependencies</a>
@@ -120,19 +120,19 @@ be replaced with the named capture group with given name.
 === "plain"
 
     ```bash
-    $ whl2conda -R acme-widgets acme.widgets
+    $ whl2conda convert -R acme-widgets acme.widgets
     ```
 
 === "regular expression"
 
     ```
-    $ whl2conda -R 'acme-(.*)' 'acme.$1'
+    $ whl2conda convert -R 'acme-(.*)' 'acme.$1'
     ```
 
 === "named regular expression"
 
     ```
-    $ whl2conda -R 'acme-(?P<part>.*)' 'acme.${part}'
+    $ whl2conda convert -R 'acme-(?P<part>.*)' 'acme.${part}'
     ```
 
 ### Renaming converted package
@@ -143,7 +143,7 @@ otherwise from the name in the wheel. This can be overriden
 using the `--name` command line option:
 
 ```bash
-$ whl2conda acme-widgets-1.2.3-py3-None-any.whl --name acme-pywidgets
+$ whl2conda convert acme-widgets-1.2.3-py3-None-any.whl --name acme-pywidgets
 ```
 
 ## Specifying rules in pyproject.toml file
