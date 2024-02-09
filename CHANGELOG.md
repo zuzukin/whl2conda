@@ -1,5 +1,9 @@
 # whl2conda changes
 
+## [24.2.0] - *in progress*
+### Bug fixes
+* Correct typos in documentation.
+
 ## [24.1.2] - 2024-1-28
 
 ### Features
