@@ -1212,18 +1212,18 @@ packages. You may also rename the package you are building.</p>
 <h3 id="adding-extra-packages">Adding extra packages</h3>
 <p>You can add one or more extra package dependencies using the <code>-A</code> / <code>--add-depencency</code>
 option. This can be a conda package name and version spec, e.g.:</p>
-<div class="highlight"><pre><span></span><code>$<span class="w"> </span>whl2conda<span class="w"> </span>-A<span class="w"> </span><span class="s1">&#39;extra-package &gt;=1.2.3&#39;</span><span class="w"> </span>...
+<div class="highlight"><pre><span></span><code>$<span class="w"> </span>whl2conda<span class="w"> </span>convert<span class="w"> </span>-A<span class="w"> </span><span class="s1">&#39;extra-package &gt;=1.2.3&#39;</span><span class="w"> </span>...
 </code></pre></div>
 <p>You can use this to add dependencies for conda packages that perhaps
 do not exist on pypi.</p>
 <h3 id="dropping-a-package">Dropping a package</h3>
 <p>Likewise, you can drop packages using <code>-D</code> / <code>--drop-dependency</code> with
 just the package name:</p>
-<div class="highlight"><pre><span></span><code>$<span class="w"> </span>whl2conda<span class="w"> </span>-D<span class="w"> </span><span class="s1">&#39;some-pypi-only-package&#39;</span>
+<div class="highlight"><pre><span></span><code>$<span class="w"> </span>whl2conda<span class="w"> </span>convert<span class="w"> </span>-D<span class="w"> </span><span class="s1">&#39;some-pypi-only-package&#39;</span>
 </code></pre></div>
 <p>This option also allows you to use <a href="https://docs.python.org/3/library/re.html">python regular expressions</a> to
 drop any package that matches a pattern:</p>
-<div class="highlight"><pre><span></span><code>$<span class="w"> </span>whl2conda<span class="w"> </span>-D<span class="w"> </span><span class="s1">&#39;acme-.*&#39;</span>
+<div class="highlight"><pre><span></span><code>$<span class="w"> </span>whl2conda<span class="w"> </span>convert<span class="w"> </span>-D<span class="w"> </span><span class="s1">&#39;acme-.*&#39;</span>
 </code></pre></div>
 <h3 id="renaming-dependencies"><a name="manual-rename">Renaming dependencies</a></h3>
 <p>To rename dependencies, use <code>-R</code> / <code>--dependency-rename</code> with two
@@ -1234,15 +1234,15 @@ be replaced with the named capture group with given name.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="3:3"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><input id="__tabbed_3_2" name="__tabbed_3" type="radio" /><input id="__tabbed_3_3" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">plain</label><label for="__tabbed_3_2">regular expression</label><label for="__tabbed_3_3">named regular expression</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code>$<span class="w"> </span>whl2conda<span class="w"> </span>-R<span class="w"> </span>acme-widgets<span class="w"> </span>acme.widgets
+<div class="highlight"><pre><span></span><code>$<span class="w"> </span>whl2conda<span class="w"> </span>convert<span class="w"> </span>-R<span class="w"> </span>acme-widgets<span class="w"> </span>acme.widgets
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code>$ whl2conda -R &#39;acme-(.*)&#39; &#39;acme.$1&#39;
+<div class="highlight"><pre><span></span><code>$ whl2conda convert -R &#39;acme-(.*)&#39; &#39;acme.$1&#39;
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code>$ whl2conda -R &#39;acme-(?P&lt;part&gt;.*)&#39; &#39;acme.${part}&#39;
+<div class="highlight"><pre><span></span><code>$ whl2conda convert -R &#39;acme-(?P&lt;part&gt;.*)&#39; &#39;acme.${part}&#39;
 </code></pre></div>
 </div>
 </div>
@@ -1252,7 +1252,7 @@ be replaced with the named capture group with given name.</p>
 from the project name in the <code>pyproject.toml</code> if there is one,
 otherwise from the name in the wheel. This can be overriden
 using the <code>--name</code> command line option:</p>
-<div class="highlight"><pre><span></span><code>$<span class="w"> </span>whl2conda<span class="w"> </span>acme-widgets-1.2.3-py3-None-any.whl<span class="w"> </span>--name<span class="w"> </span>acme-pywidgets
+<div class="highlight"><pre><span></span><code>$<span class="w"> </span>whl2conda<span class="w"> </span>convert<span class="w"> </span>acme-widgets-1.2.3-py3-None-any.whl<span class="w"> </span>--name<span class="w"> </span>acme-pywidgets
 </code></pre></div>
 <h2 id="specifying-rules-in-pyprojecttoml-file">Specifying rules in pyproject.toml file</h2>
 <p>If you are using a <code>pyproject.toml</code> file for your project, you can
