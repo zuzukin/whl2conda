@@ -36,13 +36,13 @@ from pathlib import Path
 from typing import Any, NamedTuple, Optional, Sequence
 
 # third party
-from wheel.wheelfile import WheelFile
 from conda_package_handling.api import create as create_conda_pkg
 
 # this project
 from ..__about__ import __version__
 from ..impl.prompt import bool_input
 from ..impl.pyproject import CondaPackageFormat
+from ..impl.wheel import unpack_wheel
 from .stdrename import load_std_renames
 
 __all__ = [
@@ -296,7 +296,6 @@ class Wheel2CondaConverter:
     wheel_path: Path
     out_dir: Path
     dry_run: bool = False
-    wheel: Optional[WheelFile]
     out_format: CondaPackageFormat = CondaPackageFormat.V2
     overwrite: bool = False
     keep_pip_dependencies: bool = False
@@ -885,13 +884,8 @@ class Wheel2CondaConverter:
 
     def _extract_wheel(self, temp_dir: Path) -> Path:
         self.logger.info("Reading %s", self.wheel_path)
-        wheel = WheelFile(self.wheel_path)
         wheel_dir = temp_dir / "wheel-files"
-        wheel.extractall(wheel_dir)
-        if self.logger.getEffectiveLevel() <= logging.DEBUG:
-            for wheel_file in wheel_dir.glob("**/*"):
-                if wheel_file.is_file():
-                    self._debug("Extracted %s", wheel_file.relative_to(wheel_dir))
+        unpack_wheel(self.wheel_path, wheel_dir, logger=self.logger)
         return wheel_dir
 
     def _warn(self, msg, *args):

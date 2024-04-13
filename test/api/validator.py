@@ -28,10 +28,10 @@ from typing import Any, Dict, Generator, Optional, Sequence
 
 import conda_package_handling.api as cphapi
 import pytest
-from wheel.wheelfile import WheelFile
 
 from whl2conda.__about__ import __version__
 from whl2conda.api.converter import RequiresDistEntry, Wheel2CondaConverter
+from whl2conda.impl.wheel import unpack_wheel
 
 
 class PackageValidator:
@@ -145,8 +145,7 @@ class PackageValidator:
         if wheel_path.is_dir():
             shutil.copytree(wheel_path, unpack_dir, dirs_exist_ok=True)
         else:
-            wheel = WheelFile(wheel_path)
-            wheel.extractall(unpack_dir)
+            unpack_wheel(wheel_path, unpack_dir)
 
         return unpack_dir
 

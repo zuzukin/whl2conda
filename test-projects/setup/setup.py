@@ -40,4 +40,5 @@ setup(
     ],
     extras_require={'bdev': ['black']},
     packages=["mypkg"],
+    scripts=["scripts/myscript.py"],
 )

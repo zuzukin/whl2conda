@@ -122,7 +122,7 @@ class CondaBuild:
         finally:
             self._cleanup()
         end = time.time()
-        print(f"Elapsed time: {end-start:f} seconds")
+        print(f"Elapsed time: {end - start:f} seconds")
 
     def _render_recipe(self):
         conda_bld = get_conda_bld_path()

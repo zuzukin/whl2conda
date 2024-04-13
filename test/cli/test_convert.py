@@ -395,7 +395,7 @@ class CliTestCaseFactory:
         """Make sure all test cases have been run."""
         for i, case in enumerate(self.cases):
             if not case.was_run:
-                pytest.fail(f"Case #{i+1} was not run")
+                pytest.fail(f"Case #{i + 1} was not run")
 
 
 @pytest.fixture
