@@ -26,7 +26,7 @@ __all__ = ["unpack_wheel"]
 
 def unpack_wheel(
     wheel: Union[Path, str],
-    dest_dir: Union[Path | str],
+    dest_dir: Union[Path, str],
     *,
     logger: Optional[logging.Logger] = None,
 ) -> None:
