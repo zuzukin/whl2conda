@@ -16,10 +16,9 @@ dependencies:
   - make >=4.3
   # testing
   - mypy >=1.8,<2.0
-  - pylint >=3.0,<4.0
   - pytest >=7.4,<8.0
   - pytest-cov >=4.1.0,<5.0
-  - ruff >=0.1.11
+  - ruff >=0.3.7
   - types-pyyaml >=6.0
   # documentation
   - black >=23.12

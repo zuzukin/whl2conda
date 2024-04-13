@@ -23,11 +23,12 @@ from wheel.wheelfile import WheelFile
 
 __all__ = ["unpack_wheel"]
 
+
 def unpack_wheel(
     wheel: Union[Path, str],
-    dest_dir: Union[Path|str],
+    dest_dir: Union[Path | str],
     *,
-    logger: Optional[logging.Logger] = None
+    logger: Optional[logging.Logger] = None,
 ) -> None:
     """
     Unpack wheel into specified directory.
