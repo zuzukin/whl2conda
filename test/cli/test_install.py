@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from textwrap import dedent
 from typing import Any, Sequence
 
 import pytest
@@ -187,13 +188,6 @@ def test_env_install(
     assert "quaternion" in packages_by_name
     assert "simple" in packages_by_name
 
-    # solver should be set to classic to avoid https://github.com/conda/conda/issues/13479
-    d = conda_json(
-        "run", "-p", str(prefix), "conda", "config", "--json", "--show", "solver"
-    )
-    assert d["solver"] == "classic"
-
-    conda_output("create", "-n", "test-env", "python=3.9")
     assert test_env.is_dir()
 
     main([
@@ -223,9 +217,36 @@ def test_env_install_whitebox(
     prefix = tmp_path.joinpath("prefix")
 
     call_args: list[list[str]] = []
+    fake_call_results: list[Any] = [
+        None,
+        None,
+        dedent(
+            """
+            [
+              {
+                "base_url": "https://conda.anaconda.org/conda-forge",
+                "build_number": 0,
+                "build_string": "pyhd8ed1ab_0",
+                "channel": "conda-forge",
+                "dist_name": "conda-libmamba-solver-24.1.0-pyhd8ed1ab_0",
+                "name": "conda-libmamba-solver",
+                "platform": "noarch",
+                "version": "24.1.0"
+              }
+            ]
+            """
+        ),
+    ]
 
-    def fake_call(cmd: Sequence[str]) -> Any:
+    def fake_call(cmd: Sequence[str], encoding=None) -> Any:
+        if encoding:
+            assert encoding == "utf-8"
+        i = len(call_args)
         call_args.append(list(cmd))
+        if len(fake_call_results) > i:
+            return fake_call_results[i]
+        else:
+            return None
 
     monkeypatch.setattr("subprocess.check_call", fake_call)
     monkeypatch.setattr("subprocess.check_output", fake_call)
@@ -282,6 +303,33 @@ def test_env_install_whitebox(
 
     out, err = capsys.readouterr()
     assert "Running" in out
+
+    # Test for presence of conda solver workaround for conda-libmamba-solver < 24.1
+    call_args.clear()
+    fake_call_results[2] = dedent(
+        """
+        [
+          {
+            "base_url": "https://conda.anaconda.org/conda-forge",
+            "build_number": 0,
+            "build_string": "pyhd8ed1ab_0",
+            "channel": "conda-forge",
+            "dist_name": "conda-libmamba-solver-23.12.0-pyhd8ed1ab_0",
+            "name": "conda-libmamba-solver",
+            "platform": "noarch",
+            "version": "23.12.0"
+          }
+        ]
+        """
+    )
+
+    main(cmd_start + ["--name", "test-env", "--create", "--mamba"])
+    assert len(call_args) == 4
+    call4 = call_args[3]
+    assert call4[:4] == "conda run --name test-env".split()
+    assert call4[4:6] == "conda config".split()
+    assert "--set solver classic" in " ".join(call4)
+    assert "--env" in call4
 
 
 def test_prune_dependencies() -> None:
