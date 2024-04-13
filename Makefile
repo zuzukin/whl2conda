@@ -109,6 +109,7 @@ ruff:
 check-format:
 	$(CONDA_RUN) ruff format --check src test
 
+.PHONY: test
 test: pytest
 
 coverage:

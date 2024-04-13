@@ -1,6 +1,10 @@
 # whl2conda changes
 
 ## [24.4.0] - *in progress*
+### Changes
+* Only use classic installer in `whl2conda install` environments if 
+    `conda-libmamba-solver` in base environment has version less than 24.1.0 (see #118)
+
 ### Bug fixes
 * Transfer executable file permissions from wheel (#135)
 * Correct typos in documentation.
