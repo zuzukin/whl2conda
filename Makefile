@@ -37,7 +37,6 @@ help:
 	"updatedev - update conda development environment\n" \
 	"\n" \
 	"--- testing ---\n" \
-	"pylint        - run pylint checks\n" \
 	"mypy          - run mypy type checks\n" \
 	"check-format  - check formatting\n" \
 	"lint          - run all lint checkers\n" \
@@ -96,13 +95,10 @@ dev-install:
 # backward support - just use ruff-format-check instead
 black-check: check-format
 
-pylint:
-	$(CONDA_RUN) pylint src test
-
 mypy:
 	$(CONDA_RUN) mypy
 
-lint: ruff pylint mypy black-check
+lint: ruff mypy black-check
 
 pytest:
 	$(CONDA_RUN) pytest -s test

@@ -34,10 +34,6 @@ jobs:
     - name: ruff
       run: |
         make ruff
-    - name: pylint
-      if: success() || failure()
-      run: |
-        make pylint
     - name: mypy
       if: success() || failure()
       run: |

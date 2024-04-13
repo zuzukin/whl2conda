@@ -76,52 +76,6 @@ module = [
 ]
 ignore_missing_imports = true
 
-[tool.pylint.main]
-ignore-paths=['^src/whl2conda/external/.*$']
-
-[tool.pylint.build_main]
-jobs = 0  # enable parallel checks
-py-version = "3.8" # min python version
-source-roots = ["src"]
-
-[tool.pylint.design]
-max-args = 5
-max-attributes = 20
-max-bool-expr = 5
-max-branches = 12
-max-locals = 15
-max-parents = 7
-max-public-methods = 20
-max-returns = 6
-max-statements = 50
-min-public-methods = 1
-
-[tool.pylint.similarities]
-min-similarity-lines = 6
-
-[tool.pylint.variables]
-allowed-redefined-builtins = ["help", "license"]
-
-[tool.pylint."messages control"]
-disable = [
-    "bad-inline-option",
-    "deprecated-pragma",
-    "file-ignored",
-    "fixme",
-    "invalid-name",
-    "line-too-long",
-    "locally-disabled",
-    "raw-checker-failed",
-    "suppressed-message",
-    "too-many-arguments",
-    "trailing-newlines",
-    "unspecified-encoding",
-    "use-dict-literal",
-    "use-symbolic-message-instead",
-    "useless-suppression",
-    "wrong-import-order"
-]
-
 [tool.ruff]
 line-length = 88
 exclude = [

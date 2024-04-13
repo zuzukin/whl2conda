@@ -15,6 +15,7 @@
 """
 Unit tests for the whl2conda.impl.wheel module
 """
+
 import platform
 import stat
 from pathlib import Path
@@ -23,12 +24,13 @@ import pytest
 
 from whl2conda.impl.wheel import unpack_wheel
 
-from ..test_packages import setup_wheel
+from ..test_packages import setup_wheel  # noqa: F401
+
 
 def test_unpack_wheel(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
-    setup_wheel: Path,
+    setup_wheel: Path,  # noqa: F811
 ) -> None:
     """
     Unit test for unpack_wheel
