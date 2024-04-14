@@ -1,6 +1,6 @@
 # whl2conda changes
 
-## [24.4.0] - *in progress*
+## [24.4.0] - 2024-4-14
 ### Changes
 * Only use classic installer in `whl2conda install` environments if 
     `conda-libmamba-solver` in base environment has version less than 24.1.0 (see #118)
