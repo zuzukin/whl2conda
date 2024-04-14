@@ -11,11 +11,14 @@
 * [Binary distribution format](https://packaging.python.org/en/latest/specifications/binary-distribution-format/)
 * [Recording installed packages](https://packaging.python.org/en/latest/specifications/recording-installed-packages/)
 * [Current meta-data specification](https://packaging.python.org/en/latest/specifications/core-metadata/)
+* [Platform compatibility tags](https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/)
 * [Wheel 1.0 file format (PEP 427)](https://peps.python.org/pep-0427/)
 * [Wheel metadata 1.0 (PEP 241)](https://peps.python.org/pep-0241/)
 * [Wheel metadata 1.1 (PEP 314)](https://peps.python.org/pep-0314/)
 * [Wheel metadata 1.2 (PEP 345)](https://peps.python.org/pep-0345/)
 * [Wheel metadata 2.1 (PEP 566)](https://peps.python.org/pep-0566/)
+* [Wheel metadata 2.2 (PEP 643)](https://peps.python.org/pep-643/)
+* [Wheel metadata 2.3 (PEP 685)](https://peps.python.org/pep-685/)
 
 ## pyproject.toml metadata format:
 
