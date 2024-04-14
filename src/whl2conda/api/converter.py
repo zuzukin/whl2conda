@@ -213,6 +213,10 @@ class MetadataFromWheel:
     license: Optional[str]
     dependencies: list[RequiresDistEntry]
     wheel_info_dir: Path
+    is_pure_python: bool
+    python_tag: str
+    abi_tag: str
+    platform_tag: str
 
 
 class DependencyRename(NamedTuple):
@@ -304,6 +308,7 @@ class Wheel2CondaConverter:
     python_version: str = ""
     interactive: bool = False
     build_number: Optional[int] = None
+    allow_impure: bool = False
 
     wheel_md: Optional[MetadataFromWheel] = None
     conda_pkg_path: Optional[Path] = None
@@ -505,6 +510,8 @@ class Wheel2CondaConverter:
             except ValueError:
                 build_number = 0
 
+        subdir = "noarch"
+
         conda_index_file.write_text(
             json.dumps(
                 dict(
@@ -516,13 +523,68 @@ class Wheel2CondaConverter:
                     name=wheel_md.package_name,
                     noarch="python",
                     platform=None,
-                    subdir="noarch",
+                    subdir=subdir,
                     timestamp=int(time.time() + time.timezone),  # UTC timestamp
                     version=wheel_md.version,
                 ),
                 indent=2,
             )
         )
+
+    # Convert wheel tags to arch/platform/subdir
+    #
+    # On conda-forge:
+    #    freebsd-64
+    #    linux-32
+    #    linux-64
+    #    linux-aarch64
+    #    linux-armv6l
+    #    linux-armv7l
+    #    linux-ppc64le
+    #    linux-riscv64
+    #    linux-s390x
+    #    noarch
+    #    osx-64
+    #    osx-arm64
+    #    win-32
+    #    win-64
+    #    win-arm64
+    #    zos-z
+    #
+    #  pypi - platform tag comes from sysconfig.get_platform(), which typically
+    #    just comes from os.unname() on linux/macos. Might have to look at
+    #    wheel installers to see how these are handled.
+    #
+    #    I don't see a definitive list anywhere but we can look at examples from
+    #    specific package distributions:
+    #
+    #    ruff-0.3.7-py3-none-:
+    #       win_arm64
+    #       win_amd64
+    #       win32
+    #       musllinux_1_2_x86_64
+    #       musllinux_1_2_i686
+    #       musllinux_1_2_armv7l
+    #       musllinux_1_2_aarch64
+    #       manylinux_2_17_x86_64.manylinux2014_x86_64
+    #       manylinux_2_17_390x.manylinux2014_s390x
+    #       manylinux_2_17_ppc64le.manylinux2014_ppc64le
+    #       manylinux_2_17_i686.manylinux2014_i686.whl
+    #       manylinux_2_17_armv7l.manylinux2014_armv7l.whl
+    #       manylinux_2_17_armv7l.manylinux2014_armv7l.whl
+    #       macosx_10_12_x86_64.whl
+    #       macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl
+    #
+    #   mypy-190-cp312-:
+    #       cp312-win_amd64.whl
+    #       cp312-musllinux_1_1_x86_64.whl
+    #       mypy-1.9.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+    #       cp312-macosx_11_0_arm64.whl
+    #       cp312-macosx_10_9_x86_64.whl
+    #
+    # I suspect that any binary that has implicit compiler runtime library
+    # dependencies may need special handling to add dependencies in conda
+    # for glibc or musl libc.
 
     def _write_files_list(self, conda_info_dir: Path, rel_files: Sequence[str]) -> None:
         # * info/files - list of relative paths of files not including info/
@@ -680,6 +742,14 @@ class Wheel2CondaConverter:
         - <wheel-dir>/*.data/* -> ignored
         - <wheel-dir>/* -> <conda-dir>/site-packages
         """
+        # TODO - if not noarch python, then:
+        #
+        #   <wheel-dir>/* -> lib/python<version>/site-packages (linux/maxos)
+        #   <wheel-dir>/* -> Lib\site-packages (Windows)
+        #   <wheel-dir>/*.data/scripts/* -> bin/* (linux/macos)
+        #   <wheel-dir>/*.data/scripts/* -> Scripts\* (Windows)
+        #
+
         conda_site_packages = conda_dir.joinpath("site-packages")
         conda_site_packages.mkdir()
         conda_info_dir = conda_dir.joinpath("info")
@@ -761,14 +831,29 @@ class Wheel2CondaConverter:
         is_pure_lib = WHEEL_msg.get("Root-Is-Purelib", "").lower() == "true"
         wheel_build_number = WHEEL_msg.get("Build", "")
         wheel_version = WHEEL_msg.get("Wheel-Version")
+        wheel_tag = WHEEL_msg.get("Tags", "py3-none-any")
+        # NOTE - Tag entry can appear more than once!
 
         if wheel_version not in self.SUPPORTED_WHEEL_VERSIONS:
             raise Wheel2CondaError(
                 f"Wheel {self.wheel_path} has unsupported wheel version {wheel_version}"
             )
 
-        if not is_pure_lib:
-            raise Wheel2CondaError(f"Wheel {self.wheel_path} is not pure python")
+        if not self.allow_impure:
+            if not is_pure_lib:
+                raise Wheel2CondaError(f"Wheel {self.wheel_path} is not pure python")
+            if wheel_tag.lower() != "py3-none-any":
+                raise Wheel2CondaError(
+                    f"Wheel {self.wheel_path} has unexpected tag '{wheel_tags}' for pure python"
+                )
+
+        wheel_tags = wheel_tag.split("-")
+        if len(wheel_tags) != 3:
+            raise Wheel2CondaError(
+                f"Wheel {self.wheel_path} has bad tag format '{wheel_tags}'"
+            )
+
+        python_tag, abi_tag, platform_tag = wheel_tags
 
         wheel_md_file = wheel_info_dir.joinpath("METADATA")
         md: dict[str, list[Any]] = {}
@@ -819,6 +904,10 @@ class Wheel2CondaConverter:
         # TODO: add direct_url to wheel and to RECORD
         # RECORD line format: <path>,sha256=<hash>,<len>
 
+        # TODO: extract metadata from WHEEL Tag
+        #   {python tag}-{abi tag}-{platform tag}.whl
+        #
+
         python_version: str = str(md.get("requires-python", ""))
         if python_version:
             requires.append(RequiresDistEntry("python", version=python_version))
@@ -830,6 +919,10 @@ class Wheel2CondaConverter:
             license=md.get("license-expression") or md.get("license"),  # type: ignore
             dependencies=requires,
             wheel_info_dir=wheel_info_dir,
+            is_pure_python=is_pure_lib,
+            python_tag = python_tag,
+            abi_tag = abi_tag,
+            platform_tag = platform_tag,
         )
         return self.wheel_md
 

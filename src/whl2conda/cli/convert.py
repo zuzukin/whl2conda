@@ -49,6 +49,7 @@ class Whl2CondaArgs:
     Parsed arguments
     """
 
+    allow_impure: bool
     build_number: Optional[int]
     build_wheel: bool
     dep_renames: Sequence[tuple[str, str]]
@@ -96,6 +97,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     input_opts = parser.add_argument_group("Input options")
     output_opts = parser.add_argument_group("Output options")
     override_opts = parser.add_argument_group("Override options")
+    experimental_opts = parser.add_argument_group("Experimental options")
     info_opts = parser.add_argument_group("Help and debug options")
 
     input_opts.add_argument(
@@ -253,6 +255,12 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         metavar="<version-spec>",
         default="",
         help="Set/override python dependency.",
+    )
+
+    experimental_opts.add_argument(
+        "--allow-impure",
+        action="store_true",
+        help="Allow experimental conversion of non-pure python packages"
     )
 
     info_opts.add_argument(
@@ -503,6 +511,7 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
         converter.python_version = parsed.python
         converter.interactive = interactive
         converter.build_number = parsed.build_number
+        converter.allow_impure = parsed.allow_impure
 
         converter.dependency_rename.extend(renames)
 
