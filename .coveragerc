@@ -1,0 +1,11 @@
+[run]
+branch = True
+
+[report]
+include = src/whl2conda/*
+omit = src/whl2conda/external/*
+exclude_lines =
+    pragma: no cover
+    raise AssertionError
+    raise NotImplementedError
+

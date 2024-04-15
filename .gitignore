@@ -16,7 +16,8 @@ build/
 *.tar.bz2
 
 # test files
-.coverage*
+.coverage
+.coverage.*
 coverage.json
 coverage.xml
 

@@ -55,6 +55,21 @@ pattern = "\\s*(?P<version>[\\w.]*)"
 [tool.hatch.build.targets.wheel]
 packages = ["src/whl2conda"]
 
+# TODO: Using coverage config in pyproject is resulting in
+#    INTERNALERROR> coverage.exceptions.DataError: Can't combine line data with arc data
+#
+#[tool.coverage.run]
+#branch = true
+#
+#[tool.coverage.report]
+#include = ["src/whl2conda/*"]
+#omit = ["src/whl2conda/external/*"]
+#exclude_also = [
+#    "pragma: no cover",
+#    "raise AssertionError",
+#    "raise NotImplementedError"
+#]
+
 [tool.black]
 line-length = 88
 skip-string-normalization = true
