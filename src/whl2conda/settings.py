@@ -24,7 +24,7 @@ import datetime as dt
 import json
 import sys
 from pathlib import Path
-from typing import Any, Callable, ClassVar, NamedTuple, Union
+from typing import Any, Callable, ClassVar, Dict, NamedTuple, Union
 
 # third party
 from platformdirs import user_config_path
@@ -124,9 +124,9 @@ def _fromidentifier(name: str) -> str:
 
 if sys.version_info >= (3, 10):
     # kw_only is not available until 3.10
-    dataclass_args = dict(kw_only=True)
+    dataclass_args: Dict[str, Any] = dict(kw_only=True)
 else:
-    dataclass_args = {}
+    dataclass_args: Dict[str, Any] = {}
 
 
 @dataclasses.dataclass(**dataclass_args)
