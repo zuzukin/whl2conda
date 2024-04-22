@@ -23,7 +23,7 @@ from typing import Any
 import pytest
 
 from whl2conda.impl.pyproject import CondaPackageFormat
-from whl2conda.settings import Whl2CondaSettings, fromidentifier
+from whl2conda.settings import Whl2CondaSettings, _fromidentifier
 
 # ruff: noqa: F811
 
@@ -150,7 +150,7 @@ def check_settings(settings: Whl2CondaSettings, tmp_path: Path) -> None:
     assert settings == settings2
 
     for name in Whl2CondaSettings._fieldnames:
-        assert settings.get(fromidentifier(name)) == getattr(settings, name)
+        assert settings.get(_fromidentifier(name)) == getattr(settings, name)
 
     settings_dict = settings.to_dict()
 

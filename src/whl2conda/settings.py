@@ -35,14 +35,18 @@ from .impl.pyproject import CondaPackageFormat
 __all__ = ["Whl2CondaSettings", "settings"]
 
 
-class FieldDefault(NamedTuple):
+class _FieldDefault(NamedTuple):
     factory: Callable
 
 
-class StringConversionField:
+class _SettingsField:
+    """
+    Base class for Whl2CondaSettings dataclass
+    """
+
     def __init__(self, *, default):
         if callable(default):
-            self._default = FieldDefault(default)
+            self._default = _FieldDefault(default)
         else:
             self._default = default
 
@@ -55,7 +59,7 @@ class StringConversionField:
         return getattr(obj, self._name)
 
     def __set__(self, obj, value):
-        if isinstance(value, FieldDefault):
+        if isinstance(value, _FieldDefault):
             value = value.factory()
         elif isinstance(value, str):
             value = self._convert_from_str(value)
@@ -65,10 +69,19 @@ class StringConversionField:
         self.__set__(obj, self._default)
 
     def _convert_from_str(self, value: str):
+        """
+        Maybe overridden to support conversion from string (from command line)
+        """
         return value
 
 
-class BoolField(StringConversionField):
+class _BoolField(_SettingsField):
+    """
+    Boolean valued field.
+
+    Supports string conversion from true/false, yes/no, y/n
+    """
+
     def __init__(self, *, default: bool = False):
         super().__init__(default=default)
 
@@ -82,7 +95,11 @@ class BoolField(StringConversionField):
             raise ValueError(f"Invalid value {value!r} for bool field")
 
 
-class CondaPackageFormatField(StringConversionField):
+class _CondaPackageFormatField(_SettingsField):
+    """
+    CondaPackageFormat valued field
+    """
+
     def __init__(self):
         super().__init__(default=CondaPackageFormat.V2)
 
@@ -90,28 +107,54 @@ class CondaPackageFormatField(StringConversionField):
         return CondaPackageFormat.from_string(value)
 
 
-def toidentifier(name: str) -> str:
+def _toidentifier(name: str) -> str:
+    """
+    Convert name to an identifier (dashes to underscores)
+    """
     return name.replace("-", "_")
 
 
-def fromidentifier(name: str) -> str:
+def _fromidentifier(name: str) -> str:
+    """
+    Convert name from identifier (underscores to dashes)
+    """
     return name.replace("_", "-")
 
 
 @dataclasses.dataclass(kw_only=True)
 class Whl2CondaSettings:
+    """
+    User settings for whl2conda.
+
+    These are accessed through the global [settings][(m).] variable.
+    """
+
     SETTINGS_FILENAME: ClassVar[str] = "whl2conda.json"
+    """Default base filename for saved settings."""
+
     DEFAULT_SETTINGS_FILE: ClassVar[Path] = user_config_path() / SETTINGS_FILENAME
+    """Default filepath for saved settings."""
 
     # TODO:
     #   - difftool
     #   - pyproject defaults
 
-    auto_update_std_renames: BoolField = BoolField()
+    auto_update_std_renames: _BoolField = _BoolField()
+    """
+    Whether to automatically update the standard renames for operations
+    that need them. Default is false.
+    """
 
-    conda_format: CondaPackageFormatField = CondaPackageFormatField()
+    conda_format: _CondaPackageFormatField = _CondaPackageFormatField()
+    """
+    The default output conda package format if not specified. Default is V2.
+    """
 
-    pypi_indexes: StringConversionField = StringConversionField(default=dict)
+    pypi_indexes: _SettingsField = _SettingsField(default=dict)
+    """
+    Dictionary of aliases for pypi package indexes from which wheels can be
+    downloaded. Default is empty.
+    """
 
     #
     # Internal attributes
@@ -120,8 +163,14 @@ class Whl2CondaSettings:
     _settings_file: Path = dataclasses.field(
         default=DEFAULT_SETTINGS_FILE, compare=False
     )
+    """
+    Location of underlying settings file.
+    """
 
     _fieldnames: ClassVar[frozenset[str]] = frozenset()
+    """
+    Set of public field names.
+    """
 
     @property
     def settings_file(self) -> Path:
@@ -133,12 +182,27 @@ class Whl2CondaSettings:
         """
         return self._settings_file
 
+    #
+    # Settings access/modification methods
+    #
+
     def to_dict(self) -> dict[str, Any]:
+        """
+        Return dictionary containing public settings data.
+        """
         return {
             k: v for k, v in dataclasses.asdict(self).items() if not k.startswith("_")
         }
 
     def get(self, key: str) -> Any:
+        """
+        Get a value from the settings by string key.
+
+        The key may either be just the field name (e.g. 'conda-format')
+        or can refer to am entry within dictionary-valued field
+        (e.g. 'pypi-indexes.acme'). Note that the dashes in the first
+        component of the key will be converted to underscores.
+        """
         name, subkey = self._split_key(key)
         value = getattr(self, name)
 
@@ -154,6 +218,13 @@ class Whl2CondaSettings:
         return value
 
     def set(self, key: str, value: Any) -> None:
+        """
+        Set a value in the settings by string key.
+
+        See [get][..] for details on key format.
+
+        This does not save the settings file.
+        """
         name, subkey = self._split_key(key)
 
         if not subkey:
@@ -172,6 +243,10 @@ class Whl2CondaSettings:
         Unset attribute with given key.
 
         The setting will revert to its original value.
+
+        See [get][..] for details on key format.
+
+        This does not save the settings file.
         """
         name, subkey = self._split_key(key)
 
@@ -189,20 +264,39 @@ class Whl2CondaSettings:
             except KeyError:
                 pass
 
-    def _split_key(self, key: str) -> tuple[str, str]:
-        parts = key.split(".", maxsplit=1)
-        name = toidentifier(parts[0])
-        if name not in self._fieldnames:
-            raise KeyError(f"Unknown settings key '{key}'")
-        return name, parts[1] if len(parts) > 1 else ""
+    def unset_all(self) -> None:
+        """
+        Unset all settings, and revert to default values.
+        """
+        for k in self._fieldnames:
+            self.unset(k)
+
+    #
+    # File operations
+    #
 
     @classmethod
     def from_file(cls, filename: Union[Path, str] = "") -> Whl2CondaSettings:
+        """
+        Return settings read from file.
+
+        Arguments:
+              filename: relative path to settings file (may start with '~')
+                defaults to [DEFAULT_SETTINGS_FILE][(c).] if not specified.
+        """
         settings = cls()
         settings.load(filename or cls.DEFAULT_SETTINGS_FILE)
         return settings
 
     def load(self, filename: Union[Path, str], reset_all: bool = False) -> None:
+        """
+        Reload settings from file
+
+        Args:
+            filename: relative path to settings file (may start with '~')
+            reset_all: if True, then all settings will be unset and reverted
+                to default value prior to loading.
+        """
         filepath = Path(Path(filename).expanduser())
         self._settings_file = filepath
         if reset_all:
@@ -217,6 +311,7 @@ class Whl2CondaSettings:
     def save(self, filename: Union[Path, str] = "") -> None:
         """
         Write settings to specified file in JSON format.
+
         Args:
             filename: file to write. Defaults to [settings_file][..]
         """
@@ -226,12 +321,16 @@ class Whl2CondaSettings:
         json_obj["$created"] = str(dt.datetime.now())
         filepath.write_text(json.dumps(json_obj, indent=2))
 
-    def unset_all(self) -> None:
-        """
-        Unset all settings, and revert to default values.
-        """
-        for k in self._fieldnames:
-            self.unset(k)
+    #
+    # Internal methods
+    #
+
+    def _split_key(self, key: str) -> tuple[str, str]:
+        parts = key.split(".", maxsplit=1)
+        name = _toidentifier(parts[0])
+        if name not in self._fieldnames:
+            raise KeyError(f"Unknown settings key '{key}'")
+        return name, parts[1] if len(parts) > 1 else ""
 
 
 Whl2CondaSettings._fieldnames = frozenset(
@@ -239,3 +338,6 @@ Whl2CondaSettings._fieldnames = frozenset(
 )
 
 settings = Whl2CondaSettings.from_file()
+"""
+User settings.
+"""
