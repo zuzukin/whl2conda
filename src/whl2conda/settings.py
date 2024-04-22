@@ -22,6 +22,7 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import json
+import sys
 from pathlib import Path
 from typing import Any, Callable, ClassVar, NamedTuple, Union
 
@@ -121,7 +122,14 @@ def _fromidentifier(name: str) -> str:
     return name.replace("_", "-")
 
 
-@dataclasses.dataclass(kw_only=True)
+if sys.version_info >= (3, 10):
+    # kw_only is not available until 3.10
+    dataclass_args = dict(kw_only=True)
+else:
+    dataclass_args = {}
+
+
+@dataclasses.dataclass(**dataclass_args)
 class Whl2CondaSettings:
     """
     User settings for whl2conda.
