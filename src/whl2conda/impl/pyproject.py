@@ -34,7 +34,7 @@ __all__ = [
 ]
 
 
-class CondaPackageFormat(enum.Enum):
+class CondaPackageFormat(str, enum.Enum):
     """
     Supported output package formats
 

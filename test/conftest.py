@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -22,6 +22,16 @@ is given.
 # content of conftest.py
 
 import pytest
+
+from whl2conda.settings import settings
+
+
+@pytest.fixture(autouse=True)
+def clear_settings():
+    """
+    Fixture clears user settings before each test
+    """
+    settings.unset_all()
 
 
 def pytest_addoption(parser):

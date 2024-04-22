@@ -31,6 +31,7 @@ from ..impl.download import download_wheel
 from ..impl.prompt import is_interactive, choose_wheel
 from ..api.converter import Wheel2CondaConverter, CondaPackageFormat, DependencyRename
 from ..impl.pyproject import read_pyproject, PyProjInfo
+from ..settings import settings
 from .common import (
     add_markdown_help,
     dedent,
@@ -452,7 +453,7 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     elif pyproj_info.conda_format:
         out_fmt = pyproj_info.conda_format
     else:
-        out_fmt = CondaPackageFormat.V2
+        out_fmt = settings.conda_format
 
     if verbosity < -1:
         level = logging.ERROR

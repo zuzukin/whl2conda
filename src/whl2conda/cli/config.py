@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ whl2conda config subcommand implementation
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from http.client import HTTPException
 from pathlib import Path
@@ -29,6 +30,7 @@ from ..api.stdrename import update_renames_file
 from .common import add_markdown_help, dedent
 from ..impl.pyproject import add_pyproject_defaults
 from ..api.stdrename import user_stdrenames_path
+from ..settings import settings
 
 __all__ = ["config_main"]
 
@@ -76,6 +78,26 @@ def config_main(
             %(const)s.
             """),
     )
+
+    settings_opts = parser.add_argument_group("user settings options")
+
+    settings_opts.add_argument(
+        "--remove", metavar="<key>", help="Unset user setting with given key."
+    )
+    settings_opts.add_argument(
+        "--set",
+        metavar=("<key>", "<value>"),
+        nargs=2,
+    )
+
+    settings_opts.add_argument(
+        "--show",
+        metavar="<key>",
+        nargs="?",
+        const="",
+        help=f"Show user settings from {settings._settings_file}",
+    )
+
     parser.add_argument(
         "-n",
         "--dry-run",
@@ -94,6 +116,15 @@ def config_main(
             add_pyproject_defaults(parsed.generate_pyproject)
         except Exception as ex:  # pylint: disable=broad-exception-caught
             parser.error(str(ex))
+
+    if parsed.remove:
+        remove_user_setting(parsed.remove)
+
+    if parsed.set:
+        set_user_setting(*parsed.set)
+
+    if parsed.show is not None:
+        show_user_settings(parsed.show)
 
 
 def update_std_renames(renames_file: Path, *, dry_run: bool) -> None:
@@ -122,6 +153,23 @@ def update_std_renames(renames_file: Path, *, dry_run: bool) -> None:
         print(f"Cannot download update: {ex}", file=sys.stderr)
         sys.exit(8)
     sys.exit(0)
+
+
+def set_user_setting(key: str, value: str) -> None:
+    settings.set(key, value)
+    settings.save()
+
+
+def show_user_settings(key: str) -> None:
+    if key:
+        print(f"{key}: {json.dumps(settings.get(key))}")
+    else:
+        print(json.dumps(settings.to_dict(), indent=2))
+
+
+def remove_user_setting(key: str) -> None:
+    settings.unset(key)
+    settings.save()
 
 
 if __name__ == "__main__":  # pragma: no cover
