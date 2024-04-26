@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ from whl2conda.api.converter import (
 )
 from whl2conda.cli.convert import do_build_wheel
 from .converter import ConverterTestCaseFactory
+from whl2conda.api.stdrename import load_std_renames
 
 # pylint: disable=unused-import
 from .converter import test_case  # noqa: F401
@@ -189,6 +190,42 @@ def test_dependency_rename() -> None:
 
 # ignore redefinition of test_case
 # ruff: noqa: F811
+
+
+def test_init(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test Whl2CondaConverter.__init__"""
+    update_called = False
+
+    def fake_update(*_args, **_kwargs) -> bool:
+        nonlocal update_called
+        update_called = True
+        return True
+
+    monkeypatch.setattr("whl2conda.api.stdrename.update_renames_file", fake_update)
+
+    wheel_path = Path("wheel")
+    out_dir = Path("out_dir")
+
+    converter = Wheel2CondaConverter(wheel_path, out_dir)
+    assert converter.wheel_path == wheel_path
+    assert converter.out_dir == out_dir
+    assert not converter.dependency_rename
+    assert not converter.extra_dependencies
+    assert not converter.package_name
+    assert not converter.dry_run
+    assert not converter.overwrite
+    assert not converter.keep_pip_dependencies
+    assert not converter.python_version
+    assert not converter.interactive
+    assert not converter.wheel_md
+    assert not converter.conda_pkg_path
+    assert converter.std_renames == load_std_renames(update=False)
+    assert not update_called
+
+    converter2 = Wheel2CondaConverter(wheel_path, out_dir, update_std_renames=True)
+    assert converter2.wheel_path == wheel_path
+    assert converter2.out_dir == out_dir
+    assert update_called
 
 
 def test_this(test_case: ConverterTestCaseFactory) -> None:

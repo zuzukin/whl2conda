@@ -22,6 +22,7 @@ import logging
 import subprocess
 import tempfile
 import time
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Sequence
@@ -45,7 +46,7 @@ __all__ = ["convert_main"]
 
 # pylint: disable=too-many-instance-attributes
 @dataclass
-class Whl2CondaArgs:
+class ConvertArgs:
     """
     Parsed arguments
     """
@@ -68,6 +69,7 @@ class Whl2CondaArgs:
     project_root: Optional[Path]
     python: str
     quiet: int
+    update_stdrenames: bool
     verbose: int
     wheel_dir: Optional[Path]
     wheel_or_root: Optional[Path]
@@ -161,6 +163,25 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         action="store_true",
         help="Ignore settings from pyproject.toml file, if any",
     )
+
+    if sys.version_info < (3, 9):
+        # TODO: drop when python 3.8 support is discontinued
+        input_opts.add_argument(
+            "--update-stdrenames",
+            action="store_true",
+            default=settings.auto_update_std_renames,
+            help="Update list of standard pypi to conda renames from internet.",
+        )
+    else:
+        input_opts.add_argument(
+            "--update-stdrenames",
+            action=argparse.BooleanOptionalAction,
+            default=settings.auto_update_std_renames,
+            help=dedent("""
+                Whether to update list of standard pypi to conda renames from internet. 
+                Default from settings: %(default)s
+                """),
+        )
 
     output_opts.add_argument(
         "--out-dir",
@@ -304,9 +325,9 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
 
 def _parse_args(
     parser: argparse.ArgumentParser, args: Optional[Sequence[str]]
-) -> Whl2CondaArgs:
+) -> ConvertArgs:
     """Parse and return arguments"""
-    return Whl2CondaArgs(**vars(parser.parse_args(args)))
+    return ConvertArgs(**vars(parser.parse_args(args)))
 
 
 def _is_project_root(path: Path) -> bool:
@@ -491,7 +512,11 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
 
         assert wheel_file
 
-        converter = Wheel2CondaConverter(wheel_file, out_dir)
+        converter = Wheel2CondaConverter(
+            wheel_file,
+            out_dir,
+            update_std_renames=parsed.update_stdrenames,
+        )
         converter.dry_run = parsed.dry_run
         converter.package_name = (
             parsed.name or pyproj_info.conda_name or pyproj_info.name

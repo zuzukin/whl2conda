@@ -313,6 +313,8 @@ class Wheel2CondaConverter:
         self,
         wheel_path: Path,
         out_dir: Path,
+        *,
+        update_std_renames: bool = False,
     ):
         self.logger = logging.getLogger(__name__)
         self.wheel_path = wheel_path
@@ -320,7 +322,7 @@ class Wheel2CondaConverter:
         self.dependency_rename = []
         self.extra_dependencies = []
         # TODO - option to ignore this
-        self.std_renames = load_std_renames()
+        self.std_renames = load_std_renames(update=update_std_renames)
 
     def convert(self) -> Path:
         """
