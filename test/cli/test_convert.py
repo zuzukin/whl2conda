@@ -572,8 +572,22 @@ def test_out_format(test_case: CliTestCaseFactory) -> None:
     Test --out-format
     """
 
+    assert settings.conda_format is CondaPackageFormat.V2
+
     wheel_file = test_case.tmp_path.joinpath("fake-1.0.whl")
     wheel_file.write_text("")
+
+    case = test_case(
+        [str(wheel_file)], expected_out_fmt=CondaPackageFormat.V2
+    )
+    case.run()
+
+    settings.conda_format = CondaPackageFormat.V1
+
+    case = test_case(
+        [str(wheel_file)], expected_out_fmt=CondaPackageFormat.V1
+    )
+    case.run()
 
     case = test_case(
         [str(wheel_file), "--out-format", "V1"], expected_out_fmt=CondaPackageFormat.V1
