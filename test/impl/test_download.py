@@ -19,17 +19,47 @@ Unit tests for whl2conda.impl.download module
 import argparse
 import subprocess
 from pathlib import Path
+from textwrap import dedent
 from typing import List
 
 import pytest
 
-from whl2conda.impl.download import download_wheel
+from whl2conda.impl.download import download_wheel, lookup_pypi_index
+from whl2conda.settings import settings
 
-# pylint: disable=too-many-statements
+
+def test_lookup_pypi_index(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Unit test for lookup_pypi_index function"""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+
+    assert lookup_pypi_index("foo") == "foo"
+
+    pypirc_file = home / ".pypirc"
+    pypirc_file.write_text(
+        dedent(
+            """
+        [foo]
+        repository = foo-pypirc
+        """
+        )
+    )
+    assert pypirc_file == Path("~/.pypirc").expanduser()
+
+    assert lookup_pypi_index("foo") == "foo-pypirc"
+    assert lookup_pypi_index("bar") == "bar"
+
+    settings.pypi_indexes["foo"] = "foo-settings"
+
+    assert lookup_pypi_index("foo") == "foo-settings"
 
 
 def test_download_wheel_whitebox(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
 ) -> None:
     """
     Whitebox test of download_wheel function. This does not do any
@@ -80,6 +110,9 @@ def test_download_wheel_whitebox(
     home_dir = tmp_path / "home"
     home_dir.mkdir()
     monkeypatch.chdir(home_dir)
+    monkeypatch.setenv("HOME", str(home_dir))
+    monkeypatch.setenv("USERPROFILE", str(home_dir))
+    assert Path.home() == home_dir
 
     whl = download_wheel("pylint")
     assert whl.parent == home_dir
@@ -90,6 +123,19 @@ def test_download_wheel_whitebox(
     assert download_args[0].index is None
     out, err = capsys.readouterr()
     assert not out and not err
+
+    somewhere_from_pypirc = "https://pypirc.somewhere.com/pypi/"
+
+    pypirc_file = home_dir / ".pypirc"
+    pypirc_file.write_text(
+        dedent(
+            f"""
+        [somewhere]
+        repository = {somewhere_from_pypirc}
+        """
+        )
+    )
+    assert pypirc_file == Path("~/.pypirc").expanduser()
 
     alt_dir = tmp_path / "alt"
     assert not alt_dir.exists()
@@ -107,6 +153,14 @@ def test_download_wheel_whitebox(
     assert not out
     assert "something happened" in err
     stderr = b""
+
+    whl = download_wheel("foo", index="somewhere")
+    assert download_args[0].index == somewhere_from_pypirc
+
+    somewhere_from_settings = "https://settings.somewhere.com/pypi/"
+    settings.pypi_indexes["somewhere"] = somewhere_from_settings
+    whl = download_wheel("foo", index="somewhere")
+    assert download_args[0].index == somewhere_from_settings
 
     n_wheels = 0
     with pytest.raises(FileNotFoundError, match="No wheels downloaded"):
