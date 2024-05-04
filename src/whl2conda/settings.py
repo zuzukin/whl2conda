@@ -14,6 +14,27 @@
 #
 """
 Settings for whl2conda.
+
+Internally, the settings are accessed through the [settings][(m).] global
+variable, which is an instance of [Whl2CondaSettings][(m).]
+
+The settings are loaded from a persistent JSON file, whose default location depends
+on the operating system, e.g.:
+
+| OS      | Path                                                    |
+| ------- | ------------------------------------------------------- |
+| Windows | `~/AppData/Local/whl2conda/whl2conda/settings.json`     |
+| Linux   | `~/.config/whl2conda/settings.json`                     |
+| MacOS   | `~/Library/Application Support/whl2conda/settings.json` |
+
+The location of the settings file may also be overridden by `--settings`
+command line argument to `whl2conda`.
+
+Use the [settings_file][(m).Whl2CondaSettings.] attribute to get the path
+used to load a given settings object.
+
+Settings may be viewed and modified at the command line using
+[whl2conda config](../cli/whl2conda-config.md).
 """
 
 from __future__ import annotations
@@ -108,6 +129,18 @@ class _CondaPackageFormatField(_SettingsField):
         return CondaPackageFormat.from_string(value)
 
 
+class _DictField(_SettingsField):
+    """
+    Dictionary valued field.
+    """
+
+    def __init__(self):
+        super().__init__(default=dict)
+
+    def _convert_from_str(self, value: str):
+        raise ValueError("Cannot convert string to dictionary")
+
+
 def _toidentifier(name: str) -> str:
     """
     Convert name to an identifier (dashes to underscores)
@@ -135,12 +168,21 @@ class Whl2CondaSettings:
     User settings for whl2conda.
 
     These are accessed through the global [settings][(m).] variable.
+
+    The following settings are currently supported:
+
+    * [auto_update_std_renames][.] - whether to automatically update std rename mappings
+    * [conda_format][.] - default output conda package format
+    * [pypi_indexes][.] - table of known extra pypi indexes
+
     """
 
-    SETTINGS_FILENAME: ClassVar[str] = "whl2conda.json"
+    SETTINGS_FILENAME: ClassVar[str] = "settings.json"
     """Default base filename for saved settings."""
 
-    DEFAULT_SETTINGS_FILE: ClassVar[Path] = user_config_path() / SETTINGS_FILENAME
+    DEFAULT_SETTINGS_FILE: ClassVar[Path] = (
+        user_config_path("whl2conda") / SETTINGS_FILENAME
+    )
     """Default filepath for saved settings."""
 
     # TODO:
@@ -314,7 +356,13 @@ class Whl2CondaSettings:
             json_obj = json.loads(contents)
             for k, v in json_obj.items():
                 if k in self._fieldnames:
-                    setattr(self, k, v)
+                    try:
+                        setattr(self, k, v)
+                    except Exception as ex:
+                        print(
+                            f"Cannot read '{k}' from '{filepath}': {ex}",
+                            file=sys.stderr,
+                        )
 
     def save(self, filename: Union[Path, str] = "") -> None:
         """
@@ -327,6 +375,7 @@ class Whl2CondaSettings:
         json_obj = self.to_dict()
         json_obj["$whl2conda-version"] = __version__
         json_obj["$created"] = str(dt.datetime.now())
+        filepath.parent.mkdir(parents=True, exist_ok=True)
         filepath.write_text(json.dumps(json_obj, indent=2))
 
     #
