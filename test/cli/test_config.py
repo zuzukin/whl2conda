@@ -25,7 +25,6 @@ from typing import Optional
 from urllib.error import URLError
 
 # third party
-from platformdirs import user_config_path
 import pytest
 
 # this project
