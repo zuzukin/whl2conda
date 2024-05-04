@@ -202,9 +202,8 @@ def tmp_settings_file(
     monkeypatch.setenv("USERPROFILE", str(home.resolve()))
 
     # point settings at location in fake home dir
-    config_path = user_config_path("whl2conda")
-    settings_file = config_path / settings.SETTINGS_FILENAME
-    settings_file.relative_to(home) # no ValueError
+    settings_file = home / "whl2conda" / "settings.json"
+    settings_file.relative_to(home)  # no ValueError
     settings.load(settings_file)
     assert settings.settings_file == settings_file
     assert not settings_file.exists()
