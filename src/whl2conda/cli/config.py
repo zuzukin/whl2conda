@@ -79,23 +79,66 @@ def config_main(
             """),
     )
 
-    settings_opts = parser.add_argument_group("user settings options")
-
-    settings_opts.add_argument(
-        "--remove", metavar="<key>", help="Unset user setting with given key."
+    settings_opts = parser.add_argument_group(
+        "User settings options",
+        description=dedent(
+            """
+            These options allow you to view or modify persistent user settings
+            that affect the behavior of whl2conda. Note that all of these options
+            treat key dash and underscore in key names as equivalent (e.g. you
+            may use either `conda-format` or `conda_format`).
+            """
+        ),
     )
+
+    # TODO - add a --describe option
+
     settings_opts.add_argument(
         "--set",
         metavar=("<key>", "<value>"),
         nargs=2,
+        help=dedent("""
+            Sets configuration parameter specified by <key> to given <value>.
+            For dictionary attributes (e.g. pypi-indexes), the <key> should be
+            of the form `<key>.<entry>` to set a specific entry in the table, e.g.
+            
+               whl2conda config --set pypi-indexes.acme https://acme.com/pypi
+               
+            Note that it is not currently possible to assign to entire dictionary.
+        """),
+    )
+    settings_opts.add_argument(
+        "--remove",
+        metavar="<key>",
+        help=dedent(
+            """
+            Unset user setting with given key. To remove an entry from a dictionary
+            use a key for the form '<key>.<entry>', e.g.
+            
+              whl2conda config --remove pypi-indexes.acme
+            """
+        ),
     )
 
-    settings_opts.add_argument(
+    show_opts = settings_opts.add_mutually_exclusive_group()
+    show_opts.add_argument(
         "--show",
         metavar="<key>",
-        nargs="?",
-        const="",
-        help=f"Show user settings from {settings._settings_file}",
+        nargs="*",
+        help=dedent("""
+            Show user settings from local settings file. If any <key> is given,
+            then only the specified settings will be displayed, otherwise
+            all settings will be shown.
+            """),
+    )
+
+    show_opts.add_argument(
+        "--show-sources",
+        action="store_true",
+        help=dedent("""
+            The same as --show with no arguments but also displays location
+            of settings file.
+            """),
     )
 
     parser.add_argument(
@@ -118,13 +161,15 @@ def config_main(
             parser.error(str(ex))
 
     if parsed.remove:
-        remove_user_setting(parsed.remove)
+        remove_user_setting(parsed.remove, dry_run=parsed.dry_run)
 
     if parsed.set:
-        set_user_setting(*parsed.set)
+        set_user_setting(*parsed.set, dry_run=parsed.dry_run)
 
     if parsed.show is not None:
         show_user_settings(parsed.show)
+    elif parsed.show_sources:
+        show_user_settings(show_sources=True)
 
 
 def update_std_renames(renames_file: Path, *, dry_run: bool) -> None:
@@ -155,21 +200,34 @@ def update_std_renames(renames_file: Path, *, dry_run: bool) -> None:
     sys.exit(0)
 
 
-def set_user_setting(key: str, value: str) -> None:
+def save_settings(*, dry_run) -> None:
+    if dry_run:
+        print(f"Dry run: not saving {settings.settings_file}")
+    else:
+        settings.save()
+
+
+def set_user_setting(key: str, value: str, *, dry_run: bool = False) -> None:
     settings.set(key, value)
-    settings.save()
+    save_settings(dry_run=dry_run)
 
 
-def show_user_settings(key: str) -> None:
-    if key:
-        print(f"{key}: {json.dumps(settings.get(key))}")
+def show_user_settings(
+    keys: Sequence[str] = (),
+    show_sources: bool = False,
+) -> None:
+    if show_sources:
+        print(f"==> {settings.settings_file} <==")
+    if keys:
+        for key in keys:
+            print(f"{key}: {json.dumps(settings.get(key))}")
     else:
         print(json.dumps(settings.to_dict(), indent=2))
 
 
-def remove_user_setting(key: str) -> None:
+def remove_user_setting(key: str, *, dry_run: bool = False) -> None:
     settings.unset(key)
-    settings.save()
+    save_settings(dry_run=dry_run)
 
 
 if __name__ == "__main__":  # pragma: no cover
