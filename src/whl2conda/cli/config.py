@@ -30,7 +30,7 @@ from ..api.stdrename import update_renames_file
 from .common import add_markdown_help, dedent
 from ..impl.pyproject import add_pyproject_defaults
 from ..api.stdrename import user_stdrenames_path
-from ..settings import settings
+from ..settings import settings, _fromidentifier
 
 __all__ = ["config_main"]
 
@@ -220,7 +220,7 @@ def show_user_settings(
         print(f"==> {settings.settings_file} <==")
     if keys:
         for key in keys:
-            print(f"{key}: {json.dumps(settings.get(key))}")
+            print(f"{_fromidentifier(key)}: {json.dumps(settings.get(key))}")
     else:
         print(json.dumps(settings.to_dict(), indent=2))
 
