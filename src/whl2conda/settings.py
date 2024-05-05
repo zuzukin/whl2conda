@@ -331,7 +331,7 @@ class Whl2CondaSettings:
         Return settings read from file.
 
         Arguments:
-              filename: relative path to settings file (may start with '~')
+            filename: relative path to settings file (may start with '~')
                 defaults to [DEFAULT_SETTINGS_FILE][(c).] if not specified.
         """
         settings = cls()
