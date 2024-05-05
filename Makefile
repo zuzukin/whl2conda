@@ -129,6 +129,11 @@ html-coverage: htmlcov/index.html
 open-coverage: htmlcov/index.html
 	$(OPEN) $<
 
+# TODO-
+#   add target for running tests on built wheel or conda package
+#   use tox?
+#   Needs test dependencies: pytest, build, hatchling
+
 #
 # Documentation targets
 #
