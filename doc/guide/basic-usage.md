@@ -43,6 +43,21 @@ to do this download for you, for example:
 $ whl2conda convert --from-pypi 'some-package ==1.2.3'
 ```
 
+The `--from-index` option expects either the full URL of the pypi index to
+download from or an alias, which may either be taken from a repository entry
+in your [~/.pypirc][pypirc] file or from an entry in the users persistent
+whl2conda configuration. For instance, you could register a new index using
+a command like:
+
+```bash
+$ whl2conda config --set pypi-index.myindex https://myindex.com/pypi/
+```
+and then convert using:
+
+```bash
+$ whl2conda convert --from-index myindex 'some-package'
+```
+
 ## Building from project directories
 
 If you are creating a conda package for your own python project that uses
@@ -85,6 +100,12 @@ Reading mypackage-1.2.3-py3-none-any.whl
 Writing mypackage-1.2.3-py_0.tar.bz2
 ```
 
+You can change the default output format through a persistent user setting, .e.g:
+
+```bash
+$ whl2conda config --set conda-format V1
+```
+
 You can also specify the format `tree` to generate the conda package
 as a directory tree, so that you can examine its contents for
 debugging purposes.
@@ -92,4 +113,6 @@ debugging purposes.
 [pip-download]: https://pip.pypa.io/en/stable/cli/pip_download/
 [pip-wheel]: https://pip.pypa.io/en/stable/cli/pip_wheel/
 [pypi]: https://pypi.org
+[pypirc]: https://packaging.python.org/en/latest/specifications/pypirc/
+
 

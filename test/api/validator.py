@@ -20,6 +20,7 @@ from __future__ import annotations
 import configparser
 import hashlib
 import json
+import logging
 import os.path
 import re
 import shutil
@@ -315,6 +316,10 @@ class PackageValidator:
         output_depends = set(dependencies)
         expected_depends: set[str] = set()
 
+        # Only used for version translation
+        cvt = Wheel2CondaConverter(self.tmp_dir, self.tmp_dir)
+        cvt.logger = logging.Logger(__name__, logging.CRITICAL)
+
         wheel_md = self._wheel_md
         if self._expected_python_version:
             expected_depends.add(f"python {self._expected_python_version}")
@@ -329,6 +334,7 @@ class PackageValidator:
                 continue
             name = entry.name
             version = entry.version
+            conda_version = cvt.translate_version_spec(version)
             renamed = False
             for pat, template in self._renamed_dependencies.items():
                 if m := re.fullmatch(name, pat):
@@ -338,7 +344,7 @@ class PackageValidator:
             if not renamed:
                 name = self._std_renames.get(name, name)
             if name:
-                expected_depends.add(f"{name} {version}")
+                expected_depends.add(f"{name} {conda_version}")
 
         expected_depends.update(self._extra_dependencies)
 

@@ -1,5 +1,12 @@
 # whl2conda changes
 
+## [24.5.0] - 2024-5-5
+### Features
+* Added persistent user settings for:
+    * default conda format
+    * whether to automatically update stdrenames table
+    * specify aliases for extra pypi indexes
+
 ## [24.4.0] - 2024-4-14
 ### Changes
 * Only use classic installer in `whl2conda install` environments if 

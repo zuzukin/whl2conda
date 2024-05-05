@@ -22,7 +22,7 @@ dependencies:
   - types-pyyaml >=6.0
   # documentation
   - black >=23.12
-  - mike >=1.1,<2.0
+  - mike >=2.0,<3.0
   - mkdocs >=1.5,<2.0
   - mkdocstrings-python >=1.7,<2.0
   - mkdocs-material >9.1

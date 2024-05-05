@@ -17,8 +17,8 @@
 * [Wheel metadata 1.1 (PEP 314)](https://peps.python.org/pep-0314/)
 * [Wheel metadata 1.2 (PEP 345)](https://peps.python.org/pep-0345/)
 * [Wheel metadata 2.1 (PEP 566)](https://peps.python.org/pep-0566/)
-* [Wheel metadata 2.2 (PEP 643)](https://peps.python.org/pep-643/)
-* [Wheel metadata 2.3 (PEP 685)](https://peps.python.org/pep-685/)
+* [Wheel metadata 2.2 (PEP 643)](https://peps.python.org/pep-0643/)
+* [Wheel metadata 2.3 (PEP 685)](https://peps.python.org/pep-0685/)
 
 ## pyproject.toml metadata format:
 

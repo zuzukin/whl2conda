@@ -18,6 +18,7 @@ Support for downloading wheels
 
 from __future__ import annotations
 
+import configparser
 import shutil
 import subprocess
 import sys
@@ -25,9 +26,36 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
+from ..settings import settings
+
 __all__ = [
     "download_wheel",
+    "lookup_pypi_index",
 ]
+
+
+def lookup_pypi_index(index: str) -> str:
+    """
+    Translate index aliases
+
+    First looks for exact match in user settings
+    pyproject_indexes table and then looks for
+    matching entry in the ~/.pypirc file.
+
+    Otherwise returns the original string
+    """
+    if new_index := settings.pypi_indexes.get(index):
+        return new_index
+
+    pypirc_path = Path("~/.pypirc").expanduser()
+    if pypirc_path.exists():
+        pypirc = configparser.ConfigParser()
+        pypirc.read(pypirc_path)
+        try:
+            return pypirc[index]["repository"]
+        except Exception:
+            pass
+    return index
 
 
 def download_wheel(
@@ -61,6 +89,8 @@ def download_wheel(
             "--implementation",
             "py",
         ]
+        if index:
+            index = lookup_pypi_index(index)
         if index:
             cmd.extend(["-i", index])
         cmd.extend(["-d", str(tmpdirname)])

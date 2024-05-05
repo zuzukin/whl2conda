@@ -24,6 +24,7 @@ import logging
 import os
 import re
 import shutil
+import sys
 import time
 from pathlib import Path
 from typing import Any, Generator, Optional, Sequence
@@ -40,6 +41,7 @@ from whl2conda.api.converter import (
 from whl2conda.cli import main
 from whl2conda.cli.convert import do_build_wheel
 from whl2conda.impl.prompt import is_interactive
+from whl2conda.settings import settings
 
 from ..impl.test_prompt import monkeypatch_interactive
 
@@ -98,6 +100,7 @@ class CliTestCase:
     responses: list[str]
     from_dir: Path
     was_run: bool = False
+    stdrenames_updated: bool = False
 
     #
     # Other test state
@@ -133,6 +136,7 @@ class CliTestCase:
         expected_project_root: str = "",
         expected_python_version: str = "",
         expected_wheel_path: str = "",
+        expected_stdrenames_update: bool = False,
         from_dir: str = "",
     ):
         self.caplog = caplog
@@ -159,6 +163,7 @@ class CliTestCase:
         self.expected_prompts = []
         self.expected_python_version = expected_python_version
         self.expected_wheel_path = expected_wheel_path
+        self.expected_stdrenames_update = expected_stdrenames_update
         self.responses = []
 
         self.project_dir = project_dir
@@ -221,6 +226,10 @@ class CliTestCase:
                 conda_pkg_path.write_text("")
             return conda_pkg_path
 
+        def fake_stdrenames_update(*_args, **_kwargs) -> bool:
+            self.stdrenames_updated = True
+            return True
+
         with self.monkeypatch.context() as mp:
             # TODO monkeypatch for --test-install
             mp.setattr(Wheel2CondaConverter, "convert", fake_convert)
@@ -228,6 +237,10 @@ class CliTestCase:
             mp.setattr("whl2conda.cli.convert.do_build_wheel", fake_build_wheel)
             mp.setattr("whl2conda.impl.download.download_wheel", fake_download_wheel)
             mp.setattr("whl2conda.cli.convert.download_wheel", fake_download_wheel)
+            mp.setattr(
+                "whl2conda.api.stdrename.update_renames_file",
+                fake_stdrenames_update,
+            )
             if self.interactive is not is_interactive():
                 monkeypatch_interactive(mp, self.interactive)
             mp.chdir(self.from_dir)
@@ -255,6 +268,7 @@ class CliTestCase:
 
             assert not list(prompts)
             assert not list(responses)
+            assert self.stdrenames_updated == self.expected_stdrenames_update
 
     def add_dependency_rename(self, pypi_name: str, conda_name: str) -> CliTestCase:
         """Add an expected dependency rename
@@ -361,6 +375,7 @@ class CliTestCaseFactory:
         expected_project_root: str = "",
         expected_python_version: str = "",
         expected_wheel_path: str = "",
+        expected_stdrenames_update: bool = False,
         from_dir: str = "",
     ) -> CliTestCase:
         case = CliTestCase(
@@ -386,6 +401,7 @@ class CliTestCaseFactory:
             expected_project_root=expected_project_root,
             expected_python_version=expected_python_version,
             expected_wheel_path=expected_wheel_path,
+            expected_stdrenames_update=expected_stdrenames_update,
             from_dir=from_dir,
         )
         self.cases.append(case)
@@ -556,8 +572,18 @@ def test_out_format(test_case: CliTestCaseFactory) -> None:
     Test --out-format
     """
 
+    assert settings.conda_format is CondaPackageFormat.V2
+
     wheel_file = test_case.tmp_path.joinpath("fake-1.0.whl")
     wheel_file.write_text("")
+
+    case = test_case([str(wheel_file)], expected_out_fmt=CondaPackageFormat.V2)
+    case.run()
+
+    settings.conda_format = CondaPackageFormat.V1
+
+    case = test_case([str(wheel_file)], expected_out_fmt=CondaPackageFormat.V1)
+    case.run()
 
     case = test_case(
         [str(wheel_file), "--out-format", "V1"], expected_out_fmt=CondaPackageFormat.V1
@@ -892,3 +918,37 @@ def test_python_override(
     test_case(
         [str(simple_wheel), "--python", ">=3.10"], expected_python_version=">=3.10"
     ).run()
+
+
+def test_stdrenames_update(
+    test_case: CliTestCaseFactory,
+    simple_wheel: Path,
+) -> None:
+    """
+    Test --update-stdrenames options
+    """
+    assert not settings.auto_update_std_renames
+
+    test_case(
+        [str(simple_wheel)],
+        expected_stdrenames_update=False,
+    ).run()
+
+    test_case(
+        [str(simple_wheel), "--update-stdrenames"],
+        expected_stdrenames_update=True,
+    ).run()
+
+    settings.auto_update_std_renames = True
+    test_case(
+        [str(simple_wheel)],
+        expected_stdrenames_update=True,
+    ).run()
+
+    if sys.version_info >= (3, 9):
+        test_case(
+            [str(simple_wheel), "--no-update-stdrenames"],
+            expected_stdrenames_update=False,
+        ).run()
+
+    settings.auto_update_std_renames = False
