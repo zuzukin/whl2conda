@@ -11,6 +11,8 @@ The release process is currently entirely manual:
 
 ## Release procedure
 
+### Package release
+
 1. Update version in `src/whl2conda/VERSION`.
 
     We use calver scheme of the form `YY.M.<patch>`, so the first release
@@ -59,4 +61,29 @@ The release process is currently entirely manual:
     If there are no breaking runtime dependencies, then nothing needs to be done
     other than to accept the merge request. If dependencies have changed, it will
     be necesssary to update the feedstock's conda-recipe.
+
+### Documentation release
+
+1. Build and review current documentation
+
+    ```bash
+    $ make clean-doc
+    $ make doc
+    $ make doc-serve
+    ```
+
+2. Deploy version to gh-pages git branch using mike and verify
+
+    ```bash
+    $ make doc-deploy
+    $ make doc-serve-all
+    ```
+   
+3. Upload gh-pages
+
+    ```bash
+    $ make doc-upload
+    ```
+   
+    The CI job will eventually install this at https://zuzukin.github.io/whl2conda/
 
