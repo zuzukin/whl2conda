@@ -1,6 +1,6 @@
 # whl2conda changes
 
-## [24.5.0] - 2024-5-4
+## [24.5.0] - 2024-5-5
 ### Features
 * Added persistent user settings for:
     * default conda format
