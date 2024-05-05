@@ -1,0 +1,6 @@
+nav:
+  - Basic Usage: basic-usage.md
+  - Dependency Modification: renaming.md
+  - Configuring pyproject.toml: pyproject.md
+  - Installing and Testing: testing.md
+  - Limitations: limitations.md
