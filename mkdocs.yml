@@ -6,6 +6,8 @@ site_dir: site
 site_author: Christopher Barber
 repo_name: GitHub
 copyright: Copyright &copy; 2023 Christopher Barber
+exclude_docs: |
+  /internal/
 
 # https://squidfunk.github.io/mkdocs-material/setup/changing-the-colors/
 #extra_css:
@@ -113,6 +115,3 @@ markdown_extensions:
           class: mermaid
 #          format: !!python/name:pymdownx.superfences.fence_code_format
   - attr_list
-  - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
