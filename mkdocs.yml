@@ -79,13 +79,12 @@ plugins:
       enable_inventory: true
       handlers:
         python_xref:
-          import:
-            - https://docs.python.org/3/objects.inv
+          inventories:
+            - url: https://docs.python.org/3/objects.inv
+              domains: [std, py]
 
           options:
             docstring_style: google
-            docstring_options:
-              replace_admonitions: true
             filters:
               - "!^_"
               - "^__.*__$"
