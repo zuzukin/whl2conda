@@ -1,5 +1,11 @@
 # whl2conda changes
 
+## [25.3.1] - 2025-3-21
+
+### Features
+
+* Support parsing name from Poetry 2.0 pyproject.toml
+
 ## [25.3.0] - 2025-3-20
 
 ### Features

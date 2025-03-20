@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -16,10 +16,5 @@ Static project info
 """
 
 import importlib.resources as res
-import sys
 
-# pylint: disable=no-member
-if sys.version_info >= (3, 9):  # pragma: no cover
-    __version__ = res.files('whl2conda').joinpath("VERSION").read_text().strip()
-else:  # pragma: no cover
-    __version__ = res.read_text('whl2conda', "VERSION").strip()
+__version__ = res.files('whl2conda').joinpath("VERSION").read_text().strip()

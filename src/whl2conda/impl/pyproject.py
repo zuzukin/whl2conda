@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import enum
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Sequence, Union
+from typing import Any, Optional, Sequence, Union
 
 import tomlkit
 
@@ -242,28 +242,28 @@ def read_pyproject(path: Path) -> PyProjInfo:
 
     pyproj.build_backend = str(toml.get("build-system", {}).get("build-backend", ""))
 
+    project = toml.get("project", {})
     tool = toml.get("tool", {})
     whl2conda = tool.get("whl2conda", {})
     poetry = tool.get("poetry", {})
 
-    def _read_str(key: str) -> str:
-        s = whl2conda.get(key, "")
+    def _read_str(key: str, section: dict[str, Any]) -> str:
+        s = section.get(key, "")
         if isinstance(s, str):
             return s
         warn_ignored_key(toml_file, key, f"value is not a string: {s}")
         return ""
 
-    if pyproj.build_backend == "poetry.core.masonry.api":
+    pyproj.name = _read_str("name", project)
+    if not pyproj.name and pyproj.build_backend == "poetry.core.masonry.api":
         pyproj.name = poetry.get("name")
-    else:
-        pyproj.name = _read_str("name")
 
-    pyproj.conda_name = _read_str("conda-name")
+    pyproj.conda_name = _read_str("conda-name", whl2conda)
 
-    if wheel_dir := _read_str("wheel-dir"):
+    if wheel_dir := _read_str("wheel-dir", whl2conda):
         pyproj.wheel_dir = project_dir.joinpath(wheel_dir).absolute()
 
-    if out_dir := _read_str("out-dir"):
+    if out_dir := _read_str("out-dir", whl2conda):
         pyproj.out_dir = project_dir.joinpath(out_dir).absolute()
 
     if renames := whl2conda.get("dependency-rename", ()):
@@ -294,7 +294,7 @@ def read_pyproject(path: Path) -> PyProjInfo:
                 )
         pyproj.extra_dependencies = tuple(_extra_deps)
 
-    if conda_format := _read_str("conda-format"):
+    if conda_format := _read_str("conda-format", whl2conda):
         try:
             pyproj.conda_format = CondaPackageFormat.from_string(conda_format)
         except ValueError:

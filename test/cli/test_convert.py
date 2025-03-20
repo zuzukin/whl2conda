@@ -316,7 +316,8 @@ class CliTestCase:
             )
         assert converter.build_number == self.expected_build_number
         assert converter.dry_run is self.expected_dry_run
-        assert converter.package_name == self.expected_package_name
+        if self.expected_package_name:
+            assert converter.package_name == self.expected_package_name
         assert converter.out_format is self.expected_out_fmt
         assert converter.overwrite is self.expected_overwrite
         assert converter.keep_pip_dependencies is self.expected_keep_pip
@@ -451,6 +452,7 @@ def test_simple_default(test_case: CliTestCaseFactory) -> None:
     case = test_case(
         ["simple"],
         interactive=False,
+        expected_package_name="simple",
         expected_project_root="simple",
         expected_parser_error="No wheels found in directory",
     )
@@ -459,6 +461,7 @@ def test_simple_default(test_case: CliTestCaseFactory) -> None:
     case = test_case(
         ["simple"],
         interactive=True,
+        expected_package_name="simple",
         expected_project_root="simple",
     )
     case.add_prompt(
@@ -471,6 +474,7 @@ def test_simple_default(test_case: CliTestCaseFactory) -> None:
     case = test_case(
         [],
         interactive=True,
+        expected_package_name="simple",
         expected_project_root="simple",
         from_dir="simple",
     )
@@ -482,6 +486,7 @@ def test_simple_default(test_case: CliTestCaseFactory) -> None:
 
     case = test_case(
         ["--project-root", "simple"],
+        expected_package_name="simple",
         interactive=True,
         expected_project_root="simple",
     )

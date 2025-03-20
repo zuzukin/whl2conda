@@ -119,7 +119,7 @@ def test_read_pyproject(tmp_path: Path) -> None:
     proj_file.write_text(
         dedent(r"""
             [build-system]
-            requires = ["poetry-core","setuptools"]
+            requires = ["poetry-core<2.0","setuptools"]
             build-backend = "poetry.core.masonry.api"
             
             [tool.poetry]
@@ -130,6 +130,25 @@ def test_read_pyproject(tmp_path: Path) -> None:
     )
     pyproj4 = read_pyproject(tmp_path)
     assert pyproj4.name == "poetry.example"
+
+    proj_file.write_text(
+        dedent(r"""
+            [build-system]
+            requires = ["poetry-core>=.0","setuptools"]
+            build-backend = "poetry.core.masonry.api"
+
+            [project]
+            name = "poetry.example"
+            version = "1.0.2"
+
+            [tool.poetry]
+            name = "obsolete-name"
+            version = "1.0.2"
+            """),
+        encoding="ascii",
+    )
+    pyproj5 = read_pyproject(tmp_path)
+    assert pyproj5.name == "poetry.example"
 
     #
     # Test bad value warnings
