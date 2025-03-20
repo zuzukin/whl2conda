@@ -24,7 +24,7 @@ The release process is currently entirely manual:
 2. Update the checked in copy of the standard renames table:
 
     ```bash
-    $ make update-std-rename
+    $ make update-stdrename
     ```
    
     commit the changed `src/whl2conda/api/stdrename.json` file.
