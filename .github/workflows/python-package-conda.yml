@@ -9,15 +9,15 @@ jobs:
       fail-fast: true
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.8", "3.10", "3.12"]
+        python-version: ["3.9", "3.11", "3.13"]
     steps:
     - uses: actions/checkout@v3
-    - uses: goanpeca/setup-miniconda@v2.2.0
+    - uses: conda-incubator/setup-miniconda@v3.1.1
       with:
         miniforge-version: latest
-        conda-version: ">=23.7.4"
+        conda-version: ">=24.11.3"
         # auto-update-conda: true
-        conda-build-version: ">=3.26"
+        conda-build-version: ">=25.1"
         environment-file: environment.yml
         activate-environment: whl2conda-dev
         python-version: ${{ matrix.python-version }}
