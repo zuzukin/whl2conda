@@ -32,7 +32,7 @@ setup(
     maintainer_email="zuzu@nowhere.com",
     license_files=[
         "LICENSE.md",
-        os.path.abspath("LICENSE2.rst"),
+        "LICENSE2.rst",
     ],
     install_requires=[
         "tables",
