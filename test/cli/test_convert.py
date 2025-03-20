@@ -24,7 +24,6 @@ import logging
 import os
 import re
 import shutil
-import sys
 import time
 from pathlib import Path
 from typing import Any, Generator, Optional, Sequence
@@ -971,10 +970,9 @@ def test_stdrenames_update(
         expected_stdrenames_update=True,
     ).run()
 
-    if sys.version_info >= (3, 9):
-        test_case(
-            [str(simple_wheel), "--no-update-stdrenames"],
-            expected_stdrenames_update=False,
-        ).run()
+    test_case(
+        [str(simple_wheel), "--no-update-stdrenames"],
+        expected_stdrenames_update=False,
+    ).run()
 
     settings.auto_update_std_renames = False

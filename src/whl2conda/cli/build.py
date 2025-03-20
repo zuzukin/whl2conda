@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, List, Optional, Sequence
+from typing import Any, Optional, Sequence
 
 # third party
 import yaml
@@ -143,7 +143,7 @@ class CondaBuild:
             ]
 
             with subprocess.Popen(cmd, encoding="utf8", stdout=subprocess.PIPE) as p:
-                lines: List[str] = []
+                lines: list[str] = []
                 while p.poll() is None:
                     assert p.stdout is not None
                     line = p.stdout.readline()

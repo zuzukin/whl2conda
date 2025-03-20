@@ -1,4 +1,4 @@
-#  Copyright 2023-2024 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import os.path
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Generator, Optional, Sequence
+from typing import Any, Generator, Optional, Sequence
 
 import conda_package_handling.api as cphapi
 import pytest
@@ -398,7 +398,7 @@ class PackageValidator:
         assert paths["paths_version"] == 1
         entry_keys = {"_path", "path_type", "sha256", "size_in_bytes"}
         for path_entry in paths["paths"]:
-            assert isinstance(path_entry, Dict)
+            assert isinstance(path_entry, dict)
             assert set(path_entry.keys()) == entry_keys
             rel_path = path_entry["_path"]
             file = pkg_dir.joinpath(rel_path)

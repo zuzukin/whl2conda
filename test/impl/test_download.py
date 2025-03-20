@@ -1,4 +1,4 @@
-#  Copyright 2024 Christopher Barber
+#  Copyright 2024-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import argparse
 import subprocess
 from pathlib import Path
 from textwrap import dedent
-from typing import List
 
 import pytest
 
@@ -67,10 +66,10 @@ def test_download_wheel_whitebox(
     issued.
     """
     n_wheels = 1
-    download_args: List[argparse.Namespace] = []
+    download_args: list[argparse.Namespace] = []
     stderr = b""
 
-    def call_pip_download(cmd: List[str], **_kwargs) -> subprocess.CompletedProcess:
+    def call_pip_download(cmd: list[str], **_kwargs) -> subprocess.CompletedProcess:
         """
         Fake implementation of check_call for pip download
         """

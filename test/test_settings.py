@@ -1,4 +1,4 @@
-#  Copyright 2024 Christopher Barber
+#  Copyright 2024-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ Unit tests for whl2conda.settings module
 
 import tempfile
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -154,7 +154,7 @@ def check_settings(settings: Whl2CondaSettings, tmp_path: Path) -> None:
 
     settings_dict = settings.to_dict()
 
-    def _check_dict(d: Dict[str, Any], prefix="") -> None:
+    def _check_dict(d: dict[str, Any], prefix="") -> None:
         for k, v in d.items():
             key = f"{prefix}{k}"
             if isinstance(v, dict):
