@@ -10,6 +10,7 @@ dependencies:
   - tomlkit >=0.12
   - wheel >=0.41
   # build
+  - python-build >=1.0.0
   - hatchling >=1.21,<2.0
   - make >=4.3
   # testing
