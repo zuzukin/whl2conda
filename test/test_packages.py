@@ -100,6 +100,6 @@ def setup_wheel(
         srcdir,
         distdir,
         no_deps=True,
-        no_build_isolation=True,
+        no_build_isolation=False,
         capture_output=True,
     )
