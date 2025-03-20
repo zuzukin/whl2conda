@@ -1,4 +1,4 @@
-#  Copyright 2023-2024 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -78,6 +78,7 @@ class CliTestCase:
 
     args: list[str]
     interactive: bool
+    expected_allow_metadata_version: str = ""
     expected_build_number: Optional[int] = None
     expected_dependency_renames: list[DependencyRename]
     expected_download_spec: str = ""
@@ -121,6 +122,7 @@ class CliTestCase:
         project_dir: Path,
         # optional
         interactive: Optional[bool] = None,
+        expected_allow_metadata_version: str = "",
         expected_build_number: Optional[int] = None,
         expected_dry_run: bool = False,
         expected_extra_dependencies: Sequence[str] = (),
@@ -146,6 +148,7 @@ class CliTestCase:
 
         self.args = list(args)
         self.interactive = is_interactive() if interactive is None else interactive
+        self.expected_allow_metadata_version = expected_allow_metadata_version
         self.expected_build_number = expected_build_number
         self.expected_dry_run = expected_dry_run
         self.expected_dependency_renames = []
@@ -203,9 +206,9 @@ class CliTestCase:
 
         def fake_input(prompt: str) -> str:
             expected_prompt = next(prompts)
-            assert re.search(
-                expected_prompt, prompt
-            ), f"'{expected_prompt}' does not match prompt '{prompt}'"
+            assert re.search(expected_prompt, prompt), (
+                f"'{expected_prompt}' does not match prompt '{prompt}'"
+            )
             return next(responses)
 
         def fake_convert(converter: Wheel2CondaConverter) -> Path:
@@ -306,6 +309,11 @@ class CliTestCase:
                 expected_outdir = os.path.join(expected_root, "dist")
         if expected_outdir:
             assert converter.out_dir == projects / expected_outdir
+        if self.expected_allow_metadata_version:
+            assert (
+                self.expected_allow_metadata_version
+                in converter.SUPPORTED_METADATA_VERSIONS
+            )
         assert converter.build_number == self.expected_build_number
         assert converter.dry_run is self.expected_dry_run
         assert converter.package_name == self.expected_package_name
@@ -322,7 +330,7 @@ class CliTestCaseFactory:
 
     The factory copies the test-projects/ directory tree
     into tmp directory shared by all test cases produced
-    by the factory rooted undr the `project_dir` path.
+    by the factory rooted under the `project_dir` path.
 
     Note that all test cases will share the same tree
     and can see any changes introduced by previous test
@@ -360,6 +368,7 @@ class CliTestCaseFactory:
         args: Sequence[str],
         *,
         interactive: Optional[bool] = None,
+        expected_allow_metadata_version: str = "",
         expected_build_number: Optional[int] = None,
         expected_download_index: str = "",
         expected_download_spec: str = "",
@@ -386,6 +395,7 @@ class CliTestCaseFactory:
             project_dir=self.project_dir,
             args=args,
             interactive=interactive,
+            expected_allow_metadata_version=expected_allow_metadata_version,
             expected_build_number=expected_build_number,
             expected_download_index=expected_download_index,
             expected_download_spec=expected_download_spec,
@@ -917,6 +927,17 @@ def test_python_override(
     """Test --python option"""
     test_case(
         [str(simple_wheel), "--python", ">=3.10"], expected_python_version=">=3.10"
+    ).run()
+
+
+def test_allow_metadata_version(
+    test_case: CliTestCaseFactory,
+    simple_wheel: Path,
+) -> None:
+    """Test processing of --allow-metadata-version option"""
+    test_case(
+        [str(simple_wheel), "--allow-metadata-version", "12.3"],
+        expected_allow_metadata_version="12.3",
     ).run()
 
 

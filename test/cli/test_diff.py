@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -91,12 +91,13 @@ def test_diff(
         **_kwargs,
     ):
         assert cmd[0] == expected_diff
-        # Not is_relative_to not available in python 3.8
         parser = argparse.ArgumentParser(prog="diff")
         parser.add_argument("dir1")
         parser.add_argument("dir2")
         parser.add_argument("-r", action="store_true")
         parsed = parser.parse_args(cmd[1:])
+
+        # TODO: Use Path.is_relative method introduced in Python 3.9
 
         assert parsed.r == expected_r
         for d in [parsed.dir1, parsed.dir2]:

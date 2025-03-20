@@ -1,4 +1,4 @@
-#  Copyright 2023-2024 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -519,6 +519,10 @@ def test_bad_wheels(
     with pytest.raises(Wheel2CondaError, match="unsupported metadata version"):
         test_case(bad_md_version_wheel).build()
 
+    c = test_case(bad_md_version_wheel)
+    c.converter.SUPPORTED_METADATA_VERSIONS += ("999.2",)
+    c.build()
+
 
 def test_overwrite_prompt(
     test_case: ConverterTestCaseFactory,
@@ -534,9 +538,9 @@ def test_overwrite_prompt(
     # pylint: disable=duplicate-code
     def fake_input(prompt: str) -> str:
         expected_prompt = next(prompts)
-        assert re.search(
-            expected_prompt, prompt
-        ), f"'{expected_prompt}' does not match prompt '{prompt}'"
+        assert re.search(expected_prompt, prompt), (
+            f"'{expected_prompt}' does not match prompt '{prompt}'"
+        )
         return next(responses)
 
     monkeypatch.setattr("builtins.input", fake_input)

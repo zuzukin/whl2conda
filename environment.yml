@@ -11,7 +11,6 @@ dependencies:
   - tomlkit >=0.12
   - wheel >=0.41
   # build
-  - build >=0.7.0
   - hatchling >=1.21,<2.0
   - make >=4.3
   # testing
@@ -26,11 +25,12 @@ dependencies:
   - mkdocs >=1.5,<2.0
   - mkdocstrings-python >=1.7,<2.0
   - mkdocs-material >9.1
-  - mkdocstrings-python-xref >=1.5.3,<2.0
+  - mkdocstrings-python >=1.16.6,<2.0
   - linkchecker >=10.4
   # for mkdocs-awesome-pages-plugin
   - natsort >=8.4
   - wcmatch >=8.5
   - pip >=23.2.1
   - pip:
+      - mkdocstrings-python-xref >=1.16,<2.0
       - mkdocs-awesome-pages-plugin >=2.9.2

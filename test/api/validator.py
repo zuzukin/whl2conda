@@ -437,9 +437,9 @@ class PackageValidator:
                 continue
             rel_path = wheel_file.relative_to(wheel_dir)
             conda_file = site_packages_dir / rel_path
-            assert (
-                conda_file.exists()
-            ), f"{conda_file.relative_to(pkg_dir)} does not exist"
+            assert conda_file.exists(), (
+                f"{conda_file.relative_to(pkg_dir)} does not exist"
+            )
             assert wheel_file.read_bytes() == conda_file.read_bytes()
 
         # Check that all *.data/data/ files get copied into top level
@@ -452,9 +452,9 @@ class PackageValidator:
                 *rel_path.parts[2:]
             )  # strip *.data/data/ from head of rel path
             conda_file = pkg_dir / rel_path
-            assert (
-                conda_file.exists()
-            ), f"{conda_file.relative_to(pkg_dir)} does not exist"
+            assert conda_file.exists(), (
+                f"{conda_file.relative_to(pkg_dir)} does not exist"
+            )
             # NOTE: in theory this could fail if there is more than one *.data dir that
             #  specify the same file path with different contents, but in practice we do not
             #  expect that to ever happen.
@@ -470,9 +470,9 @@ class PackageValidator:
                 *rel_path.parts[2:]
             )  # strip *.data/scripts/ from head of rel path
             conda_file = pkg_dir / "python-scripts" / rel_path
-            assert (
-                conda_file.exists()
-            ), f"{conda_file.relative_to(pkg_dir)} does not exist"
+            assert conda_file.exists(), (
+                f"{conda_file.relative_to(pkg_dir)} does not exist"
+            )
             # NOTE: in theory this could fail if there is more than one *.data dir that
             #  specify the same file path with different contents, but in practice we do not
             #  expect that to ever happen.

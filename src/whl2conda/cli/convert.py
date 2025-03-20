@@ -1,4 +1,4 @@
-#  Copyright 2023-2024 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import logging
 import subprocess
 import tempfile
 import time
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Sequence
@@ -51,6 +50,7 @@ class ConvertArgs:
     Parsed arguments
     """
 
+    allow_metadata_version: str
     build_number: Optional[int]
     build_wheel: bool
     dep_renames: Sequence[tuple[str, str]]
@@ -164,24 +164,24 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         help="Ignore settings from pyproject.toml file, if any",
     )
 
-    if sys.version_info < (3, 9):
-        # TODO: drop when python 3.8 support is discontinued
-        input_opts.add_argument(
-            "--update-stdrenames",
-            action="store_true",
-            default=settings.auto_update_std_renames,
-            help="Update list of standard pypi to conda renames from internet.",
-        )
-    else:
-        input_opts.add_argument(
-            "--update-stdrenames",
-            action=argparse.BooleanOptionalAction,
-            default=settings.auto_update_std_renames,
-            help=dedent("""
-                Whether to update list of standard pypi to conda renames from internet. 
-                Default from settings: %(default)s
-                """),
-        )
+    input_opts.add_argument(
+        "--update-stdrenames",
+        action=argparse.BooleanOptionalAction,
+        default=settings.auto_update_std_renames,
+        help=dedent("""
+            Whether to update list of standard pypi to conda renames from internet. 
+            Default from settings: %(default)s
+            """),
+    )
+
+    input_opts.add_argument(
+        "--allow-metadata-version",
+        metavar="<version>",
+        default="",
+        help=dedent("""
+            Allow specified (unsupported) metadata version in input wheel files.
+        """),
+    )
 
     output_opts.add_argument(
         "--out-dir",
@@ -529,6 +529,10 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
         converter.python_version = parsed.python
         converter.interactive = interactive
         converter.build_number = parsed.build_number
+        if parsed.allow_metadata_version:
+            converter.SUPPORTED_METADATA_VERSIONS = (
+                converter.SUPPORTED_METADATA_VERSIONS + (parsed.allow_metadata_version,)
+            )
 
         converter.dependency_rename.extend(renames)
 
@@ -596,9 +600,9 @@ def do_build_wheel(
 
         assert wheels, f"No wheel created in '{wheel_dir}'"
         create_time = wheels[0].stat().st_ctime
-        assert (
-            create_time >= start
-        ), f"Latest wheel {wheels[0]} has create time {create_time} older than start {start}"
+        assert create_time >= start, (
+            f"Latest wheel {wheels[0]} has create time {create_time} older than start {start}"
+        )
 
         wheel = wheels[0]
 

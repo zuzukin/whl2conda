@@ -1,5 +1,16 @@
 # whl2conda changes
 
+## [25.3.0] - 2025-3-20
+
+### Features
+
+* Support metadata version 2.4 (PEP 688)
+* Added --allow-metadata-version option to convert command
+
+### Changes
+
+* Drops support for python 3.8
+
 ## [24.5.0] - 2024-5-5
 ### Features
 * Added persistent user settings for:

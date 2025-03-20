@@ -1,4 +1,4 @@
-#  Copyright 2023-2024 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -273,7 +273,15 @@ class Wheel2CondaConverter:
     """
 
     SUPPORTED_WHEEL_VERSIONS = ("1.0",)
-    SUPPORTED_METADATA_VERSIONS = ("1.0", "1.1", "1.2", "2.1", "2.2", "2.3")
+    SUPPORTED_METADATA_VERSIONS: tuple[str, ...] = (
+        "1.0",
+        "1.1",
+        "1.2",
+        "2.1",
+        "2.2",
+        "2.3",
+        "2.4",
+    )
     MULTI_USE_METADATA_KEYS = {
         "Classifier",
         "Dynamic",
@@ -389,7 +397,7 @@ class Wheel2CondaConverter:
         """
         return email.message_from_string(
             file.read_text(encoding="utf8"),
-            policy=email.policy.EmailPolicy(utf8=True, refold_source="none"),
+            policy=email.policy.EmailPolicy(utf8=True, refold_source="none"),  # type: ignore
         )
 
     def _conda_package_path(self, package_name: str, version: str) -> Path:
@@ -773,21 +781,23 @@ class Wheel2CondaConverter:
             raise Wheel2CondaError(f"Wheel {self.wheel_path} is not pure python")
 
         wheel_md_file = wheel_info_dir.joinpath("METADATA")
-        md: dict[str, list[Any]] = {}
+        md: dict[str, str | list[Any]] = {}
         # Metdata spec: https://packaging.python.org/en/latest/specifications/core-metadata/
         # Required keys: Metadata-Version, Name, Version
         md_msg = self.read_metadata_file(wheel_md_file)
         md_version_str = md_msg.get("Metadata-Version")
         if md_version_str not in self.SUPPORTED_METADATA_VERSIONS:
+            msg = f"Wheel {self.wheel_path} has unsupported metadata version {md_version_str}"
             # TODO - perhaps just warn about this if not in "strict" mode
-            raise Wheel2CondaError(
-                f"Wheel {self.wheel_path} has unsupported metadata version {md_version_str}"
-            )
+            raise Wheel2CondaError(msg)
         # md_version = tuple(int(x) for x in md_version_str.split("."))
         for mdkey, mdval in md_msg.items():
             mdkey = mdkey.strip()
             if mdkey in self.MULTI_USE_METADATA_KEYS:
-                md.setdefault(mdkey.lower(), []).append(mdval)
+                if curmdval := md.get(mdkey):
+                    if isinstance(curmdval, str):
+                        md[mdkey] = [curmdval]
+                md.setdefault(mdkey.lower(), []).append(mdval)  # type: ignore
             else:
                 md[mdkey.lower()] = mdval
 
