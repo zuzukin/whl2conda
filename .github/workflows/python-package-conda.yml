@@ -38,18 +38,20 @@ jobs:
       if: success() || failure()
       run: pixi run mypy
     - name: Check code formatting
-      if: success() || failure()
+      if: (success() || failure()) && runner.os != 'Windows'
       run: pixi run check-format
     - name: Test with pytest
       if: success() || failure()
+      shell: cmd
+      run: |
+        set PATH=%CONDA%\condabin;%PATH%
+        pixi run external-coverage
+      if: runner.os == 'Windows'
+    - name: Test with pytest
+      if: success() || failure() && runner.os != 'Windows'
       shell: bash
       run: |
-        # Add conda to PATH for the pixi environment
-        if [[ "$RUNNER_OS" == "Windows" ]]; then
-          export PATH="$CONDA/condabin:$PATH"
-        else
-          export PATH="$CONDA/bin:$PATH"
-        fi
+        export PATH="$CONDA/bin:$PATH"
         pixi run external-coverage
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4

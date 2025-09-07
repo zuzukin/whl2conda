@@ -136,6 +136,25 @@ description = "Run tests with coverage including external tests"
 inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
 outputs = ["coverage.json", ".coverage"]
 
+# Platform-specific tasks for external coverage that include conda in PATH
+[tool.pixi.tasks.external-coverage-win]
+cmd = """
+set PATH=%CONDA%\\condabin;%PATH%
+pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term --run-external test
+"""
+description = "Run tests with coverage including external tests (Windows)"
+inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
+outputs = ["coverage.json", ".coverage"]
+
+[tool.pixi.tasks.external-coverage-unix]
+cmd = """
+export PATH="$CONDA/bin:$PATH"
+pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term --run-external test
+"""
+description = "Run tests with coverage including external tests (Unix)"
+inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
+outputs = ["coverage.json", ".coverage"]
+
 [tool.pixi.tasks.slow-coverage]
 cmd = "pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term test --run-slow"
 description = "Run tests with coverage including slow tests"
