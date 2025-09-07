@@ -380,7 +380,7 @@ def test_debug_log(
     debug_out = get_debug_out()
 
     assert re.search(r"Extracted.*METADATA", debug_out)
-    assert "Packaging info/about.json" in debug_out
+    assert re.search(r"Packaging info[/\\]about\.json", debug_out)
     assert re.search(r"Skipping extra dependency.*pylint", debug_out)
     assert re.search(r"Dependency copied.*black", debug_out)
     assert re.search(r"Dependency renamed.*numpy-quaternion.*quaternion", debug_out)
