@@ -4,6 +4,10 @@ on: [push]
 jobs:
   build-os-python:
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # need to use bash for conda activation to work
+        shell: bash -el {0}
     strategy:
       max-parallel: 5
       fail-fast: true
@@ -27,6 +31,10 @@ jobs:
         auto-activate-base: false
         use-mamba: true
         conda-build-version: ">=25.1"
+    - name: show conda versions
+      run: |
+        conda list -n base conda
+        conda list -n base mamba
     - name: Override Python version in pixi
       run: |
         pixi add python=${{ matrix.python-version }}
@@ -40,18 +48,10 @@ jobs:
     - name: Check code formatting
       if: (success() || failure()) && runner.os != 'Windows'
       run: pixi run check-format
-    - name: Test with pytest (Windows)
-      if: (success() || failure()) && runner.os == 'Windows'
-      shell: cmd
+    - name: Test with pytest
+      if: success() || failure()
       run: |
-        set PATH=%CONDA%\condabin;%PATH%
-        pixi run external-coverage
-    - name: Test with pytest (Unix)
-      if: (success() || failure()) && runner.os != 'Windows'
-      shell: bash
-      run: |
-        export PATH="$CONDA/bin:$PATH"
-        pixi run external-coverage
+        make external-coverage
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4
       env:
