@@ -3,7 +3,7 @@ on: [push]
 
 jobs:
   build-os-python:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     defaults:
       run:
         # need to use bash for conda activation to work
