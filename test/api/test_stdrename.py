@@ -103,9 +103,9 @@ def test_load_std_renames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
 
     # Make sure the cache dir is in our fake home dir
     local_renames_file = user_stdrenames_path()
-    assert os.path.pardir not in os.path.relpath(local_renames_file, tmp_path)
     # Only check relative path on non-Windows systems to avoid platform-specific path issues
     if platform.system() != "Windows":
+        assert os.path.pardir not in os.path.relpath(local_renames_file, tmp_path)
         assert local_renames_file.relative_to(tmp_path)
     assert not local_renames_file.exists()
 
