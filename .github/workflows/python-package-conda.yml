@@ -42,7 +42,15 @@ jobs:
       run: pixi run check-format
     - name: Test with pytest
       if: success() || failure()
-      run: pixi run external-coverage
+      shell: bash
+      run: |
+        # Add conda to PATH for the pixi environment
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          export PATH="$CONDA/condabin:$PATH"
+        else
+          export PATH="$CONDA/bin:$PATH"
+        fi
+        pixi run external-coverage
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4
       env:
