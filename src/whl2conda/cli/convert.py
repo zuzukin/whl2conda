@@ -586,7 +586,7 @@ def do_build_wheel(
     else:
         start = time.time()
         # Use longer sleep on Windows due to lower timestamp resolution
-        sleep_duration = 0.2 if platform.system() == "Windows" else 0.01
+        sleep_duration = 0.1 if platform.system() == "Windows" else 0.01
         time.sleep(sleep_duration)  # wait to avoid time resolution issues
 
         subprocess.run(

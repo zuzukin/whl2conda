@@ -682,16 +682,23 @@ def test_do_build_wheel(
     wheel_file = do_build_wheel(project_root, wheel_dir)
     assert wheel_file.parent == wheel_dir
     assert wheel_file.is_file()
+    wheel_file.unlink()
 
     expected_no_build_isolation = False
     expected_no_deps = True
     wheel_file = do_build_wheel(project_root, wheel_dir, no_deps=True)
+    assert wheel_file.parent == wheel_dir
+    assert wheel_file.is_file()
+    wheel_file.unlink()
 
     expected_no_build_isolation = True
     expected_no_deps = False
     wheel_file = do_build_wheel(
         project_root, wheel_dir, no_deps=False, no_build_isolation=True
     )
+    assert wheel_file.parent == wheel_dir
+    assert wheel_file.is_file()
+    wheel_file.unlink()
 
 
 # ignore redefinition of test_case
