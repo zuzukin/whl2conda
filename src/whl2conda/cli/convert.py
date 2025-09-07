@@ -586,7 +586,7 @@ def do_build_wheel(
     else:
         start = time.time()
         # Use longer sleep on Windows due to lower timestamp resolution
-        sleep_duration = 0.1 if platform.system() == "Windows" else 0.01
+        sleep_duration = 0.2 if platform.system() == "Windows" else 0.01
         time.sleep(sleep_duration)  # wait to avoid time resolution issues
 
         subprocess.run(
@@ -602,12 +602,12 @@ def do_build_wheel(
         )
 
         assert wheels, f"No wheel created in '{wheel_dir}'"
-        create_time = wheels[0].stat().st_ctime
-        assert create_time >= start, (
-            f"Latest wheel {wheels[0]} has create time {create_time} older than start {start}"
-        )
-
         wheel = wheels[0]
+
+        create_time = wheel.stat().st_ctime
+        assert create_time >= start, (
+            f"Latest wheel {wheel} has create time {create_time} older than start {start}"
+        )
 
     return wheel
 
