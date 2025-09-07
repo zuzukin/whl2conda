@@ -40,15 +40,14 @@ jobs:
     - name: Check code formatting
       if: (success() || failure()) && runner.os != 'Windows'
       run: pixi run check-format
-    - name: Test with pytest
-      if: success() || failure()
+    - name: Test with pytest (Windows)
+      if: (success() || failure()) && runner.os == 'Windows'
       shell: cmd
       run: |
         set PATH=%CONDA%\condabin;%PATH%
         pixi run external-coverage
-      if: runner.os == 'Windows'
-    - name: Test with pytest
-      if: success() || failure() && runner.os != 'Windows'
+    - name: Test with pytest (Unix)
+      if: (success() || failure()) && runner.os != 'Windows'
       shell: bash
       run: |
         export PATH="$CONDA/bin:$PATH"
