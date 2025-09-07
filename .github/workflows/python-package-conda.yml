@@ -21,9 +21,8 @@ jobs:
       with:
         miniforge-version: latest
         conda-version: ">=24.11.3"
-        # auto-update-conda: true
+        auto-update-conda: true
         conda-build-version: ">=25.1"
-        activate-environment: ""
         python-version: ${{ matrix.python-version }}
         auto-activate-base: true
         condarc-file: github-condarc.yml
