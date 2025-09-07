@@ -19,6 +19,7 @@ from __future__ import annotations
 
 # standard
 import logging
+import platform
 import re
 import subprocess
 from pathlib import Path
