@@ -19,6 +19,7 @@ from __future__ import annotations
 # standard lib
 import argparse
 import logging
+import platform
 import subprocess
 import tempfile
 import time
@@ -584,7 +585,9 @@ def do_build_wheel(
         wheel = wheel_dir.joinpath("dry-run-1.0-py3-none-any.whl")
     else:
         start = time.time()
-        time.sleep(0.01)  # wait to avoid time resolution issues
+        # Use longer sleep on Windows due to lower timestamp resolution
+        sleep_duration = 0.1 if platform.system() == "Windows" else 0.01
+        time.sleep(sleep_duration)  # wait to avoid time resolution issues
 
         subprocess.run(
             cmd,
