@@ -26,6 +26,7 @@ jobs:
         activate-environment: ""
         auto-activate-base: false
         use-mamba: true
+        conda-build-version: ">=25.1"
     - name: Override Python version in pixi
       run: |
         pixi add python=${{ matrix.python-version }}
