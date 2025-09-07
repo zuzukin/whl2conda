@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import email.utils
 import json
-import os
 import platform
 import time
 from email.utils import parsedate_to_datetime
