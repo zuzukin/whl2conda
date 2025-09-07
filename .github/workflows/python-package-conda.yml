@@ -51,7 +51,7 @@ jobs:
     - name: Test with pytest
       if: success() || failure()
       run: |
-        make external-coverage
+        pixi run external-coverage
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4
       env:
