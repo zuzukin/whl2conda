@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -96,17 +96,19 @@ def test_download_mappings() -> None:
 def test_load_std_renames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Unit test for load_std_renames function"""
 
-    # set fake home dir for ~
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    assert Path("~").expanduser().absolute() == tmp_path
+    # Force cache directory to be in temp path by monkeypatching platformdirs
+    fake_cache_dir = tmp_path / "cache" / "whl2conda"
+    fake_cache_dir.mkdir(parents=True, exist_ok=True)
 
-    # Make sure the cache dir is in our fake home dir
+    def fake_user_cache_path(appname: str) -> Path:
+        return tmp_path / "cache" / appname
+
+    monkeypatch.setattr("platformdirs.user_cache_path", fake_user_cache_path)
+    monkeypatch.setattr("whl2conda.api.stdrename.user_cache_path", fake_user_cache_path)
+
+    # Verify the cache dir is now in our temp path
     local_renames_file = user_stdrenames_path()
-    # Only check relative path on non-Windows systems to avoid platform-specific path issues
-    if platform.system() != "Windows":
-        assert os.path.pardir not in os.path.relpath(local_renames_file, tmp_path)
-        assert local_renames_file.relative_to(tmp_path)
+    assert local_renames_file.relative_to(tmp_path)
     assert not local_renames_file.exists()
 
     # Don't bother with actual update, just make sure it is called.
