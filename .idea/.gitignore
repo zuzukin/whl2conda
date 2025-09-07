@@ -1,8 +1,22 @@
-# Default ignored files
-/shelf/
-/workspace.xml
-# Editor-based HTTP Client requests
-/httpRequests/
-# Datasource local storage ignored files
-/dataSources/
-/dataSources.local.xml
+# User-specific PyCharm/IntelliJ files
+workspace.xml
+tasks.xml
+usage.statistics.xml
+shelf/
+copilotDiffState.xml
+vcs.xml
+modules.xml
+*.iws
+dataSources/
+dataSources.ids
+dataSources.local.xml
+sqlDataSources.xml
+dynamic.xml
+uiDesigner.xml
+gradle.xml
+libraries/
+jarRepositories.xml
+compiler.xml
+misc.xml
+deploymentTargetDropDown.xml
+

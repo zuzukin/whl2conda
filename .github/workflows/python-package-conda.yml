@@ -3,11 +3,7 @@ on: [push]
 
 jobs:
   build-os-python:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        # need to use bash for conda activation to work
-        shell: bash -el {0}
+    runs-on: ${{ matrix.os }}
     strategy:
       max-parallel: 5
       fail-fast: true
@@ -15,42 +11,29 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.9", "3.11", "3.13"]
     steps:
-    - uses: actions/checkout@v3
-    - uses: conda-incubator/setup-miniconda@v3.1.1
+    - uses: actions/checkout@v4
+    - name: Setup pixi
+      uses: prefix-dev/setup-pixi@v0.8.1
       with:
-        miniforge-version: latest
-        conda-version: ">=24.11.3"
-        # auto-update-conda: true
-        conda-build-version: ">=25.1"
-        environment-file: environment.yml
-        activate-environment: whl2conda-dev
-        python-version: ${{ matrix.python-version }}
-        auto-activate-base: true
-        condarc-file: github-condarc.yml
-        use-mamba: true
-    - name: show conda versions
+        pixi-version: v0.13.0
+        cache: true
+    - name: Override Python version in pixi
       run: |
-        conda list -n base conda
-        conda list -n base mamba
-    - name: Dev install whl2conda
-      run: |
-        conda run -n whl2conda-dev pip install -e . --no-deps --no-build-isolation
-    - name: ruff
-      run: |
-        make ruff
-    - name: mypy
+        pixi add python=${{ matrix.python-version }}
+    - name: Install dependencies
+      run: pixi run dev-install
+    - name: Run linting checks
+      run: pixi run ruff
+    - name: Run type checking
       if: success() || failure()
-      run: |
-        make mypy
-    - name: check formatting
+      run: pixi run mypy
+    - name: Check code formatting
       if: success() || failure()
-      run: |
-        make check-format
+      run: pixi run check-format
     - name: Test with pytest
       if: success() || failure()
-      run: |
-        make external-coverage
+      run: pixi run external-coverage
     - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
