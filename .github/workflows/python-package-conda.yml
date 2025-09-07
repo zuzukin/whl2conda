@@ -43,7 +43,8 @@ jobs:
       run: |
         make mypy
     - name: check formatting
-      if: success() || failure()
+      # Skip on Windows due to line ending differences (CRLF vs LF)
+      if: (success() || failure()) && matrix.os != 'windows-latest'
       run: |
         make check-format
     - name: Test with pytest
