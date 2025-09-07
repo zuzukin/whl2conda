@@ -22,6 +22,7 @@ import argparse
 # standard
 import logging
 import os
+import platform
 import re
 import shutil
 import time
@@ -777,7 +778,9 @@ def test_choose_wheel(
     case.run()
 
     # add second copy of wheel
-    time.sleep(0.01)  # wait to ensure later timestamp
+    # Use longer sleep on Windows due to lower timestamp resolution
+    sleep_duration = 0.1 if platform.system() == "Windows" else 0.01
+    time.sleep(sleep_duration)  # wait to ensure later timestamp
     dist_wheel2 = dist / f"{dist_wheel.stem}-2.whl"
     shutil.copyfile(simple_wheel, dist_wheel2)
     case = test_case(
