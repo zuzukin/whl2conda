@@ -281,7 +281,8 @@ def test_simple_wheel(
 
     # Do another dry run, show that old package not removed
     mtime = v2pkg.stat().st_mtime_ns
-    sleep(0.01)
+    sleep_duration = 0.1 if platform.system() == "Windows" else 0.01
+    sleep(sleep_duration)  # ensure mtime will be different if file is replaced
     case = test_case(simple_wheel, overwrite=True)
     case.converter.dry_run = True
     assert case.build() == v2pkg
