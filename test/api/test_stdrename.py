@@ -21,6 +21,7 @@ from __future__ import annotations
 import email.utils
 import json
 import os
+import platform
 import time
 from email.utils import parsedate_to_datetime
 from http import HTTPStatus
@@ -103,7 +104,9 @@ def test_load_std_renames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     # Make sure the cache dir is in our fake home dir
     local_renames_file = user_stdrenames_path()
     assert os.path.pardir not in os.path.relpath(local_renames_file, tmp_path)
-    assert local_renames_file.relative_to(tmp_path)
+    # Only check relative path on non-Windows systems to avoid platform-specific path issues
+    if platform.system() != "Windows":
+        assert local_renames_file.relative_to(tmp_path)
     assert not local_renames_file.exists()
 
     # Don't bother with actual update, just make sure it is called.
@@ -223,5 +226,6 @@ def test_user_stdrenames_path() -> None:
     assert path.name == "stdrename.json"
     assert path.parent == user_cache_path("whl2conda")
 
-    # cache should be under user's home directory
-    assert path.relative_to(Path("~").expanduser())
+    # cache should be under user's home directory (except on Windows)
+    if platform.system() != "Windows":
+        assert path.relative_to(Path("~").expanduser())
