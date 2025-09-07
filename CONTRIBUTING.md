@@ -11,6 +11,14 @@ This project uses [pixi](https://pixi.sh/) for development environment managemen
 ### Prerequisites
 
 1. Install pixi following the [installation guide](https://pixi.sh/latest/#installation)
+2. Install conda or mamba for testing conda functionality:
+   - **Option 1**: Install [Miniforge](https://github.com/conda-forge/miniforge) (recommended)
+   - **Option 2**: Install [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
+   - **Option 3**: Install [Anaconda](https://www.anaconda.com/products/distribution)
+
+> **Note**: Some tests require conda to be available as a command-line tool since 
+> whl2conda generates and tests conda packages. While pixi manages the development 
+> environment, conda is needed for the package functionality tests.
 
 ### Quick Setup
 

@@ -19,7 +19,13 @@ jobs:
         cache: true
         auth-host: prefix.dev
         auth-token: ${{ secrets.GITHUB_TOKEN }}
-
+    - name: Setup conda (for testing conda functionality)
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        miniforge-version: latest
+        activate-environment: ""
+        auto-activate-base: false
+        use-mamba: true
     - name: Override Python version in pixi
       run: |
         pixi add python=${{ matrix.python-version }}
