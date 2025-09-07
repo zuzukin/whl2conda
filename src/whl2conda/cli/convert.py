@@ -604,9 +604,9 @@ def do_build_wheel(
         assert wheels, f"No wheel created in '{wheel_dir}'"
         wheel = wheels[0]
 
-        create_time = wheel.stat().st_ctime
+        create_time = wheel.stat().st_mtime
         assert create_time >= start, (
-            f"Latest wheel {wheel} has create time {create_time} older than start {start}"
+            f"Latest wheel {wheel} has modification time {create_time} older than start {start}"
         )
 
     return wheel

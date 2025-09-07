@@ -683,6 +683,7 @@ def test_do_build_wheel(
     assert wheel_file.parent == wheel_dir
     assert wheel_file.is_file()
     wheel_file.unlink()
+    assert not wheel_file.is_file()
 
     expected_no_build_isolation = False
     expected_no_deps = True
