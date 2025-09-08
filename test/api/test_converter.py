@@ -19,6 +19,7 @@ from __future__ import annotations
 
 # standard
 import logging
+import platform
 import re
 import subprocess
 from pathlib import Path
@@ -281,7 +282,8 @@ def test_simple_wheel(
 
     # Do another dry run, show that old package not removed
     mtime = v2pkg.stat().st_mtime_ns
-    sleep(0.01)
+    sleep_duration = 0.1 if platform.system() == "Windows" else 0.01
+    sleep(sleep_duration)  # ensure mtime will be different if file is replaced
     case = test_case(simple_wheel, overwrite=True)
     case.converter.dry_run = True
     assert case.build() == v2pkg
@@ -380,7 +382,7 @@ def test_debug_log(
     debug_out = get_debug_out()
 
     assert re.search(r"Extracted.*METADATA", debug_out)
-    assert "Packaging info/about.json" in debug_out
+    assert re.search(r"Packaging info[/\\]about\.json", debug_out)
     assert re.search(r"Skipping extra dependency.*pylint", debug_out)
     assert re.search(r"Dependency copied.*black", debug_out)
     assert re.search(r"Dependency renamed.*numpy-quaternion.*quaternion", debug_out)
