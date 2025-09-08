@@ -19,6 +19,7 @@ from __future__ import annotations
 # standard lib
 import argparse
 import logging
+import platform
 import subprocess
 import tempfile
 import time
@@ -584,7 +585,9 @@ def do_build_wheel(
         wheel = wheel_dir.joinpath("dry-run-1.0-py3-none-any.whl")
     else:
         start = time.time()
-        time.sleep(0.01)  # wait to avoid time resolution issues
+        # Use longer sleep on Windows due to lower timestamp resolution
+        sleep_duration = 0.1 if platform.system() == "Windows" else 0.01
+        time.sleep(sleep_duration)  # wait to avoid time resolution issues
 
         subprocess.run(
             cmd,
@@ -599,12 +602,12 @@ def do_build_wheel(
         )
 
         assert wheels, f"No wheel created in '{wheel_dir}'"
-        create_time = wheels[0].stat().st_ctime
-        assert create_time >= start, (
-            f"Latest wheel {wheels[0]} has create time {create_time} older than start {start}"
-        )
-
         wheel = wheels[0]
+
+        create_time = wheel.stat().st_mtime
+        assert create_time >= start, (
+            f"Latest wheel {wheel} has modification time {create_time} older than start {start}"
+        )
 
     return wheel
 

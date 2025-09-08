@@ -48,6 +48,7 @@ jobs:
       if: success() || failure()
       run: pixi run mypy
     - name: Check code formatting
+      # Skip on Windows due to line ending differences (CRLF vs LF)
       if: (success() || failure()) && runner.os != 'Windows'
       run: pixi run check-format
     - name: Test with pytest

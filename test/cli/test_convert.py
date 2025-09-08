@@ -22,6 +22,7 @@ import argparse
 # standard
 import logging
 import os
+import platform
 import re
 import shutil
 import time
@@ -681,16 +682,24 @@ def test_do_build_wheel(
     wheel_file = do_build_wheel(project_root, wheel_dir)
     assert wheel_file.parent == wheel_dir
     assert wheel_file.is_file()
+    wheel_file.unlink()
+    assert not wheel_file.is_file()
 
     expected_no_build_isolation = False
     expected_no_deps = True
     wheel_file = do_build_wheel(project_root, wheel_dir, no_deps=True)
+    assert wheel_file.parent == wheel_dir
+    assert wheel_file.is_file()
+    wheel_file.unlink()
 
     expected_no_build_isolation = True
     expected_no_deps = False
     wheel_file = do_build_wheel(
         project_root, wheel_dir, no_deps=False, no_build_isolation=True
     )
+    assert wheel_file.parent == wheel_dir
+    assert wheel_file.is_file()
+    wheel_file.unlink()
 
 
 # ignore redefinition of test_case
@@ -777,7 +786,9 @@ def test_choose_wheel(
     case.run()
 
     # add second copy of wheel
-    time.sleep(0.01)  # wait to ensure later timestamp
+    # Use longer sleep on Windows due to lower timestamp resolution
+    sleep_duration = 0.1 if platform.system() == "Windows" else 0.01
+    time.sleep(sleep_duration)  # wait to ensure later timestamp
     dist_wheel2 = dist / f"{dist_wheel.stem}-2.whl"
     shutil.copyfile(simple_wheel, dist_wheel2)
     case = test_case(
