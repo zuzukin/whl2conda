@@ -468,7 +468,8 @@ class Wheel2CondaConverter:
                 )
             )
         conda_paths_file.write_text(
-            json.dumps(dict(paths=paths, paths_version=1), indent=2)
+            json.dumps(dict(paths=paths, paths_version=1), indent=2),
+            encoding="utf8"
         )
 
     def _write_link_file(self, conda_info_dir: Path, wheel_info_dir: Path) -> None:
@@ -494,7 +495,8 @@ class Wheel2CondaConverter:
                 ),
                 indent=2,
                 sort_keys=True,
-            )
+            ),
+            encoding="utf8"
         )
 
     # pylint: disable=too-many-arguments
@@ -531,20 +533,21 @@ class Wheel2CondaConverter:
                     version=wheel_md.version,
                 ),
                 indent=2,
-            )
+            ),
+            encoding="utf8"
         )
 
     def _write_files_list(self, conda_info_dir: Path, rel_files: Sequence[str]) -> None:
         # * info/files - list of relative paths of files not including info/
         conda_files_file = conda_info_dir.joinpath("files")
-        with open(conda_files_file, "w") as f:
+        with open(conda_files_file, "w", encoding="utf8") as f:
             for rel_file in rel_files:
                 f.write(str(rel_file))
                 f.write("\n")
 
     def _write_hash_input(self, conda_info_dir: Path) -> None:
         conda_hash_input_file = conda_info_dir.joinpath("hash_input.json")
-        conda_hash_input_file.write_text(json.dumps({}, indent=2))
+        conda_hash_input_file.write_text(json.dumps({}, indent=2), encoding="utf8")
 
     # pylint: disable=too-many-locals
     def _write_about(self, conda_info_dir: Path, md: dict[str, Any]) -> None:
@@ -618,7 +621,8 @@ class Wheel2CondaConverter:
                 ),
                 indent=2,
                 sort_keys=True,
-            )
+            ),
+            encoding="utf8",
         )
 
     # pylint: disable=too-many-locals
@@ -725,9 +729,9 @@ class Wheel2CondaConverter:
         assert self.wheel_md is not None
         dist_info_dir = conda_site_packages / self.wheel_md.wheel_info_dir.name
         installer_file = dist_info_dir / "INSTALLER"
-        installer_file.write_text("whl2conda")
+        installer_file.write_text("whl2conda", encoding="utf8")
         requested_file = dist_info_dir / "REQUESTED"
-        requested_file.write_text("")
+        requested_file.write_text("", encoding="utf8")
 
     def _copy_licenses(self, conda_info_dir: Path, wheel_md: MetadataFromWheel) -> None:
         to_license_dir = conda_info_dir / "licenses"
@@ -820,7 +824,7 @@ class Wheel2CondaConverter:
                     entry = entry.with_extra('original')
                 md_msg.add_header("Requires-Dist", str(entry))
             md_msg.add_header("Provides-Extra", "original")
-            wheel_md_file.write_text(md_msg.as_string())
+            wheel_md_file.write_text(md_msg.as_string() ,encoding="utf8")
         package_name = self.package_name or str(md.get("name"))
         self.package_name = package_name
         version = md.get("version")

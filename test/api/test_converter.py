@@ -423,7 +423,7 @@ def test_warnings(
     contents = metadata_file.read_text("utf8")
     # Add bogus !!! to Requires-Dist entries with markers
     contents = re.sub(r"Requires-Dist:(.*);", r"Requires-Dist:!!!\1;", contents)
-    metadata_file.write_text(contents)
+    metadata_file.write_text(contents, encoding="utf8")
     bad_wheel_file = bad_wheel_dir / markers_wheel.name
     with WheelFile(str(bad_wheel_file), "w") as wf:
         wf.write_files(str(bad_wheel_dir))
@@ -470,7 +470,7 @@ def test_bad_wheels(
     #
 
     WHEEL_msg.replace_header("Wheel-Version", "999.0")
-    WHEEL_file.write_text(WHEEL_msg.as_string())
+    WHEEL_file.write_text(WHEEL_msg.as_string(), encoding="utf8")
 
     bad_version_wheel = tmp_path / "bad-version" / simple_wheel.name
     bad_version_wheel.parent.mkdir(parents=True)
@@ -491,7 +491,7 @@ def test_bad_wheels(
 
     WHEEL_msg.replace_header("Wheel-Version", "1.0")
     WHEEL_msg.replace_header("Root-Is-Purelib", "False")
-    WHEEL_file.write_text(WHEEL_msg.as_string())
+    WHEEL_file.write_text(WHEEL_msg.as_string(), encoding="utf8")
 
     impure_wheel = tmp_path / "impure" / simple_wheel.name
     impure_wheel.parent.mkdir(parents=True)
@@ -506,12 +506,12 @@ def test_bad_wheels(
     #
 
     WHEEL_msg.replace_header("Root-Is-Purelib", "True")
-    WHEEL_file.write_text(WHEEL_msg.as_string())
+    WHEEL_file.write_text(WHEEL_msg.as_string(), encoding="utf8")
 
     METADATA_file = extract_info_dir / 'METADATA'
     METADATA_msg = Wheel2CondaConverter.read_metadata_file(METADATA_file)
     METADATA_msg.replace_header("Metadata-Version", "999.2")
-    METADATA_file.write_text(METADATA_msg.as_string())
+    METADATA_file.write_text(METADATA_msg.as_string(), encoding="utf8")
 
     bad_md_version_wheel = tmp_path / "bad-md-version" / simple_wheel.name
     bad_md_version_wheel.parent.mkdir(parents=True)
