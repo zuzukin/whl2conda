@@ -395,10 +395,8 @@ class Wheel2CondaConverter:
         Returns:
             Message object
         """
-        raw = file.read_bytes()
-        contents = raw.decode("utf8", errors="backslashreplace")
         return email.message_from_string(
-            contents,
+            file.read_text(encoding="utf8", errors="backslashreplace"),
             policy=email.policy.EmailPolicy(utf8=True, refold_source="none"),  # type: ignore
         )
 
