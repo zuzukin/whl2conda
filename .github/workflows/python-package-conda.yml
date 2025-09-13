@@ -13,7 +13,7 @@ jobs:
       fail-fast: true
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.9", "3.11", "3.13"]
+        python-version: ["3.10", "3.12", "3.14.0rc2"]
     steps:
     - uses: actions/checkout@v3
     - name: Setup conda (for testing conda functionality)
