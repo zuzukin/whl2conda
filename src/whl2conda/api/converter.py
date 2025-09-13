@@ -468,8 +468,7 @@ class Wheel2CondaConverter:
                 )
             )
         conda_paths_file.write_text(
-            json.dumps(dict(paths=paths, paths_version=1), indent=2),
-            encoding="utf8"
+            json.dumps(dict(paths=paths, paths_version=1), indent=2), encoding="utf8"
         )
 
     def _write_link_file(self, conda_info_dir: Path, wheel_info_dir: Path) -> None:
@@ -496,7 +495,7 @@ class Wheel2CondaConverter:
                 indent=2,
                 sort_keys=True,
             ),
-            encoding="utf8"
+            encoding="utf8",
         )
 
     # pylint: disable=too-many-arguments
@@ -534,7 +533,7 @@ class Wheel2CondaConverter:
                 ),
                 indent=2,
             ),
-            encoding="utf8"
+            encoding="utf8",
         )
 
     def _write_files_list(self, conda_info_dir: Path, rel_files: Sequence[str]) -> None:
@@ -824,7 +823,7 @@ class Wheel2CondaConverter:
                     entry = entry.with_extra('original')
                 md_msg.add_header("Requires-Dist", str(entry))
             md_msg.add_header("Provides-Extra", "original")
-            wheel_md_file.write_text(md_msg.as_string() ,encoding="utf8")
+            wheel_md_file.write_text(md_msg.as_string(), encoding="utf8")
         package_name = self.package_name or str(md.get("name"))
         self.package_name = package_name
         version = md.get("version")
