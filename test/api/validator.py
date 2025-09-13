@@ -265,6 +265,10 @@ class PackageValidator:
                 print(json.dumps(dist_md, sort_keys=True, indent=2))
                 print("== original wheel metadata ==")
                 print(json.dumps(wheel_md, sort_keys=True, indent=2))
+                dist_info_dir = next(site_packages.glob("*.dist-info"))
+                md_file = dist_info_dir / "METADATA"
+                print("== raw dist-info METADATA file ==")
+                print(md_file.read_bytes())
                 assert dist_md == wheel_md
 
     def _validate_hash_input(self, info_dir: Path) -> None:

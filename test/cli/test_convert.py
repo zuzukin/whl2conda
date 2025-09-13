@@ -226,7 +226,7 @@ class CliTestCase:
             if not conda_pkg_path.is_file() and not converter.dry_run:
                 # just write an empty file so that existence check will work
                 conda_pkg_path.parent.mkdir(parents=True, exist_ok=True)
-                conda_pkg_path.write_text("")
+                conda_pkg_path.write_text("", encoding="utf8")
             return conda_pkg_path
 
         def fake_stdrenames_update(*_args, **_kwargs) -> bool:
@@ -505,7 +505,7 @@ def test_simple_log_level(
     """
     root_logger = logging.getLogger()
     wheel_file = test_case.tmp_path.joinpath("acme-1.0.whl")
-    wheel_file.write_text("")
+    wheel_file.write_text("", encoding="utf8")
 
     case = test_case([str(wheel_file), "--dry-run"], expected_dry_run=True)
     case.run()

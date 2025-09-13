@@ -1,10 +1,15 @@
 # whl2conda changes
 
-## [25.3.1] - 2025-3-21
+## [25.9.0] - *in progress*
 
 ### Features
 
 * Support parsing name from Poetry 2.0 pyproject.toml
+* Handle bad UTF-8 in METADATA files
+
+### Development
+
+* Switched to pixi for development environment management
 
 ## [25.3.0] - 2025-3-20
 

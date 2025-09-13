@@ -8,7 +8,6 @@ description = "Build conda packages directly from pure python wheels"
 readme = "README.md"
 dynamic = ["version"]
 license = "Apache-2.0"
-license-files.paths = ["LICENSE.md"]
 authors = [
   { name = "Christopher Barber", email = "christopher.barber@analog.com" },
 ]
@@ -32,6 +31,7 @@ dependencies = [
     "wheel >=0.41",
 ]
 
+
 [project.urls]
 homepage = "https://github.com/analog-cbarber/whl2conda"
 repository = "https://github.com/analog-cbarber/whl2conda"
@@ -39,6 +39,266 @@ documentation = "https://zuzukin.github.io/whl2conda/"
 
 [project.scripts]
 whl2conda = "whl2conda.cli:main"
+
+# Pixi configuration
+[tool.pixi.project]
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "osx-arm64"]
+
+[tool.pixi.dependencies]
+python = ">=3.9,<3.14"
+# Use "*" to reference project dependencies without duplicating version specs
+conda-package-handling = "*"
+platformdirs = "*"
+pyyaml = "*"
+tomlkit = "*"
+wheel = "*"
+
+[tool.pixi.feature.build.dependencies]
+python-build = ">=1.0.0"
+hatchling = ">=1.21,<2.0"
+
+[tool.pixi.feature.test.dependencies]
+mypy = ">=1.8,<2.0"
+pytest = ">=7.4,<8.0"
+pytest-cov = ">=4.1.0,<5.0"
+ruff = ">=0.3.7"
+types-pyyaml = ">=6.0"
+
+[tool.pixi.feature.docs.dependencies]
+black = ">=23.12"
+mike = ">=2.0,<3.0"
+mkdocs = ">=1.5,<2.0"
+mkdocstrings-python = ">=1.16.6,<2.0"
+mkdocs-material = ">9.1"
+linkchecker = ">=10.4"
+natsort = ">=8.4"
+wcmatch = ">=8.5"
+pip = ">=23.2.1"
+
+[tool.pixi.feature.docs.pypi-dependencies]
+mkdocstrings-python-xref = ">=1.16,<2.0"
+mkdocs-awesome-pages-plugin = ">=2.9.2"
+
+# Single default environment that combines all features
+[tool.pixi.environments]
+default = ["build", "test", "docs"]
+
+# Development environment setup
+[tool.pixi.tasks.dev-install]
+cmd = "pip install -e . --no-deps --no-build-isolation"
+description = "Install the package in development mode"
+inputs = ["pyproject.toml", "src/**/*.py"]
+
+[tool.pixi.tasks.install]
+depends-on = ["dev-install"]
+description = "Set up the complete development environment"
+
+# Testing tasks
+[tool.pixi.tasks.mypy]
+cmd = "mypy"
+description = "Run mypy type checking"
+inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
+
+[tool.pixi.tasks.pytest]
+cmd = "pytest -s test"
+description = "Run pytest test suite"
+inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
+
+[tool.pixi.tasks.ruff]
+cmd = "ruff check"
+description = "Run ruff linting checks"
+inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
+
+[tool.pixi.tasks.check-format]
+cmd = "ruff format --check src test"
+description = "Check code formatting with ruff"
+inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
+
+[tool.pixi.tasks.lint]
+depends-on = ["ruff", "mypy", "check-format"]
+description = "Run all linting and type checking"
+
+[tool.pixi.tasks.test]
+depends-on = ["pytest"]
+description = "Run the test suite"
+
+# Coverage tasks
+[tool.pixi.tasks.coverage]
+cmd = "pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term test"
+description = "Run tests with coverage reporting"
+inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
+outputs = ["coverage.json", ".coverage"]
+
+[tool.pixi.tasks.external-coverage]
+cmd = "pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term --run-external test"
+description = "Run tests with coverage including external tests"
+inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
+outputs = ["coverage.json", ".coverage"]
+
+# Platform-specific tasks for external coverage that include conda in PATH
+[tool.pixi.tasks.external-coverage-win]
+cmd = """
+set PATH=%CONDA%\\condabin;%PATH%
+pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term --run-external test
+"""
+description = "Run tests with coverage including external tests (Windows)"
+inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
+outputs = ["coverage.json", ".coverage"]
+
+[tool.pixi.tasks.external-coverage-unix]
+cmd = """
+export PATH="$CONDA/bin:$PATH"
+pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term --run-external test
+"""
+description = "Run tests with coverage including external tests (Unix)"
+inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
+outputs = ["coverage.json", ".coverage"]
+
+[tool.pixi.tasks.slow-coverage]
+cmd = "pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term test --run-slow"
+description = "Run tests with coverage including slow tests"
+inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
+outputs = ["coverage.json", ".coverage"]
+
+[tool.pixi.tasks.html-coverage]
+cmd = "coverage html"
+description = "Generate HTML coverage report"
+inputs = [".coverage"]
+outputs = ["htmlcov/**/*"]
+
+# Documentation tasks
+[tool.pixi.tasks.build-cli-docs]
+cmd = "bash -c 'mkdir -p doc/reference/cli && whl2conda --markdown-help > doc/reference/cli/whl2conda.md && for subcmd in $(whl2conda --list-subcommands); do whl2conda $subcmd --markdown-help > doc/reference/cli/whl2conda-$subcmd.md; done'"
+description = "Generate CLI documentation from help text"
+inputs = ["src/whl2conda/cli/**/*.py"]
+outputs = ["doc/reference/cli/whl2conda*.md"]
+
+[tool.pixi.tasks.doc]
+depends-on = ["build-cli-docs"]
+cmd = "mkdocs build -f mkdocs.yml"
+description = "Build documentation with MkDocs"
+inputs = ["mkdocs.yml", "doc/**/*.md", "src/whl2conda/api/**/*.py"]
+outputs = ["site/**/*"]
+
+[tool.pixi.tasks.doc-serve]
+depends-on = ["build-cli-docs"]
+cmd = "mkdocs serve -f mkdocs.yml"
+description = "Serve documentation locally for development"
+inputs = ["mkdocs.yml", "doc/**/*.md", "src/whl2conda/api/**/*.py"]
+
+[tool.pixi.tasks.doc-strict]
+depends-on = ["doc"]
+cmd = "linkchecker -f linkcheckerrc.ini site"
+description = "Build documentation and check all links"
+inputs = ["linkcheckerrc.ini", "site/**/*"]
+
+# Build tasks
+[tool.pixi.tasks.build-sdist]
+cmd = "python -m build --sdist --no-isolation --outdir dist"
+description = "Build source distribution"
+inputs = ["pyproject.toml", "src/**/*.py", "src/**/*.json", "src/whl2conda/VERSION", "README.md", "LICENSE.md"]
+outputs = ["dist/*.tar.gz"]
+
+[tool.pixi.tasks.build-conda]
+cmd = "whl2conda convert --build-wheel"
+description = "Build conda package from wheel"
+inputs = ["pyproject.toml", "src/**/*.py", "src/**/*.json", "src/whl2conda/VERSION"]
+outputs = ["dist/*.conda", "dist/*.whl"]
+
+[tool.pixi.tasks.build]
+depends-on = ["build-sdist", "build-conda"]
+description = "Build both wheel and conda packages"
+
+# Upload tasks
+[tool.pixi.tasks.check-upload]
+cmd = "twine check dist/*.whl dist/*.tar.gz"
+description = "Check packages before upload"
+inputs = ["dist/*.whl", "dist/*.tar.gz"]
+
+[tool.pixi.tasks.upload]
+depends-on = ["check-upload"]
+cmd = "twine upload --skip-existing dist/*.whl dist/*.tar.gz"
+description = "Upload packages to PyPI"
+inputs = ["dist/*.whl", "dist/*.tar.gz"]
+
+# Utility tasks
+[tool.pixi.tasks.update-stdrename]
+cmd = "whl2conda config --update-std-renames src/whl2conda/api/stdrename.json"
+description = "Update standard package rename mappings"
+outputs = ["src/whl2conda/api/stdrename.json"]
+
+
+# File opening tasks
+[tool.pixi.tasks.open-coverage]
+cmd = "open htmlcov/index.html"
+description = "Open HTML coverage report in browser"
+inputs = ["htmlcov/index.html"]
+
+[tool.pixi.tasks.doc-open]
+cmd = "open site/index.html"
+description = "Open built documentation in browser"
+inputs = ["site/index.html"]
+
+# Documentation publishing tasks
+[tool.pixi.tasks.doc-deploy]
+env = { VERSION = "$(cat src/whl2conda/VERSION | tr -d '[:space:]')" }
+cmd = "mike deploy -F mkdocs.yml -u $VERSION latest && mike set-default -F mkdocs.yml latest"
+description = "Deploy documentation to gh-pages with version"
+inputs = ["site/**/*", "src/whl2conda/VERSION"]
+
+[tool.pixi.tasks.doc-push]
+cmd = "git push origin gh-pages"
+description = "Push documentation branch to GitHub"
+
+[tool.pixi.tasks.doc-serve-all]
+cmd = "mike serve -F mkdocs.yml"
+description = "Serve versioned documentation locally"
+
+# Granular upload tasks
+[tool.pixi.tasks.check-upload-wheel]
+cmd = "twine check dist/*.whl"
+description = "Check wheel files before upload"
+inputs = ["dist/*.whl"]
+
+[tool.pixi.tasks.check-upload-sdist]
+cmd = "twine check dist/*.tar.gz"
+description = "Check source distribution files before upload"
+inputs = ["dist/*.tar.gz"]
+
+[tool.pixi.tasks.upload-wheel]
+depends-on = ["check-upload-wheel"]
+cmd = "bash -c 'twine upload --skip-existing $(ls -t dist/*.whl | head -1)'"
+description = "Upload only the latest wheel file"
+inputs = ["dist/*.whl"]
+
+[tool.pixi.tasks.upload-sdist]
+depends-on = ["check-upload-sdist"]
+cmd = "bash -c 'twine upload --skip-existing $(ls -t dist/*.tar.gz | head -1)'"
+description = "Upload only the latest source distribution"
+inputs = ["dist/*.tar.gz"]
+
+# Clean tasks
+[tool.pixi.tasks.clean-coverage]
+cmd = "rm -rf htmlcov .coverage coverage.json coverage.xml"
+description = "Remove coverage reports and data"
+
+[tool.pixi.tasks.clean-doc]
+cmd = "rm -rf site doc/reference/cli/whl2conda*.md"
+description = "Remove generated documentation files"
+
+[tool.pixi.tasks.clean-build]
+cmd = "bash -c 'find . \\( -name \"*.whl\" -or -name \"*.conda\" -or -name \"*.tar.bz2\" \\) -exec rm {} \\; && find . \\( -name \"dist\" -or -name \"build\" -or -name \"*.egg-info\" \\) -exec rm -rf {} \\;'"
+description = "Remove build artifacts and distribution files"
+
+[tool.pixi.tasks.clean]
+depends-on = ["clean-doc", "clean-coverage", "clean-build"]
+description = "Remove all generated files"
+
+[tool.pixi.tasks.clean-all]
+depends-on = ["clean"]
+cmd = "rm -rf .mypy_cache .pytest_cache"
+description = "Remove all generated files and caches"
 
 [tool.hatch.build]
 include = [
