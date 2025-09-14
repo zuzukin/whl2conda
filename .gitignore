@@ -8,6 +8,10 @@ __pycache__/
 # Pixi environment
 .pixi/
 
+# poetry environment (for tests)
+.venv/
+poetry.lock
+
 # Build artifacts
 dist/
 htmlcov/

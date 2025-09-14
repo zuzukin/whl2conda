@@ -1,0 +1,23 @@
+[build-system]
+requires = ["poetry-core>=2.1","setuptools"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "poetry.example"
+version = "1.0.2"
+description = "simple test project"
+authors = [{name="bob", email="<bob@nowhere.com>"}]
+license = "MIT"
+homepage = "https://nowhere.com/poetry.example"
+documentation = "https://nowhere.com/poetry.example/docs"
+dependencies = [
+    "requests >=2.13"
+]
+requires-python = ">=3.10"
+
+[tool.poetry]
+packages = [
+    { include = "poetry_example", from ="src"}
+]
+requires-poetry = ">=2.1"
+

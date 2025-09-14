@@ -449,6 +449,22 @@ def test_poetry(
     assert pkg.name.startswith("poetry.example")
 
 
+def test_poetry_2_1(
+    test_case: ConverterTestCaseFactory,
+    tmp_path: Path,
+) -> None:
+    """Unit test on simple poetry package"""
+    poetry_dir = test_projects / "poetry-2.1"
+    try:
+        wheel = do_build_wheel(poetry_dir, tmp_path, capture_output=True)
+    except subprocess.CalledProcessError as err:
+        # TODO - look at captured output
+        pytest.skip(str(err))
+    pkg = test_case(wheel).build()
+    # conda package name taken from project name
+    assert pkg.name.startswith("poetry.example")
+
+
 def test_bad_wheels(
     test_case: ConverterTestCaseFactory,
     simple_wheel: Path,
