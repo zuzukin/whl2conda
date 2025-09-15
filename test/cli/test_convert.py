@@ -193,16 +193,19 @@ class CliTestCase:
             # TODO validate no_deps, dry_run
             return wheel_dir.joinpath("fake-1.0-py3-none-any.whl")
 
-        def fake_download_wheel(
+        def fake_download_dist(
             spec: str,
             index: str = "",
             into: Optional[Path] = None,
+            *,
+            sdist: bool = False,
         ) -> Path:
             """Fake version of download_wheel"""
             assert spec == self.expected_download_spec
             assert index == self.expected_download_index
             _into = into or Path.cwd()
-            return _into / "fake-1.0-py3-none-any.whl"
+            ext = ".tar.gz" if sdist else ".whl"
+            return _into / f"fake-1.0-py3-none-any{ext}"
 
         def fake_input(prompt: str) -> str:
             expected_prompt = next(prompts)
@@ -238,8 +241,8 @@ class CliTestCase:
             mp.setattr(Wheel2CondaConverter, "convert", fake_convert)
             mp.setattr("builtins.input", fake_input)
             mp.setattr("whl2conda.cli.convert.do_build_wheel", fake_build_wheel)
-            mp.setattr("whl2conda.impl.download.download_wheel", fake_download_wheel)
-            mp.setattr("whl2conda.cli.convert.download_wheel", fake_download_wheel)
+            mp.setattr("whl2conda.impl.download.download_dist", fake_download_dist)
+            mp.setattr("whl2conda.cli.convert.download_dist", fake_download_dist)
             mp.setattr(
                 "whl2conda.api.stdrename.update_renames_file",
                 fake_stdrenames_update,

@@ -21,6 +21,7 @@ build/
 *.whl
 *.conda
 *.tar.bz2
+*.tar.gz
 
 # test files
 .coverage

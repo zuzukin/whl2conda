@@ -23,7 +23,7 @@ from textwrap import dedent
 
 import pytest
 
-from whl2conda.impl.download import download_wheel, lookup_pypi_index
+from whl2conda.impl.download import download_dist, lookup_pypi_index
 from whl2conda.settings import settings
 
 
@@ -76,31 +76,38 @@ def test_download_wheel_whitebox(
         assert cmd[:2] == ["pip", "download"]
 
         parser = argparse.ArgumentParser()
-        parser.add_argument("--only-binary")
+        binary_opts = parser.add_mutually_exclusive_group()
+        binary_opts.add_argument("--only-binary")
+        binary_opts.add_argument("--no-binary")
         parser.add_argument("--no-deps", action="store_true")
         parser.add_argument("--ignore-requires-python", action="store_true")
         parser.add_argument("--implementation")
         parser.add_argument("-i", "--index")
+        parser.add_argument("--no-build-isolation", action="store_true")
         parser.add_argument("-d", "--dest")
         parser.add_argument("spec")
 
         parsed = parser.parse_args(cmd[2:])
 
         download_args[:] = [parsed]
-        assert parsed.only_binary == ":all:"
+        assert parsed.only_binary == ":all:" or parsed.no_binary == ":all:"
         assert parsed.no_deps
         assert parsed.ignore_requires_python
+        if parsed.no_binary:
+            assert not parsed.no_build_isolation
         assert parsed.implementation == "py"
+        get_sdist = bool(parsed.no_binary)
 
         download_tmpdir = Path(parsed.dest)
         assert download_tmpdir.is_dir()
 
+        ext = ".tar.gz" if get_sdist else ".whl"
         if n_wheels > 0:
-            fake_wheel_file = download_tmpdir / "fake.whl"
-            fake_wheel_file.write_text(parsed.spec)
+            fake_dist_file = download_tmpdir / f"fake{ext}"
+            fake_dist_file.write_text(parsed.spec)
         for n in range(1, n_wheels):
-            fake_wheel_file = download_tmpdir / f"fake{n}.whl"
-            fake_wheel_file.write_text(parsed.spec)
+            fake_dist_file = download_tmpdir / f"fake{n}{ext}"
+            fake_dist_file.write_text(parsed.spec)
 
         return subprocess.CompletedProcess(cmd, 0, "", stderr)
 
@@ -113,11 +120,21 @@ def test_download_wheel_whitebox(
     monkeypatch.setenv("USERPROFILE", str(home_dir))
     assert Path.home() == home_dir
 
-    whl = download_wheel("pylint")
+    whl = download_dist("pylint")
     assert whl.parent == home_dir
     assert whl.name == "fake.whl"
     assert whl.is_file()
     assert whl.read_text() == "pylint"
+    assert download_args[0].spec == "pylint"
+    assert download_args[0].index is None
+    out, err = capsys.readouterr()
+    assert not out and not err
+
+    sdist = download_dist("pylint", sdist=True)
+    assert sdist.parent == home_dir
+    assert sdist.name == "fake.tar.gz"
+    assert sdist.is_file()
+    assert sdist.read_text() == "pylint"
     assert download_args[0].spec == "pylint"
     assert download_args[0].index is None
     out, err = capsys.readouterr()
@@ -139,35 +156,32 @@ def test_download_wheel_whitebox(
     alt_dir = tmp_path / "alt"
     assert not alt_dir.exists()
 
-    stderr = b"something happened"
-    whl = download_wheel("foobar >=1.2.3", index="alt-index", into=alt_dir)
+    whl = download_dist("foobar >=1.2.3", index="alt-index", into=alt_dir)
     assert whl.parent == alt_dir
     assert whl.name == "fake.whl"
     assert whl.is_file()
     assert whl.read_text() == "foobar >=1.2.3"
     assert download_args[0].index == "alt-index"
 
-    # Make sure stderr from subprcess gets output
     out, err = capsys.readouterr()
     assert not out
-    assert "something happened" in err
-    stderr = b""
+    assert not err
 
-    whl = download_wheel("foo", index="somewhere")
+    whl = download_dist("foo", index="somewhere")
     assert download_args[0].index == somewhere_from_pypirc
 
     somewhere_from_settings = "https://settings.somewhere.com/pypi/"
     settings.pypi_indexes["somewhere"] = somewhere_from_settings
-    whl = download_wheel("foo", index="somewhere")
+    whl = download_dist("foo", index="somewhere")
     assert download_args[0].index == somewhere_from_settings
 
     n_wheels = 0
     with pytest.raises(FileNotFoundError, match="No wheels downloaded"):
-        download_wheel("bar")
+        download_dist("bar")
 
     n_wheels = 2
     with pytest.raises(AssertionError, match="More than one wheel downloaded"):
-        download_wheel("bar")
+        download_dist("bar")
 
 
 def test_download(tmp_path: Path) -> None:
@@ -175,14 +189,19 @@ def test_download(tmp_path: Path) -> None:
     Test actual downloads
     """
     try:
-        whl = download_wheel("tomlkit", into=tmp_path)
+        whl = download_dist("tomlkit", into=tmp_path)
         assert whl.is_file()
         assert whl.name.startswith("tomlkit")
         assert whl.name.endswith(".whl")
         assert whl.parent == tmp_path
-    except subprocess.CalledProcessError as ex:
-        if b"ConnectionError" in ex.stderr:
-            # Don't fail test if we are offline.
-            pytest.skip("Cannot connect to pypi index ")
-        else:
-            raise
+    except ConnectionError:
+        pytest.skip("Cannot connect to pypi index ")
+
+    try:
+        sdist = download_dist("tomlkit", into=tmp_path, sdist=True)
+        assert sdist.is_file()
+        assert sdist.name.startswith("tomlkit")
+        assert sdist.name.endswith(".tar.gz")
+        assert sdist.parent == tmp_path
+    except ConnectionError:
+        pytest.skip("Cannot connect to pypi index ")

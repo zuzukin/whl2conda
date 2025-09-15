@@ -21,6 +21,7 @@ import argparse
 import logging
 import platform
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
@@ -28,7 +29,7 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 # this project
-from ..impl.download import download_wheel
+from ..impl.download import download_dist
 from ..impl.prompt import is_interactive, choose_wheel
 from ..api.converter import Wheel2CondaConverter, CondaPackageFormat, DependencyRename
 from ..impl.pyproject import read_pyproject, PyProjInfo
@@ -60,6 +61,8 @@ class ConvertArgs:
     extra_deps: list[str]
     from_index: Optional[tuple[str, str]]
     from_pypi: Optional[str]
+    sdist_from_index: Optional[tuple[str, str]]
+    sdist_from_pypi: Optional[str]
     ignore_pyproject: bool
     interactive: bool
     keep_pip_deps: bool
@@ -73,7 +76,7 @@ class ConvertArgs:
     update_stdrenames: bool
     verbose: int
     wheel_dir: Optional[Path]
-    wheel_or_root: Optional[Path]
+    convert_from: Optional[Path]
     yes: bool
 
 
@@ -85,12 +88,12 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(
         usage=dedent("""
-            %(prog)s <wheel> [options]
+            %(prog)s <wheel|sdist> [options]
                    %(prog)s [<project-root>] [options]
             """),
         prog=prog,
         description=dedent("""
-            Generates a conda package from a pure python wheel
+            Generates a conda package from a pure python wheel or source distribution (sdist)
             """),
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
@@ -103,14 +106,17 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     info_opts = parser.add_argument_group("Help and debug options")
 
     input_opts.add_argument(
-        "wheel_or_root",
+        "convert_from",
         nargs="?",
-        metavar="[<wheel> | <project-root>]",
+        metavar="[<wheel|sdist> | <project-root>]",
         type=existing_path,
-        help=dedent("""
-        Either path to a wheel file to convert or a project root
-        directory containing a pyproject.toml or setup.py file.
-        """),
+        help=dedent(
+            """
+            Either path to a wheel file (.whl) or source distribution (.tar.gz)
+            to be converted, or a project root directory containing a pyproject.toml or 
+            setup.py file.
+            """
+        ),
     )
 
     input_opts.add_argument(
@@ -136,7 +142,8 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         "--from-pypi",
         metavar="<package-spec>",
         help=dedent("""
-            Download package satisfying <package-spec> from standard pypi.org repository.
+            Downloads and converts wheel satisfying <package-spec> from 
+            standard pypi.org repository.
         """),
     )
     download_opts.add_argument(
@@ -144,7 +151,25 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         nargs=2,
         metavar=("<index-url>", "<package-spec>"),
         help=dedent("""
-            Download package satisfying <package-spec> from repository at <index-url>.
+            Downloads and converts wheel satisfying <package-spec> from 
+            repository at <index-url>.
+        """),
+    )
+    download_opts.add_argument(
+        "--sdist-from-pypi",
+        metavar="<package-spec>",
+        help=dedent("""
+            Downloads sdist satisfying <package-spec> from standard pypi.org 
+            repository, builds into a wheel and converts.
+        """),
+    )
+    download_opts.add_argument(
+        "--sdist-from-index",
+        nargs=2,
+        metavar=("<index-url>", "<package-spec>"),
+        help=dedent("""
+            Downloads sdist satisfying <package-spec> from repository at <index-url>,
+            builds into a wheel and converts.
         """),
     )
 
@@ -335,6 +360,21 @@ def _is_project_root(path: Path) -> bool:
     return any(path.joinpath(f).is_file() for f in ["pyproject.toml", "setup.py"])
 
 
+def _is_sdist_file(path: Path) -> bool:
+    """Check if the file is a source distribution (sdist)
+
+    Arguments:
+        path: path to check
+
+    Returns:
+        True if the file appears to be an sdist
+    """
+    return path.suffix == ".gz" and path.name.endswith(".tar.gz")
+
+
+# TODO: refactor main into a class with smaller methods
+
+
 # pylint: disable=too-many-statements,too-many-branches,too-many-locals
 def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
     """
@@ -344,6 +384,16 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     parser = _create_argparser(prog)
     parsed = _parse_args(parser, args)
 
+    try:
+        _convert_main(parser, parsed)
+    except Exception as ex:
+        if parsed.verbose:
+            raise
+        print(f"Error: {ex}")
+        sys.exit(1)
+
+
+def _convert_main(parser: argparse.ArgumentParser, parsed: ConvertArgs) -> None:
     interactive = parsed.interactive
     always_yes = parsed.yes
 
@@ -354,27 +404,40 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     project_root: Optional[Path] = None
     wheel_file: Optional[Path] = None
     wheel_dir: Optional[Path] = parsed.wheel_dir
+    sdist_file: Optional[Path] = None
 
     build_wheel = parsed.build_wheel
     build_no_deps = True  # pylint: disable=unused-variable
 
     download_index = ""
     download_spec = ""
+    download_sdist = False
     if parsed.from_pypi:
         download_spec = parsed.from_pypi
+    elif parsed.sdist_from_pypi:
+        download_spec = parsed.sdist_from_pypi
+        download_sdist = True
     elif parsed.from_index:
         download_index, download_spec = parsed.from_index
+    elif parsed.sdist_from_index:
+        download_index, download_spec = parsed.sdist_from_index
+        download_sdist = True
 
-    wheel_or_root = parsed.wheel_or_root
+    convert_from = parsed.convert_from
     saw_positional_root = False
-    if not wheel_or_root:
-        project_root = Path.cwd()
+    if not convert_from:
+        if not download_spec:
+            project_root = Path.cwd()
     else:
-        if wheel_or_root.is_dir():
-            project_root = wheel_or_root
+        if convert_from and convert_from.is_dir():
+            project_root = convert_from
             saw_positional_root = True
+        elif _is_sdist_file(convert_from):
+            sdist_file = convert_from
+            # the project root will be the root of the unpacked sdist
+            parsed.ignore_pyproject = True
         else:
-            wheel_file = wheel_or_root
+            wheel_file = convert_from
             if wheel_file.suffix != ".whl":
                 parser.error(f"Input file '{wheel_file} does not have .whl suffix")
             if not wheel_dir:
@@ -412,9 +475,8 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
                 # TODO - check for build system specific alternate dist (#23)
                 wheel_dir = project_root.joinpath("dist")
 
-    # TODO - rearrange logic to make this more obvious?
-    assert wheel_dir is not None
-    wheel_dir = wheel_dir.expanduser().absolute()
+    if wheel_dir:
+        wheel_dir = wheel_dir.expanduser().absolute()
 
     can_build = project_root is not None
 
@@ -438,8 +500,12 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
         out_dir = parsed.out_dir.expanduser().absolute()
     elif pyproj_info.out_dir:
         out_dir = pyproj_info.out_dir
-    else:
+    elif sdist_file:
+        out_dir = sdist_file.parent
+    elif wheel_dir:
         out_dir = wheel_dir
+    else:
+        out_dir = Path.cwd()
 
     if not wheel_file and wheel_dir and not build_wheel and not download_spec:
         # find wheel in directory
@@ -494,9 +560,10 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     with tempfile.TemporaryDirectory(
         dir=Path.cwd(), prefix="whl2conda-convert-"
     ) as tmpdirname:
+        # FIXME: get sdist
         if not wheel_file:
-            if download_spec:
-                wheel_file = download_wheel(
+            if download_spec and not download_sdist:
+                wheel_file = download_dist(
                     download_spec,
                     into=Path(tmpdirname),
                     index=download_index,
@@ -511,6 +578,24 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
                     capture_output=level > logging.INFO,
                 )
 
+            elif sdist_file or download_sdist:
+                # Build wheel from sdist in temporary directory
+                temp_wheel_dir = Path(tmpdirname)
+                if not sdist_file and download_sdist:
+                    sdist_file = download_dist(
+                        download_spec,
+                        into=Path(tmpdirname),
+                        index=download_index,
+                        sdist=True,
+                    )
+                assert sdist_file
+                wheel_file = do_build_wheel_from_sdist(
+                    sdist_file,
+                    temp_wheel_dir,
+                    no_deps=build_no_deps,
+                    dry_run=dry_run,
+                    capture_output=level > logging.INFO,
+                )
         assert wheel_file
 
         converter = Wheel2CondaConverter(
@@ -573,6 +658,78 @@ def do_build_wheel(
         "pip",
         "wheel",
         str(project_root),
+        "-w",
+        str(wheel_dir),
+    ]
+    if no_deps:
+        cmd.append("--no-deps")
+    if no_build_isolation:
+        cmd.append("--no-build-isolation")
+    logger.info("Running: %s", cmd)
+    if dry_run:
+        wheel = wheel_dir.joinpath("dry-run-1.0-py3-none-any.whl")
+    else:
+        start = time.time()
+        # Use longer sleep on Windows due to lower timestamp resolution
+        sleep_duration = 0.1 if platform.system() == "Windows" else 0.01
+        time.sleep(sleep_duration)  # wait to avoid time resolution issues
+
+        subprocess.run(
+            cmd,
+            check=True,
+            capture_output=capture_output,
+        )
+
+        wheels = sorted(
+            wheel_dir.glob("*.whl"),
+            key=lambda p: p.stat().st_ctime,
+            reverse=True,
+        )
+
+        assert wheels, f"No wheel created in '{wheel_dir}'"
+        wheel = wheels[0]
+
+        create_time = wheel.stat().st_mtime
+        assert create_time >= start, (
+            f"Latest wheel {wheel} has modification time {create_time} older than start {start}"
+        )
+
+    return wheel
+
+
+def do_build_wheel_from_sdist(
+    sdist_file: Path,
+    wheel_dir: Path,
+    *,
+    no_deps: bool = True,
+    no_build_isolation: bool = False,
+    dry_run: bool = False,
+    capture_output: bool = False,
+) -> Path:
+    """Build wheel from sdist file
+
+    Arguments:
+        sdist_file: path to source distribution file (.tar.gz)
+        wheel_dir: target output directory, created as needed
+        no_deps: build with --no-deps
+        no_build_isolation: build with --no-build-isolation
+        dry_run: just log, don't actually run anything
+        capture_output: if True, capture output.
+
+    Returns:
+        path to created wheel
+
+    Raises:
+        CalledProcessError if pip command fails
+    """
+    logger = logging.getLogger(__name__)
+    logger.info("Building wheel from sdist %s", sdist_file)
+    if not dry_run:
+        wheel_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "pip",
+        "wheel",
+        str(sdist_file),
         "-w",
         str(wheel_dir),
     ]

@@ -28,10 +28,10 @@ This is described in the section on [Dependency Modification](renaming.md)
 If you want to create a conda package for a pure python package from [pypi] that doesn't
 currently have one available on a public channel, you can download the wheel
 using [pip download][pip-download]. You do not need to download dependencies and 
-want a wheel, not an sdist, so use:
+want a wheel, not an sdist (for that see below), so use:
 
 ```bash
-$ pip download --only-binary:all: --no-deps <some-package-spec>
+$ pip download --only-binary :all: --no-deps <some-package-spec>
 ```
 
 Then you can convert the downloaded wheel using `whl2conda convert`.
@@ -56,6 +56,34 @@ and then convert using:
 
 ```bash
 $ whl2conda convert --from-index myindex 'some-package'
+```
+
+## Converting sdist tarballs
+
+*New in version 25.9.0*
+
+You can also convert a source distribution tarball (sdist) to a conda package.
+This will only work for distributions that use either a `pyproject.toml` file or a
+`setup.py` file to specify their build system and that can be built using `pip wheel`.
+Non-pure python packages (i.e. those with compiled extensions) are not supported.
+
+You can download an sdist from pypi using [pip download][pip-download] with the
+similar command to the one used for wheels, but specify `--no-binary` instead of
+
+```bash
+$ pip download --no-binary :all: --no-deps <some-package-spec>
+```
+
+The `convert` subcommand will expand the sdist into a temporary directory and
+will build it using `pip wheel` before converting the resulting wheel to a conda package.
+This will work for most pure python packages, but could fail if there is something
+special about the build process that `pip wheel` cannot handle.
+
+You can also use the `--sdist-from-pypi` and `--sdist-from-index` options to download,
+build and convert in one step, e.g.:
+
+```bash
+$ whl2conda convert --sdist-from-pypi 'some-package ==1.2.3'
 ```
 
 ## Building from project directories

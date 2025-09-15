@@ -4,6 +4,7 @@
 
 ### Features
 
+* Support direct conversion from sdist tarballs.
 * Support parsing name from Poetry 2.0 pyproject.toml
 * Handle bad UTF-8 in METADATA files
 

@@ -21,7 +21,6 @@ from __future__ import annotations
 import configparser
 import shutil
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -29,7 +28,7 @@ from typing import Optional
 from ..settings import settings
 
 __all__ = [
-    "download_wheel",
+    "download_dist",
     "lookup_pypi_index",
 ]
 
@@ -58,18 +57,21 @@ def lookup_pypi_index(index: str) -> str:
     return index
 
 
-def download_wheel(
+def download_dist(
     spec: str,
     index: str = "",
     into: Optional[Path] = None,
+    *,
+    sdist: bool = False,
 ) -> Path:
     """
-    Downloads wheel with given specification from pypi index.
+    Downloads wheel or sdist with given specification from pypi index.
 
     Args:
-        spec: requirement specifier for wheel to download: package name and optional version
+        spec: requirement specifier for package to download: package name and optional version
         index: URL of index from which to download. Defaults to pypi.org
-        into: directory into which wheel will be download. Defaults to current directory.
+        into: directory into which distribution will be download. Defaults to current directory.
+        sdist: if True, download source distribution instead of wheel
 
     Returns:
         Path of downloaded file.
@@ -82,7 +84,7 @@ def download_wheel(
         cmd = [
             "pip",
             "download",
-            "--only-binary",  # TODO support building from a source distribution
+            "--no-binary" if sdist else "--only-binary",
             ":all:",
             "--no-deps",
             "--ignore-requires-python",  # TODO: support specific python version
@@ -96,24 +98,34 @@ def download_wheel(
         cmd.extend(["-d", str(tmpdirname)])
         cmd.append(spec)
 
-        p = subprocess.run(cmd, check=True, stderr=subprocess.PIPE)
-        if p.stderr:
-            print(p.stderr, file=sys.stderr)
+        try:
+            subprocess.run(cmd, check=True, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as ex:
+            if b"ConnectionError" in ex.stderr:
+                raise ConnectionError(
+                    f"Cannot connect to {index or 'pypi'}: {ex.stderr.decode().strip()}"
+                ) from ex
+            raise FileNotFoundError(
+                f"Cannot download {spec} from {index or 'pypi'}: {ex.stderr.decode().strip()}"
+            ) from ex
 
-        wheels = list(tmpdir.glob("*.whl"))
+        dist_glob = "*.tar.gz" if sdist else "*.whl"
+        dist_type = "sdist" if sdist else "wheel"
+
+        dists = list(tmpdir.glob(dist_glob))
 
         # these should not happen if check_call does not throw, but check anyway
-        if not wheels:
-            raise FileNotFoundError("No wheels downloaded")
-        if len(wheels) > 1:
+        if not dists:
+            raise FileNotFoundError(f"No {dist_type}s downloaded")
+        if len(dists) > 1:
             raise AssertionError(
-                f"More than one wheel downloaded: {list(w.name for w in wheels)}"
+                f"More than one {dist_type} downloaded: {list(w.name for w in dists)}"
             )
 
-        tmp_wheel = wheels[0]
+        tmp_wheel = dists[0]
         out_dir = into or Path.cwd()
         out_dir.mkdir(parents=True, exist_ok=True)
-        wheel = out_dir / tmp_wheel.name
-        shutil.copyfile(tmp_wheel, wheel)
+        dist = out_dir / tmp_wheel.name
+        shutil.copyfile(tmp_wheel, dist)
 
-        return wheel
+        return dist

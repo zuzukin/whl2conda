@@ -12,9 +12,10 @@ authors = [
   { name = "Christopher Barber", email = "christopher.barber@analog.com" },
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Build Tools",
+    "Topic :: System :: Software Distribution",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -27,6 +28,7 @@ dependencies = [
     "conda-package-handling >=2.2",
     "platformdirs >=3.10",
     "pyyaml >=6.0",
+    "setuptools >=61", # only needed for conversion from sdist for some packages
     "tomlkit >=0.12",
     "wheel >=0.41",
 ]
@@ -53,6 +55,7 @@ platformdirs = "*"
 pyyaml = "*"
 tomlkit = "*"
 wheel = "*"
+setuptools = ">=80.9.0,<81"
 
 [tool.pixi.feature.build.dependencies]
 python-build = ">=1.0.0"
@@ -62,7 +65,7 @@ hatchling = ">=1.21,<2.0"
 mypy = ">=1.8,<2.0"
 pytest = ">=7.4,<8.0"
 pytest-cov = ">=4.1.0,<5.0"
-ruff = ">=0.3.7"
+ruff = ">=0.13.0"
 types-pyyaml = ">=6.0"
 
 [tool.pixi.feature.docs.dependencies]
