@@ -176,14 +176,14 @@ def test_env_install(
         "--create",
         "--yes",
         "--extra",
-        "python=3.9",
+        "python=3.10",
         "pytest >=7.4",
     ])
 
     assert prefix.is_dir()
     packages = conda_json("list", "-p", str(prefix))
     packages_by_name = {p["name"]: p for p in packages}
-    assert packages_by_name["python"]["version"].startswith("3.9.")
+    assert packages_by_name["python"]["version"].startswith("3.10.")
     assert "pytest" in packages_by_name
     assert "quaternion" in packages_by_name
     assert "simple" in packages_by_name

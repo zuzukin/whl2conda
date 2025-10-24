@@ -15,6 +15,10 @@ This project uses [pixi](https://pixi.sh/) for development environment managemen
    - **Option 1**: Install [Miniforge](https://github.com/conda-forge/miniforge) (recommended)
    - **Option 2**: Install [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
    - **Option 3**: Install [Anaconda](https://www.anaconda.com/products/distribution)
+3. Install conda-index in the conda base environment (needed for some tests):
+    ```bash
+    conda install -n base conda-index
+    ```
 
 > **Note**: Some tests require conda to be available as a command-line tool since 
 > whl2conda generates and tests conda packages. While pixi manages the development 

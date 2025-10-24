@@ -22,9 +22,9 @@ setup(
     author="John Doe",
     author_email="jdoe@nowhere.com",
     classifiers=[
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
     keywords=["python", "test"],
     maintainer="Zuzu",

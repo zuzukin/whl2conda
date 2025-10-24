@@ -15,14 +15,14 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Build Tools",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 keywords = ["conda", "wheel", "build"]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "conda-package-handling >=2.2",
     "platformdirs >=3.10",
@@ -46,7 +46,7 @@ channels = ["conda-forge"]
 platforms = ["win-64", "linux-64", "osx-arm64"]
 
 [tool.pixi.dependencies]
-python = ">=3.9,<3.14"
+python = ">=3.10,<3.14"
 # Use "*" to reference project dependencies without duplicating version specs
 conda-package-handling = "*"
 platformdirs = "*"

@@ -347,7 +347,7 @@ def test_simple_wheel(
         simple_wheel,
         overwrite=True,
     )
-    case.converter.python_version = ">=3.9"
+    case.converter.python_version = ">=3.10"
     case.build()
 
 
@@ -409,7 +409,7 @@ def test_warnings(
 
     warn_out = get_warn_out()
     assert re.search(
-        r"Skipping.*with.*marker.*typing-extensions ; python_version < '3.9'", warn_out
+        r"Skipping.*with.*marker.*typing-extensions ; python_version < '3.10'", warn_out
     )
     assert re.search(r"Skipping.*ntfsdump", warn_out)
     assert re.search(r"Skipping.*atomacos", warn_out)
