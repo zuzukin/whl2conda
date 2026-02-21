@@ -7,6 +7,11 @@
 * Support parsing name from Poetry 2.0 pyproject.toml
 * Handle bad UTF-8 in METADATA files
 
+### Bug fixes
+
+* Normalize PyPI package names per PEP 503 when applying dependency renames (#134)
+* Show user-friendly error message when wheel download from PyPI fails (#125)
+
 ### Changes
 
 * Drop support for python 3.9
