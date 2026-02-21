@@ -47,6 +47,7 @@ from .stdrename import load_std_renames
 
 __all__ = [
     "CondaPackageFormat",
+    "CondaTargetInfo",
     "DependencyRename",
     "Wheel2CondaConverter",
     "Wheel2CondaError",
@@ -219,6 +220,108 @@ class MetadataFromWheel:
     platform_tag: str
 
 
+@dataclass
+class CondaTargetInfo:
+    """Conda package target metadata derived from wheel tags.
+
+    For noarch (pure python) packages, uses standard noarch values.
+    For platform-specific packages, derives values from wheel platform tags.
+    """
+
+    subdir: str
+    arch: Optional[str]
+    platform: Optional[str]
+    build_string: str
+    is_noarch: bool
+    site_packages_prefix: str
+
+    @classmethod
+    def from_wheel_metadata(
+        cls,
+        wheel_md: MetadataFromWheel,
+        build_number: int = 0,
+    ) -> CondaTargetInfo:
+        """Create from wheel metadata.
+
+        Currently only returns noarch values. Will be extended to support
+        platform-specific packages derived from wheel tags.
+        """
+        if wheel_md.is_pure_python:
+            return cls(
+                subdir="noarch",
+                arch=None,
+                platform=None,
+                build_string="py_0",
+                is_noarch=True,
+                site_packages_prefix="site-packages",
+            )
+
+        # Platform-specific package
+        subdir, arch, platform = _parse_platform_tag(wheel_md.platform_tag)
+        python_version = _python_version_from_tag(wheel_md.python_tag)
+        build_string = f"py{''.join(python_version.split('.'))}_{build_number}"
+
+        if platform == "win":
+            site_packages_prefix = "Lib/site-packages"
+        else:
+            site_packages_prefix = f"lib/python{python_version}/site-packages"
+
+        return cls(
+            subdir=subdir,
+            arch=arch,
+            platform=platform,
+            build_string=build_string,
+            is_noarch=False,
+            site_packages_prefix=site_packages_prefix,
+        )
+
+
+# Mapping of wheel platform tag patterns to (subdir, arch, platform)
+_WHEEL_PLATFORM_MAP: list[tuple[re.Pattern, str, str, str]] = [
+    (re.compile(r"macosx_.*_arm64"), "osx-arm64", "arm64", "osx"),
+    (re.compile(r"macosx_.*_x86_64"), "osx-64", "x86_64", "osx"),
+    (re.compile(r"macosx_.*_universal2"), "osx-arm64", "arm64", "osx"),
+    (re.compile(r"(?:many|musl)linux.*_x86_64"), "linux-64", "x86_64", "linux"),
+    (re.compile(r"(?:many|musl)linux.*_aarch64"), "linux-aarch64", "aarch64", "linux"),
+    (re.compile(r"(?:many|musl)linux.*_ppc64le"), "linux-ppc64le", "ppc64le", "linux"),
+    (re.compile(r"(?:many|musl)linux.*_s390x"), "linux-s390x", "s390x", "linux"),
+    (re.compile(r"(?:many|musl)linux.*_armv7l"), "linux-armv7l", "armv7l", "linux"),
+    (re.compile(r"win_amd64"), "win-64", "x86_64", "win"),
+    (re.compile(r"win32"), "win-32", "x86", "win"),
+    (re.compile(r"win_arm64"), "win-arm64", "arm64", "win"),
+]
+
+
+def _parse_platform_tag(platform_tag: str) -> tuple[str, str, str]:
+    """Parse wheel platform tag into (subdir, arch, platform).
+
+    Returns:
+        Tuple of (conda_subdir, arch, platform)
+
+    Raises:
+        Wheel2CondaError: if platform tag is not recognized
+    """
+    for pattern, subdir, arch, platform in _WHEEL_PLATFORM_MAP:
+        if pattern.fullmatch(platform_tag):
+            return subdir, arch, platform
+    raise Wheel2CondaError(f"Unsupported wheel platform tag: '{platform_tag}'")
+
+
+def _python_version_from_tag(python_tag: str) -> str:
+    """Extract python version string from wheel python tag.
+
+    E.g., "cp313" -> "3.13", "cp39" -> "3.9", "py3" -> "3"
+    """
+    m = re.match(r"(?:cp|py)(\d)(\d+)?", python_tag)
+    if m:
+        major = m.group(1)
+        minor = m.group(2) or ""
+        if minor:
+            return f"{major}.{minor}"
+        return major
+    return python_tag
+
+
 class DependencyRename(NamedTuple):
     r"""
     Defines a pypi to conda package renaming rule.
@@ -241,7 +344,6 @@ class DependencyRename(NamedTuple):
         try:
             pat = re.compile(pattern)
         except re.error as err:
-            # pylint: disable=raise-missing-from
             raise ValueError(f"Bad dependency rename pattern '{pattern}': {err}")
         repl = re.sub(r"\$(\d+)", r"\\\1", replacement)
         repl = re.sub(r"\$\{(\w+)}", r"\\g<\1>", repl)
@@ -253,7 +355,6 @@ class DependencyRename(NamedTuple):
                 msg = ex.msg
             else:
                 msg = str(ex)
-            # pylint: disable=raise-missing-from
             raise ValueError(
                 f"Bad dependency replacement '{replacement}' for pattern '{pattern}': {msg}"
             )
@@ -319,6 +420,7 @@ class Wheel2CondaConverter:
     allow_impure: bool = False
 
     wheel_md: Optional[MetadataFromWheel] = None
+    conda_target: Optional[CondaTargetInfo] = None
     conda_pkg_path: Optional[Path] = None
     std_renames: dict[str, str]
 
@@ -346,13 +448,24 @@ class Wheel2CondaConverter:
         Returns:
             Path of conda package
         """
-        # pylint: disable=too-many-statements,too-many-branches,too-many-locals
-
         with tempfile.TemporaryDirectory(prefix="whl2conda-") as temp_dirname:
             temp_dir = Path(temp_dirname)
             extracted_wheel_dir = self._extract_wheel(temp_dir)
 
             wheel_md = self._parse_wheel_metadata(extracted_wheel_dir)
+
+            if self.build_number is not None:
+                build_number = self.build_number
+            else:
+                try:
+                    build_number = int(wheel_md.wheel_build_number)
+                except ValueError:
+                    build_number = 0
+
+            conda_target = CondaTargetInfo.from_wheel_metadata(
+                wheel_md, build_number=build_number
+            )
+            self.conda_target = conda_target
 
             conda_dir = temp_dir / "conda-files"
             conda_info_dir = conda_dir.joinpath("info")
@@ -377,13 +490,15 @@ class Wheel2CondaConverter:
             self._write_about(conda_info_dir, wheel_md.md)
             self._write_hash_input(conda_info_dir)
             self._write_files_list(conda_info_dir, rel_files)
-            self._write_index(conda_info_dir, wheel_md, conda_dependencies)
-            self._write_link_file(conda_info_dir, wheel_md.wheel_info_dir)
+            self._write_index(
+                conda_info_dir, wheel_md, conda_dependencies, conda_target
+            )
+            self._write_link_file(conda_info_dir, wheel_md)
             self._write_paths_file(conda_dir, rel_files)
             self._write_git_file(conda_info_dir)
 
             conda_pkg_path = self._conda_package_path(
-                wheel_md.package_name, wheel_md.version
+                wheel_md.package_name, wheel_md.version, conda_target
             )
             self._write_conda_package(conda_dir, conda_pkg_path)
 
@@ -405,17 +520,20 @@ class Wheel2CondaConverter:
             policy=email.policy.EmailPolicy(utf8=True, refold_source="none"),  # type: ignore
         )
 
-    def _conda_package_path(self, package_name: str, version: str) -> Path:
+    def _conda_package_path(
+        self, package_name: str, version: str, conda_target: CondaTargetInfo
+    ) -> Path:
         """Construct conda package file path"""
         if self.out_format is CondaPackageFormat.TREE:
             suffix = ""
         else:
             suffix = str(self.out_format.value)
-        conda_pkg_file = f"{package_name}-{version}-py_0{suffix}"
+        conda_pkg_file = (
+            f"{package_name}-{version}-{conda_target.build_string}{suffix}"
+        )
         self.conda_pkg_path = Path(self.out_dir).joinpath(conda_pkg_file)
         return self.conda_pkg_path
 
-    # pylint: disable=too-many-branches
     def _write_conda_package(self, conda_dir: Path, conda_pkg_path: Path) -> Path:
         dry_run_suffix = " (dry run)" if self.dry_run else ""
         if self.logger.getEffectiveLevel() <= logging.DEBUG:
@@ -476,10 +594,10 @@ class Wheel2CondaConverter:
             json.dumps(dict(paths=paths, paths_version=1), indent=2), encoding="utf8"
         )
 
-    def _write_link_file(self, conda_info_dir: Path, wheel_info_dir: Path) -> None:
+    def _write_link_file(self, conda_info_dir: Path, wheel_md: MetadataFromWheel) -> None:
         # info/link.json
         conda_link_file = conda_info_dir.joinpath("link.json")
-        wheel_entry_points_file = wheel_info_dir.joinpath("entry_points.txt")
+        wheel_entry_points_file = wheel_md.wheel_info_dir.joinpath("entry_points.txt")
         console_scripts: list[str] = []
         if wheel_entry_points_file.is_file():
             wheel_entry_points = configparser.ConfigParser()
@@ -488,27 +606,25 @@ class Wheel2CondaConverter:
                 if section_name in wheel_entry_points:
                     section = wheel_entry_points[section_name]
                     console_scripts.extend(f"{k}={v}" for k, v in section.items())
-        noarch_dict: dict[str, Any] = dict(type="python")
-        if console_scripts:
-            noarch_dict["entry_points"] = console_scripts
+
+        link_dict: dict[str, Any] = dict(package_metadata_version=1)
+        if wheel_md.is_pure_python:
+            noarch_dict: dict[str, Any] = dict(type="python")
+            if console_scripts:
+                noarch_dict["entry_points"] = console_scripts
+            link_dict["noarch"] = noarch_dict
+
         conda_link_file.write_text(
-            json.dumps(
-                dict(
-                    noarch=noarch_dict,
-                    package_metadata_version=1,
-                ),
-                indent=2,
-                sort_keys=True,
-            ),
+            json.dumps(link_dict, indent=2, sort_keys=True),
             encoding="utf8",
         )
 
-    # pylint: disable=too-many-arguments
     def _write_index(
         self,
         conda_info_dir: Path,
         wheel_md: MetadataFromWheel,
         conda_dependencies: Sequence[str],
+        conda_target: CondaTargetInfo,
     ) -> None:
         # info/index.json
         conda_index_file = conda_info_dir.joinpath("index.json")
@@ -521,82 +637,28 @@ class Wheel2CondaConverter:
             except ValueError:
                 build_number = 0
 
-        subdir = "noarch"
+        index_dict: dict[str, Any] = dict(
+            arch=conda_target.arch,
+            build=conda_target.build_string,
+            build_number=build_number,
+            depends=conda_dependencies,
+            license=wheel_md.license,
+            name=wheel_md.package_name,
+            platform=conda_target.platform,
+            subdir=conda_target.subdir,
+            timestamp=int(time.time() + time.timezone),  # UTC timestamp
+            version=wheel_md.version,
+        )
+        if conda_target.is_noarch:
+            index_dict["noarch"] = "python"
 
         conda_index_file.write_text(
-            json.dumps(
-                dict(
-                    arch=None,
-                    build="py_0",
-                    build_number=build_number,
-                    depends=conda_dependencies,
-                    license=wheel_md.license,
-                    name=wheel_md.package_name,
-                    noarch="python",
-                    platform=None,
-                    subdir=subdir,
-                    timestamp=int(time.time() + time.timezone),  # UTC timestamp
-                    version=wheel_md.version,
-                ),
-                indent=2,
-            ),
+            json.dumps(index_dict, indent=2),
             encoding="utf8",
         )
 
-    # Convert wheel tags to arch/platform/subdir
-    #
-    # On conda-forge:
-    #    freebsd-64
-    #    linux-32
-    #    linux-64
-    #    linux-aarch64
-    #    linux-armv6l
-    #    linux-armv7l
-    #    linux-ppc64le
-    #    linux-riscv64
-    #    linux-s390x
-    #    noarch
-    #    osx-64
-    #    osx-arm64
-    #    win-32
-    #    win-64
-    #    win-arm64
-    #    zos-z
-    #
-    #  pypi - platform tag comes from sysconfig.get_platform(), which typically
-    #    just comes from os.unname() on linux/macos. Might have to look at
-    #    wheel installers to see how these are handled.
-    #
-    #    I don't see a definitive list anywhere but we can look at examples from
-    #    specific package distributions:
-    #
-    #    ruff-0.3.7-py3-none-:
-    #       win_arm64
-    #       win_amd64
-    #       win32
-    #       musllinux_1_2_x86_64
-    #       musllinux_1_2_i686
-    #       musllinux_1_2_armv7l
-    #       musllinux_1_2_aarch64
-    #       manylinux_2_17_x86_64.manylinux2014_x86_64
-    #       manylinux_2_17_390x.manylinux2014_s390x
-    #       manylinux_2_17_ppc64le.manylinux2014_ppc64le
-    #       manylinux_2_17_i686.manylinux2014_i686.whl
-    #       manylinux_2_17_armv7l.manylinux2014_armv7l.whl
-    #       manylinux_2_17_armv7l.manylinux2014_armv7l.whl
-    #       macosx_10_12_x86_64.whl
-    #       macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl
-    #
-    #   mypy-190-cp312-:
-    #       cp312-win_amd64.whl
-    #       cp312-musllinux_1_1_x86_64.whl
-    #       mypy-1.9.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-    #       cp312-macosx_11_0_arm64.whl
-    #       cp312-macosx_10_9_x86_64.whl
-    #
-    # I suspect that any binary that has implicit compiler runtime library
-    # dependencies may need special handling to add dependencies in conda
-    # for glibc or musl libc.
+    # Platform tag mapping is now handled by _WHEEL_PLATFORM_MAP and
+    # CondaTargetInfo.from_wheel_metadata()
 
     def _write_files_list(self, conda_info_dir: Path, rel_files: Sequence[str]) -> None:
         # * info/files - list of relative paths of files not including info/
@@ -610,7 +672,6 @@ class Wheel2CondaConverter:
         conda_hash_input_file = conda_info_dir.joinpath("hash_input.json")
         conda_hash_input_file.write_text(json.dumps({}, indent=2), encoding="utf8")
 
-    # pylint: disable=too-many-locals
     def _write_about(self, conda_info_dir: Path, md: dict[str, Any]) -> None:
         """Write the info/about.json file"""
         # * info/about.json
@@ -686,7 +747,6 @@ class Wheel2CondaConverter:
             encoding="utf8",
         )
 
-    # pylint: disable=too-many-locals
     def _compute_conda_dependencies(
         self,
         dependencies: Sequence[RequiresDistEntry],
@@ -749,24 +809,33 @@ class Wheel2CondaConverter:
         """
         Copies files from wheels to corresponding location in conda package:
 
-        This copies files using the mapping:
+        For noarch packages:
         - <wheel-dir>/*.data/data/* -> <conda-dir>/*
         - <wheel-dir>/*.data/scripts/* -> <conda-dir>/python-scripts/*
         - <wheel-dir>/*.data/* -> ignored
         - <wheel-dir>/* -> <conda-dir>/site-packages
-        """
-        # TODO - if not noarch python, then:
-        #
-        #   <wheel-dir>/* -> lib/python<version>/site-packages (linux/maxos)
-        #   <wheel-dir>/* -> Lib\site-packages (Windows)
-        #   <wheel-dir>/*.data/scripts/* -> bin/* (linux/macos)
-        #   <wheel-dir>/*.data/scripts/* -> Scripts\* (Windows)
-        #
 
-        conda_site_packages = conda_dir.joinpath("site-packages")
-        conda_site_packages.mkdir()
+        For platform-specific packages:
+        - <wheel-dir>/* -> <conda-dir>/lib/pythonX.Y/site-packages (Unix)
+        - <wheel-dir>/* -> <conda-dir>/Lib/site-packages (Windows)
+        - <wheel-dir>/*.data/scripts/* -> <conda-dir>/bin (Unix)
+        - <wheel-dir>/*.data/scripts/* -> <conda-dir>/Scripts (Windows)
+        """
+        assert self.conda_target is not None
+        target = self.conda_target
+
+        conda_site_packages = conda_dir.joinpath(target.site_packages_prefix)
+        conda_site_packages.mkdir(parents=True)
         conda_info_dir = conda_dir.joinpath("info")
         conda_info_dir.mkdir()
+
+        if target.is_noarch:
+            scripts_dest = "python-scripts"
+        elif target.platform == "win":
+            scripts_dest = "Scripts"
+        else:
+            scripts_dest = "bin"
+
         for entry in wheel_dir.iterdir():
             if not entry.is_dir():
                 shutil.copyfile(entry, conda_site_packages / entry.name)
@@ -782,10 +851,11 @@ class Wheel2CondaConverter:
                             datapath.name,
                             entry.relative_to(wheel_dir),
                         )
+                        continue
                     if datapath.name == "data":
-                        conda_target = conda_dir
+                        data_dest = conda_dir
                     elif datapath.name == "scripts":
-                        conda_target = conda_dir / "python-scripts"
+                        data_dest = conda_dir / scripts_dest
                     else:
                         self._warn(
                             "Do not support '%s' path in '%s' directory - ignored",
@@ -793,7 +863,7 @@ class Wheel2CondaConverter:
                             entry.relative_to(wheel_dir),
                         )
                         continue
-                    shutil.copytree(datapath, conda_target, dirs_exist_ok=True)
+                    shutil.copytree(datapath, data_dest, dirs_exist_ok=True)
 
         assert self.wheel_md is not None
         dist_info_dir = conda_site_packages / self.wheel_md.wheel_info_dir.name
@@ -834,9 +904,50 @@ class Wheel2CondaConverter:
                         shutil.copyfile(from_file, to_file)
                         break
 
-    # pylint: disable=too-many-locals, too-many-statements
     def _parse_wheel_metadata(self, wheel_dir: Path) -> MetadataFromWheel:
+        """Parse all metadata from an extracted wheel directory."""
         wheel_info_dir = next(wheel_dir.glob("*.dist-info"))
+        is_pure_lib, wheel_build_number, python_tag, abi_tag, platform_tag = (
+            self._parse_wheel_info(wheel_info_dir)
+        )
+        md, requires = self._parse_dist_metadata(wheel_info_dir)
+
+        package_name = self.package_name or str(md.get("name"))
+        self.package_name = package_name
+        version = md.get("version")
+
+        # RECORD_file = wheel_info_dir / "RECORD"
+        # TODO: strip __pycache__ entries from RECORD
+        # TODO: add INSTALLER and REQUESTED to RECORD
+        # TODO: add direct_url to wheel and to RECORD
+        # RECORD line format: <path>,sha256=<hash>,<len>
+
+        python_version: str = str(md.get("requires-python", ""))
+        if python_version:
+            requires.append(RequiresDistEntry("python", version=python_version))
+        self.wheel_md = MetadataFromWheel(
+            md=md,
+            package_name=package_name,
+            version=str(version),
+            wheel_build_number=wheel_build_number,
+            license=md.get("license-expression") or md.get("license"),  # type: ignore
+            dependencies=requires,
+            wheel_info_dir=wheel_info_dir,
+            is_pure_python=is_pure_lib,
+            python_tag=python_tag,
+            abi_tag=abi_tag,
+            platform_tag=platform_tag,
+        )
+        return self.wheel_md
+
+    def _parse_wheel_info(
+        self, wheel_info_dir: Path
+    ) -> tuple[bool, str, str, str, str]:
+        """Parse the WHEEL metadata file.
+
+        Returns:
+            Tuple of (is_pure_lib, build_number, python_tag, abi_tag, platform_tag)
+        """
         WHEEL_file = wheel_info_dir.joinpath("WHEEL")
         WHEEL_msg = self.read_metadata_file(WHEEL_file)
         # https://peps.python.org/pep-0427/#what-s-the-deal-with-purelib-vs-platlib
@@ -844,7 +955,7 @@ class Wheel2CondaConverter:
         is_pure_lib = WHEEL_msg.get("Root-Is-Purelib", "").lower() == "true"
         wheel_build_number = WHEEL_msg.get("Build", "")
         wheel_version = WHEEL_msg.get("Wheel-Version")
-        wheel_tag = WHEEL_msg.get("Tags", "py3-none-any")
+        wheel_tag = WHEEL_msg.get("Tag", "py3-none-any")
         # NOTE - Tag entry can appear more than once!
 
         if wheel_version not in self.SUPPORTED_WHEEL_VERSIONS:
@@ -857,7 +968,7 @@ class Wheel2CondaConverter:
                 raise Wheel2CondaError(f"Wheel {self.wheel_path} is not pure python")
             if wheel_tag.lower() != "py3-none-any":
                 raise Wheel2CondaError(
-                    f"Wheel {self.wheel_path} has unexpected tag '{wheel_tags}' for pure python"
+                    f"Wheel {self.wheel_path} has unexpected tag '{wheel_tag}' for pure python"
                 )
 
         wheel_tags = wheel_tag.split("-")
@@ -867,10 +978,19 @@ class Wheel2CondaConverter:
             )
 
         python_tag, abi_tag, platform_tag = wheel_tags
+        return is_pure_lib, wheel_build_number, python_tag, abi_tag, platform_tag
 
+    def _parse_dist_metadata(
+        self, wheel_info_dir: Path
+    ) -> tuple[dict[str, Any], list[RequiresDistEntry]]:
+        """Parse the METADATA file and optionally rewrite pip dependencies.
+
+        Returns:
+            Tuple of (metadata_dict, requires_list)
+        """
         wheel_md_file = wheel_info_dir.joinpath("METADATA")
         md: dict[str, str | list[Any]] = {}
-        # Metdata spec: https://packaging.python.org/en/latest/specifications/core-metadata/
+        # Metadata spec: https://packaging.python.org/en/latest/specifications/core-metadata/
         # Required keys: Metadata-Version, Name, Version
         md_msg = self.read_metadata_file(wheel_md_file)
         md_version_str = md_msg.get("Metadata-Version")
@@ -878,7 +998,6 @@ class Wheel2CondaConverter:
             msg = f"Wheel {self.wheel_path} has unsupported metadata version {md_version_str}"
             # TODO - perhaps just warn about this if not in "strict" mode
             raise Wheel2CondaError(msg)
-        # md_version = tuple(int(x) for x in md_version_str.split("."))
         for mdkey, mdval in md_msg.items():
             mdkey = mdkey.strip()
             if mdkey in self.MULTI_USE_METADATA_KEYS:
@@ -909,37 +1028,8 @@ class Wheel2CondaConverter:
                 md_msg.add_header("Requires-Dist", str(entry))
             md_msg.add_header("Provides-Extra", "original")
             wheel_md_file.write_text(md_msg.as_string(), encoding="utf8")
-        package_name = self.package_name or str(md.get("name"))
-        self.package_name = package_name
-        version = md.get("version")
 
-        # RECORD_file = wheel_info_dir / "RECORD"
-        # TODO: strip __pycache__ entries from RECORD
-        # TODO: add INSTALLER and REQUESTED to RECORD
-        # TODO: add direct_url to wheel and to RECORD
-        # RECORD line format: <path>,sha256=<hash>,<len>
-
-        # TODO: extract metadata from WHEEL Tag
-        #   {python tag}-{abi tag}-{platform tag}.whl
-        #
-
-        python_version: str = str(md.get("requires-python", ""))
-        if python_version:
-            requires.append(RequiresDistEntry("python", version=python_version))
-        self.wheel_md = MetadataFromWheel(
-            md=md,
-            package_name=package_name,
-            version=str(version),
-            wheel_build_number=wheel_build_number,
-            license=md.get("license-expression") or md.get("license"),  # type: ignore
-            dependencies=requires,
-            wheel_info_dir=wheel_info_dir,
-            is_pure_python=is_pure_lib,
-            python_tag = python_tag,
-            abi_tag = abi_tag,
-            platform_tag = platform_tag,
-        )
-        return self.wheel_md
+        return md, requires
 
     def translate_version_spec(self, pip_version: str) -> str:
         """

@@ -35,6 +35,7 @@ import pytest
 # this project
 from whl2conda.api.converter import (
     CondaPackageFormat,
+    CondaTargetInfo,
     Wheel2CondaConverter,
     DependencyRename,
 )
@@ -221,8 +222,18 @@ class CliTestCase:
             default_package_name = re.sub("_", "-", m.group(1))
             version = m.group(2)
             package_name = converter.package_name or default_package_name
-            # pylint: disable=protected-access
-            conda_pkg_path = converter._conda_package_path(package_name, version)
+            # Create a default noarch target for the fake converter
+            conda_target = CondaTargetInfo(
+                subdir="noarch",
+                arch=None,
+                platform=None,
+                build_string="py_0",
+                is_noarch=True,
+                site_packages_prefix="site-packages",
+            )
+            conda_pkg_path = converter._conda_package_path(
+                package_name, version, conda_target
+            )
             if not conda_pkg_path.is_file() and not converter.dry_run:
                 # just write an empty file so that existence check will work
                 conda_pkg_path.parent.mkdir(parents=True, exist_ok=True)
