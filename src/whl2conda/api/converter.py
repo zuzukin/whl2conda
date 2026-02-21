@@ -1176,18 +1176,25 @@ class Wheel2CondaConverter:
         is_pure_lib = WHEEL_msg.get("Root-Is-Purelib", "").lower() == "true"
         wheel_build_number = WHEEL_msg.get("Build", "")
         wheel_version = WHEEL_msg.get("Wheel-Version")
-        wheel_tag = WHEEL_msg.get("Tag", "py3-none-any")
-        # NOTE - Tag entry can appear more than once!
+        # Tag entry can appear more than once (e.g. py2-none-any, py3-none-any)
+        all_tags = WHEEL_msg.get_all("Tag") or ["py3-none-any"]
 
         if wheel_version not in self.SUPPORTED_WHEEL_VERSIONS:
             raise Wheel2CondaError(
                 f"Wheel {self.wheel_path} has unsupported wheel version {wheel_version}"
             )
 
+        # Pick the best tag: prefer py3 over py2
+        wheel_tag = all_tags[0]
+        for tag in all_tags:
+            if tag.lower().startswith("py3"):
+                wheel_tag = tag
+                break
+
         if not self.allow_impure:
             if not is_pure_lib:
                 raise Wheel2CondaError(f"Wheel {self.wheel_path} is not pure python")
-            if wheel_tag.lower() != "py3-none-any":
+            if not any(t.lower() == "py3-none-any" for t in all_tags):
                 raise Wheel2CondaError(
                     f"Wheel {self.wheel_path} has unexpected tag '{wheel_tag}' for pure python"
                 )
