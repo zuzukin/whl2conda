@@ -122,3 +122,28 @@ def test_pypi_orix(test_case: ConverterTestCaseFactory) -> None:
         "-k",
         "not test_restrict_to_fundamental_sector",
     ])
+
+
+#
+# Binary (impure) wheel tests
+#
+
+
+@pytest.mark.external
+def test_pypi_markupsafe_binary(test_case: ConverterTestCaseFactory) -> None:
+    """
+    Test converting markupsafe binary wheel (simple C extension).
+    """
+    case = test_case("pypi:markupsafe", allow_impure=True)
+    pkg = case.build()
+    assert pkg.is_file()
+
+
+@pytest.mark.external
+def test_pypi_wrapt_binary(test_case: ConverterTestCaseFactory) -> None:
+    """
+    Test converting wrapt binary wheel (simple C extension).
+    """
+    case = test_case("pypi:wrapt", allow_impure=True)
+    pkg = case.build()
+    assert pkg.is_file()

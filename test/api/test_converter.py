@@ -33,10 +33,15 @@ from wheel.wheelfile import WheelFile
 # this package
 from whl2conda.api.converter import (
     CondaPackageFormat,
+    CondaTargetInfo,
     DependencyRename,
     RequiresDistEntry,
     Wheel2CondaConverter,
     Wheel2CondaError,
+    _os_constraint_from_platform_tag,
+    _parse_platform_tag,
+    _python_pin_from_version,
+    _python_version_from_tag,
     normalize_pypi_name,
 )
 from whl2conda.api.stdrename import load_std_renames
@@ -640,3 +645,150 @@ def test_version_translation(tmp_path: Path, caplog: pytest.LogCaptureFixture) -
     logrec = caplog.records[0]
     assert logrec.levelname == "WARNING"
     assert "Converted arbitrary equality" in logrec.message
+
+
+#
+# Binary conversion helper tests
+#
+
+
+def test_python_version_from_tag() -> None:
+    """Test _python_version_from_tag helper."""
+    assert _python_version_from_tag("cp313") == "3.13"
+    assert _python_version_from_tag("cp39") == "3.9"
+    assert _python_version_from_tag("cp310") == "3.10"
+    assert _python_version_from_tag("py3") == "3"
+    assert _python_version_from_tag("unknown") == "unknown"
+
+
+def test_parse_platform_tag() -> None:
+    """Test _parse_platform_tag helper."""
+    assert _parse_platform_tag("macosx_11_0_arm64") == ("osx-arm64", "arm64", "osx")
+    assert _parse_platform_tag("macosx_10_9_x86_64") == ("osx-64", "x86_64", "osx")
+    assert _parse_platform_tag("macosx_11_0_universal2") == (
+        "osx-arm64",
+        "arm64",
+        "osx",
+    )
+    assert _parse_platform_tag("manylinux2014_x86_64") == (
+        "linux-64",
+        "x86_64",
+        "linux",
+    )
+    assert _parse_platform_tag("manylinux_2_17_aarch64") == (
+        "linux-aarch64",
+        "aarch64",
+        "linux",
+    )
+    assert _parse_platform_tag("musllinux_1_1_x86_64") == (
+        "linux-64",
+        "x86_64",
+        "linux",
+    )
+    assert _parse_platform_tag("win_amd64") == ("win-64", "x86_64", "win")
+    assert _parse_platform_tag("win32") == ("win-32", "x86", "win")
+    assert _parse_platform_tag("win_arm64") == ("win-arm64", "arm64", "win")
+
+    with pytest.raises(Wheel2CondaError, match="Unsupported wheel platform tag"):
+        _parse_platform_tag("unknown_platform")
+
+
+def test_os_constraint_from_platform_tag() -> None:
+    """Test _os_constraint_from_platform_tag helper."""
+    assert _os_constraint_from_platform_tag("macosx_11_0_arm64") == "__osx >=11.0"
+    assert _os_constraint_from_platform_tag("macosx_10_9_x86_64") == "__osx >=10.9"
+    assert _os_constraint_from_platform_tag("macosx_14_0_arm64") == "__osx >=14.0"
+    assert _os_constraint_from_platform_tag("manylinux2014_x86_64") == ""
+    assert _os_constraint_from_platform_tag("win_amd64") == ""
+
+
+def test_python_pin_from_version() -> None:
+    """Test _python_pin_from_version helper."""
+    pin = _python_pin_from_version("3.13")
+    assert pin == [
+        "python >=3.13,<3.14.0a0",
+        "python_abi 3.13.* *_cp313",
+    ]
+
+    pin = _python_pin_from_version("3.9")
+    assert pin == [
+        "python >=3.9,<3.10.0a0",
+        "python_abi 3.9.* *_cp39",
+    ]
+
+    # No minor version — no pin
+    assert _python_pin_from_version("3") == []
+
+
+def test_conda_target_info_noarch() -> None:
+    """Test CondaTargetInfo for noarch packages."""
+    from whl2conda.api.converter import MetadataFromWheel
+
+    md = MetadataFromWheel(
+        md={},
+        package_name="test",
+        version="1.0",
+        wheel_build_number="",
+        license=None,
+        dependencies=[],
+        wheel_info_dir=Path("."),
+        is_pure_python=True,
+        python_tag="py3",
+        abi_tag="none",
+        platform_tag="any",
+    )
+    target = CondaTargetInfo.from_wheel_metadata(md)
+    assert target.is_noarch
+    assert target.subdir == "noarch"
+    assert target.arch is None
+    assert target.platform is None
+    assert target.build_string == "py_0"
+    assert target.site_packages_prefix == "site-packages"
+    assert target.python_version == ""
+
+
+def test_conda_target_info_binary() -> None:
+    """Test CondaTargetInfo for binary packages."""
+    from whl2conda.api.converter import MetadataFromWheel
+
+    md = MetadataFromWheel(
+        md={},
+        package_name="test",
+        version="1.0",
+        wheel_build_number="",
+        license=None,
+        dependencies=[],
+        wheel_info_dir=Path("."),
+        is_pure_python=False,
+        python_tag="cp313",
+        abi_tag="cp313",
+        platform_tag="macosx_11_0_arm64",
+    )
+    target = CondaTargetInfo.from_wheel_metadata(md)
+    assert not target.is_noarch
+    assert target.subdir == "osx-arm64"
+    assert target.arch == "arm64"
+    assert target.platform == "osx"
+    assert target.build_string == "py313_0"
+    assert target.site_packages_prefix == "lib/python3.13/site-packages"
+    assert target.python_version == "3.13"
+
+    # Windows target
+    md_win = MetadataFromWheel(
+        md={},
+        package_name="test",
+        version="1.0",
+        wheel_build_number="",
+        license=None,
+        dependencies=[],
+        wheel_info_dir=Path("."),
+        is_pure_python=False,
+        python_tag="cp310",
+        abi_tag="cp310",
+        platform_tag="win_amd64",
+    )
+    target_win = CondaTargetInfo.from_wheel_metadata(md_win, build_number=2)
+    assert target_win.subdir == "win-64"
+    assert target_win.build_string == "py310_2"
+    assert target_win.site_packages_prefix == "Lib/site-packages"
+    assert target_win.python_version == "3.10"

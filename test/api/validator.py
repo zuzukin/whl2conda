@@ -56,6 +56,9 @@ class PackageValidator:
     _keep_pip_dependencies: bool = False
     _build_number: int | None = None
     _expected_python_version: str = ""
+    _allow_impure: bool = False
+    _is_binary: bool = False
+    _site_packages_prefix: str = "site-packages"
 
     def __init__(self, tmp_dir: Path) -> None:
         self.tmp_dir = tmp_dir
@@ -75,6 +78,7 @@ class PackageValidator:
         expected_python_version: str = "",
         keep_pip_dependencies: bool = False,
         build_number: int | None = None,
+        allow_impure: bool = False,
     ) -> None:
         """Validate conda package against wheel from which it was generated"""
         self._override_name = name
@@ -84,11 +88,29 @@ class PackageValidator:
         self._expected_python_version = expected_python_version
         self._keep_pip_dependencies = keep_pip_dependencies
         self._build_number = build_number
+        self._allow_impure = allow_impure
 
         wheel_dir = self._unpack_wheel(wheel)
         self._unpack_package(conda_pkg)
 
         self._wheel_md = self._parse_wheel_metadata(wheel_dir)
+
+        # Detect binary from WHEEL metadata
+        dist_info_dir = next(wheel_dir.glob("*.dist-info"))
+        wheel_file = dist_info_dir / "WHEEL"
+        wheel_msg = Wheel2CondaConverter.read_metadata_file(wheel_file)
+        self._is_binary = wheel_msg.get("Root-Is-Purelib", "").lower() != "true"
+
+        # Determine site-packages prefix from package contents
+        if self._is_binary:
+            # Find the dist-info dir inside the conda package to determine prefix
+            for dist_info in self._unpacked_conda.rglob("*.dist-info"):
+                self._site_packages_prefix = str(
+                    dist_info.parent.relative_to(self._unpacked_conda)
+                )
+                break
+        else:
+            self._site_packages_prefix = "site-packages"
 
         self._validate_unpacked()
 
@@ -226,7 +248,7 @@ class PackageValidator:
         # TODO : check author-email, maintainer-email
 
     def _validate_dist_info(self) -> None:
-        site_packages = self._unpacked_conda / "site-packages"
+        site_packages = self._unpacked_conda / self._site_packages_prefix
         dist_md = self._parse_wheel_metadata(site_packages)
         wheel_md = dict(self._wheel_md)
         if self._keep_pip_dependencies:
@@ -293,9 +315,18 @@ class PackageValidator:
         else:
             assert name == wheel_md["name"]
         assert version == wheel_md["version"]
-        # TODO support pinned python version...
-        assert index["arch"] is None
-        assert index['build'] == 'py_0'
+
+        if self._is_binary:
+            assert index["arch"] is not None
+            assert index["platform"] is not None
+            assert index["subdir"] != "noarch"
+            assert "noarch" not in index
+            assert re.match(r"py\d+_\d+", index["build"])
+        else:
+            assert index["arch"] is None
+            assert index['build'] == 'py_0'
+            assert index["platform"] is None
+            assert index["subdir"] == "noarch"
 
         if self._build_number is not None:
             build_number = self._build_number
@@ -306,8 +337,6 @@ class PackageValidator:
                 build_number = 0
         assert index['build_number'] == build_number
 
-        assert index["platform"] is None
-        assert index["subdir"] == "noarch"
         assert index.get("license") == wheel_md.get(
             "license-expression", wheel_md.get("license")
         )
@@ -319,6 +348,11 @@ class PackageValidator:
         Validates dependencies
         """
         output_depends = set(dependencies)
+
+        if self._is_binary:
+            self._validate_binary_dependencies(output_depends)
+            return
+
         expected_depends: set[str] = set()
 
         # Only used for version translation
@@ -361,6 +395,19 @@ class PackageValidator:
                 + f"Missing entries: {expected_depends - output_depends}"
             )
 
+    def _validate_binary_dependencies(self, output_depends: set[str]) -> None:
+        """Validate dependencies for binary packages."""
+        # Must have a tight python pin
+        python_deps = [d for d in output_depends if d.startswith("python >=")]
+        assert python_deps, f"Binary package missing tight python pin: {output_depends}"
+        # The tight pin should have <X.Y+1.0a0 format
+        for dep in python_deps:
+            assert ",<" in dep, f"Python pin missing upper bound: {dep}"
+
+        # Must have python_abi constraint
+        abi_deps = [d for d in output_depends if d.startswith("python_abi ")]
+        assert abi_deps, f"Binary package missing python_abi: {output_depends}"
+
     def _validate_link(self, info_dir: Path) -> None:
         """
         Validates the contents of the info/link.json file
@@ -369,6 +416,11 @@ class PackageValidator:
         assert link_file.is_file()
         jobj = json.loads(link_file.read_text("utf8"))
         assert jobj["package_metadata_version"] == 1
+
+        if self._is_binary:
+            assert "noarch" not in jobj
+            return
+
         noarch = jobj["noarch"]
         assert noarch["type"] == "python"
         entry_points = noarch.get("entry_points")
@@ -437,7 +489,7 @@ class PackageValidator:
         ) - wheel_data_files
 
         # Check that all package files were copied into site-packages/
-        site_packages_dir = pkg_dir / "site-packages"
+        site_packages_dir = pkg_dir / self._site_packages_prefix
         for wheel_file in wheel_site_package_files:
             if wheel_file.is_dir():
                 continue

@@ -88,6 +88,7 @@ class ConverterTestCase:
         dependency_rename: Sequence[tuple[str, str]] = (),
         extra_dependencies: Sequence[str] = (),
         overwrite: bool = False,
+        allow_impure: bool = False,
     ) -> None:
         if not str(wheel_src).startswith("pypi:"):
             wheel_src = Path(wheel_src)
@@ -98,6 +99,7 @@ class ConverterTestCase:
         )
         self.extra_dependencies = tuple(extra_dependencies)
         self.overwrite = overwrite
+        self.allow_impure = allow_impure
         self.tmp_dir = tmp_dir
         self.project_dir = project_dir
         self.package_name = package_name
@@ -132,6 +134,7 @@ class ConverterTestCase:
         converter.package_name = self.package_name
         converter.overwrite = self.overwrite
         converter.out_format = out_format
+        converter.allow_impure = self.allow_impure
         self._converter = converter
         return converter.convert()
 
@@ -178,6 +181,7 @@ class ConverterTestCase:
                 expected_python_version=converter.python_version,
                 keep_pip_dependencies=converter.keep_pip_dependencies,
                 build_number=converter.build_number,
+                allow_impure=converter.allow_impure,
             )
 
 
@@ -207,6 +211,7 @@ class ConverterTestCaseFactory:
         dependency_rename: Sequence[tuple[str, str]] = (),
         extra_dependencies: Sequence[str] = (),
         overwrite: bool = False,
+        allow_impure: bool = False,
     ) -> ConverterTestCase:
         case = ConverterTestCase(
             wheel_src,
@@ -216,6 +221,7 @@ class ConverterTestCaseFactory:
             dependency_rename=dependency_rename,
             extra_dependencies=extra_dependencies,
             overwrite=overwrite,
+            allow_impure=allow_impure,
         )
         self._cases.append(case)
         return case

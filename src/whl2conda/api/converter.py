@@ -242,6 +242,8 @@ class CondaTargetInfo:
     build_string: str
     is_noarch: bool
     site_packages_prefix: str
+    python_version: str = ""
+    """Python version for binary packages (e.g. '3.13'). Empty for noarch."""
 
     @classmethod
     def from_wheel_metadata(
@@ -251,8 +253,8 @@ class CondaTargetInfo:
     ) -> CondaTargetInfo:
         """Create from wheel metadata.
 
-        Currently only returns noarch values. Will be extended to support
-        platform-specific packages derived from wheel tags.
+        For pure python wheels, returns noarch target info.
+        For platform-specific wheels, derives conda metadata from wheel tags.
         """
         if wheel_md.is_pure_python:
             return cls(
@@ -281,6 +283,7 @@ class CondaTargetInfo:
             build_string=build_string,
             is_noarch=False,
             site_packages_prefix=site_packages_prefix,
+            python_version=python_version,
         )
 
 
@@ -328,6 +331,38 @@ def _python_version_from_tag(python_tag: str) -> str:
             return f"{major}.{minor}"
         return major
     return python_tag
+
+
+def _os_constraint_from_platform_tag(platform_tag: str) -> str:
+    """Extract OS minimum version constraint from wheel platform tag.
+
+    For macOS wheels like ``macosx_11_0_arm64``, returns ``__osx >=11.0``.
+    Returns empty string if no OS constraint can be derived.
+    """
+    if m := re.match(r"macosx_(\d+)_(\d+)", platform_tag):
+        major, minor = m.group(1), m.group(2)
+        return f"__osx >={major}.{minor}"
+    return ""
+
+
+def _python_pin_from_version(python_version: str) -> list[str]:
+    """Generate tight Python version pin dependencies for binary packages.
+
+    For a version like ``3.13``, returns::
+
+        ["python >=3.13,<3.14.0a0", "python_abi 3.13.* *_cp313"]
+
+    Returns empty list if version has no minor component.
+    """
+    parts = python_version.split(".")
+    if len(parts) != 2:
+        return []
+    major, minor = parts
+    next_minor = int(minor) + 1
+    return [
+        f"python >={python_version},<{major}.{next_minor}.0a0",
+        f"python_abi {python_version}.* *_cp{major}{minor}",
+    ]
 
 
 class DependencyRename(NamedTuple):
@@ -493,6 +528,18 @@ class Wheel2CondaConverter:
             ]
 
             conda_dependencies = self._compute_conda_dependencies(wheel_md.dependencies)
+
+            # Add binary-specific dependencies
+            if not conda_target.is_noarch:
+                self._warn(
+                    "Experimental: converting non-pure wheel '%s'. "
+                    "Converted package may include bundled libraries that "
+                    "differ from conda-forge shared library packages.",
+                    self.wheel_path.name,
+                )
+                conda_dependencies = self._add_binary_dependencies(
+                    conda_dependencies, conda_target, wheel_md.platform_tag
+                )
 
             # Write conda info files
             # TODO - copy readme file into info
@@ -813,6 +860,37 @@ class Wheel2CondaConverter:
             self._debug("Dependency added:  '%s'", dep)
             conda_dependencies.append(dep)
         return conda_dependencies
+
+    def _add_binary_dependencies(
+        self,
+        conda_dependencies: list[str],
+        conda_target: CondaTargetInfo,
+        platform_tag: str,
+    ) -> list[str]:
+        """Add binary-specific dependencies (python pin, OS constraint).
+
+        Replaces any loose python version spec with a tight pin derived from
+        the wheel's Python tag, and adds OS minimum version constraints.
+        """
+        python_pin = _python_pin_from_version(conda_target.python_version)
+        if python_pin:
+            # Remove any existing loose python dependency
+            result = [
+                dep for dep in conda_dependencies if not dep.startswith("python ")
+            ]
+            result.extend(python_pin)
+            self._debug(
+                "Binary python pin: %s",
+                ", ".join(python_pin),
+            )
+        else:
+            result = list(conda_dependencies)
+
+        if os_constraint := _os_constraint_from_platform_tag(platform_tag):
+            result.append(os_constraint)
+            self._debug("OS constraint: %s", os_constraint)
+
+        return result
 
     def _copy_wheel_files(self, wheel_dir: Path, conda_dir: Path) -> None:
         """
