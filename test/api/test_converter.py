@@ -369,7 +369,11 @@ def test_debug_log(
     case.build()
 
     def get_debug_out() -> str:
-        messages: list[str] = [record.message for record in caplog.records if record.levelno == logging.DEBUG]
+        messages: list[str] = [
+            record.message
+            for record in caplog.records
+            if record.levelno == logging.DEBUG
+        ]
         return "\n".join(messages)
 
     debug_out = get_debug_out()
@@ -399,7 +403,11 @@ def test_warnings(
     """
 
     def get_warn_out() -> str:
-        messages: list[str] = [record.message for record in caplog.records if record.levelno == logging.WARNING]
+        messages: list[str] = [
+            record.message
+            for record in caplog.records
+            if record.levelno == logging.WARNING
+        ]
         return "\n".join(messages)
 
     test_case(markers_wheel).build()

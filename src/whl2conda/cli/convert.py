@@ -284,7 +284,7 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
     experimental_opts.add_argument(
         "--allow-impure",
         action="store_true",
-        help="Allow experimental conversion of non-pure python packages"
+        help="Allow experimental conversion of non-pure python packages",
     )
 
     info_opts.add_argument(
@@ -436,7 +436,10 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
         for pat, repl in parsed.dep_renames:
             renames.append(DependencyRename.from_strings(pat, repl))
         source = "-D/--drop-dependency option"
-        renames.extend(DependencyRename.from_strings(dropname, "") for dropname in parsed.dropped_deps)
+        renames.extend(
+            DependencyRename.from_strings(dropname, "")
+            for dropname in parsed.dropped_deps
+        )
     except ValueError as ex:
         parser.error(f"Bad rename pattern from {source}:\n{ex}")
 
@@ -541,7 +544,8 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
         converter.allow_impure = parsed.allow_impure
         if parsed.allow_metadata_version:
             converter.SUPPORTED_METADATA_VERSIONS = (
-                (*converter.SUPPORTED_METADATA_VERSIONS, parsed.allow_metadata_version)
+                *converter.SUPPORTED_METADATA_VERSIONS,
+                parsed.allow_metadata_version,
             )
 
         converter.dependency_rename.extend(renames)

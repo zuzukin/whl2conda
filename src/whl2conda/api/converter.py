@@ -525,9 +525,7 @@ class Wheel2CondaConverter:
             suffix = ""
         else:
             suffix = str(self.out_format.value)
-        conda_pkg_file = (
-            f"{package_name}-{version}-{conda_target.build_string}{suffix}"
-        )
+        conda_pkg_file = f"{package_name}-{version}-{conda_target.build_string}{suffix}"
         self.conda_pkg_path = Path(self.out_dir).joinpath(conda_pkg_file)
         return self.conda_pkg_path
 
@@ -579,19 +577,19 @@ class Wheel2CondaConverter:
         for rel_file in rel_files:
             abs_file = conda_dir.joinpath(rel_file)
             file_bytes = abs_file.read_bytes()
-            paths.append(
-                {
-                    "_path": rel_file,
-                    "path_type": "hardlink",
-                    "sha256": sha256(file_bytes).hexdigest(),
-                    "size_in_bytes": len(file_bytes),
-                }
-            )
+            paths.append({
+                "_path": rel_file,
+                "path_type": "hardlink",
+                "sha256": sha256(file_bytes).hexdigest(),
+                "size_in_bytes": len(file_bytes),
+            })
         conda_paths_file.write_text(
             json.dumps({"paths": paths, "paths_version": 1}, indent=2), encoding="utf8"
         )
 
-    def _write_link_file(self, conda_info_dir: Path, wheel_md: MetadataFromWheel) -> None:
+    def _write_link_file(
+        self, conda_info_dir: Path, wheel_md: MetadataFromWheel
+    ) -> None:
         # info/link.json
         conda_link_file = conda_info_dir.joinpath("link.json")
         wheel_entry_points_file = wheel_md.wheel_info_dir.joinpath("entry_points.txt")

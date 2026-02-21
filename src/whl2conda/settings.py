@@ -44,8 +44,9 @@ import dataclasses
 import datetime as dt
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, ClassVar, NamedTuple
+from typing import Any, ClassVar, NamedTuple
 
 # third party
 from platformdirs import user_config_path
@@ -155,14 +156,7 @@ def _fromidentifier(name: str) -> str:
     return name.replace("_", "-")
 
 
-if sys.version_info >= (3, 10):
-    # kw_only is not available until 3.10
-    dataclass_args: dict[str, Any] = {"kw_only": True}
-else:
-    dataclass_args: dict[str, Any] = {}
-
-
-@dataclasses.dataclass(**dataclass_args)
+@dataclasses.dataclass(kw_only=True)
 class Whl2CondaSettings:
     """
     User settings for whl2conda.

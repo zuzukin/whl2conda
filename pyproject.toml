@@ -15,14 +15,13 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Build Tools",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
 keywords = ["conda", "wheel", "build"]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "conda-package-handling >=2.2",
     "platformdirs >=3.10",
@@ -41,12 +40,12 @@ documentation = "https://zuzukin.github.io/whl2conda/"
 whl2conda = "whl2conda.cli:main"
 
 # Pixi configuration
-[tool.pixi.project]
+[tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["win-64", "linux-64", "osx-arm64"]
 
 [tool.pixi.dependencies]
-python = ">=3.9,<3.14"
+python = ">=3.10,<3.14"
 # Use "*" to reference project dependencies without duplicating version specs
 conda-package-handling = "*"
 platformdirs = "*"
@@ -354,7 +353,9 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 88
 exclude = [
-    "src/whl2conda/external"
+    "src/whl2conda/external",
+    "test-projects",
+    "research",
 ]
 
 [tool.ruff.lint]

@@ -14,7 +14,6 @@ If no packages specified, compares a default set of binary packages.
 from __future__ import annotations
 
 import json
-import os
 import re
 import subprocess
 import sys
@@ -23,8 +22,6 @@ import tempfile
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
-
 
 # Default packages to compare - diverse mix of binary package types
 DEFAULT_PACKAGES = [
@@ -71,7 +68,7 @@ class CondaInfo:
     paths_json: dict = field(default_factory=dict)
 
 
-def download_wheel(package: str, dest_dir: Path) -> Optional[Path]:
+def download_wheel(package: str, dest_dir: Path) -> Path | None:
     """Download a binary wheel from PyPI for the current platform."""
     result = subprocess.run(
         [
@@ -90,12 +87,12 @@ def download_wheel(package: str, dest_dir: Path) -> Optional[Path]:
     # Find the downloaded wheel
     wheels = list(dest_dir.glob("*.whl"))
     if not wheels:
-        print(f"  ERROR: no wheel found after download")
+        print("  ERROR: no wheel found after download")
         return None
     return wheels[0]
 
 
-def download_conda(package: str, dest_dir: Path) -> Optional[Path]:
+def download_conda(package: str, dest_dir: Path) -> Path | None:
     """Download a conda package from conda-forge for the current platform."""
     import platform as plat
     import urllib.request
@@ -193,7 +190,7 @@ def extract_wheel_info(wheel_path: Path, extract_dir: Path) -> WheelInfo:
     info.binary_files = [
         f for f in info.files
         if any(f.endswith(ext) for ext in binary_exts)
-        or ".cpython-" in f and f.endswith(".so")
+        or (".cpython-" in f and f.endswith(".so"))
     ]
 
     # Parse WHEEL metadata
@@ -257,7 +254,7 @@ def extract_conda_info(conda_path: Path, extract_dir: Path) -> CondaInfo:
     info.binary_files = [
         f for f in info.files
         if any(f.endswith(ext) for ext in binary_exts)
-        or ".cpython-" in f and f.endswith(".so")
+        or (".cpython-" in f and f.endswith(".so"))
     ]
 
     # Parse index.json
@@ -313,7 +310,7 @@ def _parse_email_metadata(path: Path) -> dict[str, str]:
     return result
 
 
-def compare_package(package: str, work_dir: Path) -> Optional[dict]:
+def compare_package(package: str, work_dir: Path) -> dict | None:
     """Download and compare wheel vs conda package."""
     print(f"\n{'='*70}")
     print(f"Package: {package}")
@@ -329,12 +326,12 @@ def compare_package(package: str, work_dir: Path) -> Optional[dict]:
         d.mkdir(parents=True, exist_ok=True)
 
     # Download
-    print(f"\nDownloading wheel from PyPI...")
+    print("\nDownloading wheel from PyPI...")
     wheel_path = download_wheel(package, wheel_dir)
     if not wheel_path:
         return None
 
-    print(f"Downloading conda package from conda-forge...")
+    print("Downloading conda package from conda-forge...")
     conda_path = download_conda(package, conda_dir)
     if not conda_path:
         return None
@@ -349,7 +346,7 @@ def compare_package(package: str, work_dir: Path) -> Optional[dict]:
     # Report
     report = {}
 
-    print(f"\n--- Wheel Tags ---")
+    print("\n--- Wheel Tags ---")
     print(f"  Python: {wheel_info.python_tag}")
     print(f"  ABI:    {wheel_info.abi_tag}")
     print(f"  Platform: {wheel_info.platform_tag}")
@@ -359,7 +356,7 @@ def compare_package(package: str, work_dir: Path) -> Optional[dict]:
         "platform": wheel_info.platform_tag,
     }
 
-    print(f"\n--- Conda Metadata (index.json) ---")
+    print("\n--- Conda Metadata (index.json) ---")
     for key in ["name", "version", "build", "build_number", "subdir",
                 "arch", "platform", "noarch", "depends", "constrains",
                 "license", "timestamp"]:
@@ -368,7 +365,7 @@ def compare_package(package: str, work_dir: Path) -> Optional[dict]:
             print(f"  {key}: {val}")
     report["conda_index"] = conda_info.index
 
-    print(f"\n--- Wheel Metadata ---")
+    print("\n--- Wheel Metadata ---")
     print(f"  Root-Is-Purelib: {wheel_info.wheel_metadata.get('Root-Is-Purelib', 'N/A')}")
     print(f"  Tag: {wheel_info.wheel_metadata.get('Tag', 'N/A')}")
     report["wheel_metadata"] = {
@@ -376,7 +373,7 @@ def compare_package(package: str, work_dir: Path) -> Optional[dict]:
         "tag": wheel_info.wheel_metadata.get("Tag"),
     }
 
-    print(f"\n--- Binary Files ---")
+    print("\n--- Binary Files ---")
     print(f"  Wheel ({len(wheel_info.binary_files)}):")
     for f in wheel_info.binary_files[:10]:
         print(f"    {f}")
@@ -389,14 +386,14 @@ def compare_package(package: str, work_dir: Path) -> Optional[dict]:
     }
 
     if wheel_info.data_dirs:
-        print(f"\n--- Wheel .data Directories ---")
+        print("\n--- Wheel .data Directories ---")
         for cat, files in wheel_info.data_dirs.items():
             print(f"  {cat}/: {len(files)} files")
             for f in files[:5]:
                 print(f"    {f}")
         report["data_dirs"] = wheel_info.data_dirs
 
-    print(f"\n--- Dependencies ---")
+    print("\n--- Dependencies ---")
     wheel_deps = [
         line for line in (wheel_info.metadata.get("Requires-Dist", "") or "").split("\n")
         if line.strip()
@@ -414,13 +411,13 @@ def compare_package(package: str, work_dir: Path) -> Optional[dict]:
     }
 
     # File count summary
-    print(f"\n--- File Counts ---")
+    print("\n--- File Counts ---")
     print(f"  Wheel: {len(wheel_info.files)} files")
     print(f"  Conda: {len(conda_info.files)} files")
 
     # Show conda file layout (non-info)
     conda_content_files = [f for f in conda_info.files if not f.startswith("info/")]
-    print(f"\n--- Conda Content Layout (non-info/) ---")
+    print("\n--- Conda Content Layout (non-info/) ---")
     # Show directory structure
     dirs = set()
     for f in conda_content_files:
@@ -458,10 +455,10 @@ def main():
 
     # Summary
     print(f"\n\n{'='*70}")
-    print(f"SUMMARY")
+    print("SUMMARY")
     print(f"{'='*70}")
 
-    print(f"\nPlatform Tag Mapping (wheel -> conda):")
+    print("\nPlatform Tag Mapping (wheel -> conda):")
     for pkg, result in results.items():
         wt = result.get("wheel_tags", {})
         ci = result.get("conda_index", {})
