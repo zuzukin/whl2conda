@@ -52,6 +52,7 @@ __all__ = [
     "DependencyRename",
     "Wheel2CondaConverter",
     "Wheel2CondaError",
+    "normalize_pypi_name",
 ]
 
 
@@ -119,6 +120,15 @@ Regular expression matching pip version spec
 """
 
 
+def normalize_pypi_name(name: str) -> str:
+    """Normalize a PyPI package name per PEP 503.
+
+    Converts to lowercase and replaces any runs of ``[-_.]``
+    with a single dash.
+    """
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 @dataclass(slots=True)
 class RequiresDistEntry:
     """
@@ -160,7 +170,7 @@ class RequiresDistEntry:
         m = requires_dist_re.fullmatch(raw)
         if not m:
             raise SyntaxError(f"Cannot parse Requires-Dist entry: {raw!r}")
-        entry = RequiresDistEntry(name=m.group("name"))
+        entry = RequiresDistEntry(name=normalize_pypi_name(m.group("name")))
         if extra := m.group("extra"):
             entry.extras = tuple(re.split(r"\s*,\s*", extra))
         if version := m.group("version"):
@@ -360,10 +370,13 @@ class DependencyRename(NamedTuple):
     def rename(self, pypi_name: str) -> tuple[str, bool]:
         """Rename dependency package name
 
+        The name is normalized before matching per PEP 503.
+
         Returns conda name and indicator of whether the
         pattern was applied.
         """
-        if m := self.pattern.fullmatch(pypi_name):
+        normalized = normalize_pypi_name(pypi_name)
+        if m := self.pattern.fullmatch(normalized):
             return m.expand(self.replacement), True
         return pypi_name, False
 

@@ -37,6 +37,7 @@ from whl2conda.api.converter import (
     RequiresDistEntry,
     Wheel2CondaConverter,
     Wheel2CondaError,
+    normalize_pypi_name,
 )
 from whl2conda.api.stdrename import load_std_renames
 from whl2conda.cli.convert import do_build_wheel
@@ -149,6 +150,30 @@ def test_requires_dist_entry() -> None:
     with pytest.raises(SyntaxError):
         RequiresDistEntry.parse("=123 : bad")
 
+    # Test PEP 503 name normalization (#134)
+    entry_underscore = RequiresDistEntry.parse("Foo_Bar >=1.0")
+    assert entry_underscore.name == "foo-bar"
+
+    entry_dot = RequiresDistEntry.parse("foo.bar.baz >=2.0")
+    assert entry_dot.name == "foo-bar-baz"
+
+    entry_mixed = RequiresDistEntry.parse("Foo_.Bar >=3.0")
+    assert entry_mixed.name == "foo-bar"
+
+    entry_upper = RequiresDistEntry.parse("MyPackage")
+    assert entry_upper.name == "mypackage"
+
+
+def test_normalize_pypi_name() -> None:
+    """Test PEP 503 normalization of PyPI package names"""
+    assert normalize_pypi_name("foo") == "foo"
+    assert normalize_pypi_name("Foo-Bar") == "foo-bar"
+    assert normalize_pypi_name("foo_bar") == "foo-bar"
+    assert normalize_pypi_name("foo.bar") == "foo-bar"
+    assert normalize_pypi_name("Foo_.Bar") == "foo-bar"
+    assert normalize_pypi_name("FOO---BAR") == "foo-bar"
+    assert normalize_pypi_name("typing_extensions") == "typing-extensions"
+
 
 #
 # DependencyRename test cases
@@ -176,6 +201,12 @@ def test_dependency_rename() -> None:
 
     r = DependencyRename.from_strings("(?P<name>.*)", r"${name}-foo")
     assert r.rename("stuff") == ("stuff-foo", True)
+
+    # Test normalization in rename (#134)
+    r = DependencyRename.from_strings("foo-bar", "conda-foo-bar")
+    assert r.rename("foo_bar") == ("conda-foo-bar", True)
+    assert r.rename("Foo.Bar") == ("conda-foo-bar", True)
+    assert r.rename("foo-bar") == ("conda-foo-bar", True)
 
     # error cases
 
