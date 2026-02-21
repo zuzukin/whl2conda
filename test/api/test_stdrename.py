@@ -18,6 +18,7 @@ Unit tests for whl2conda.stdrename module
 
 from __future__ import annotations
 
+import email.message
 import email.utils
 import json
 import platform

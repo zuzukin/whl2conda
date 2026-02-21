@@ -50,7 +50,7 @@ def test_lookup_pypi_index(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> N
     assert lookup_pypi_index("foo") == "foo-pypirc"
     assert lookup_pypi_index("bar") == "bar"
 
-    settings.pypi_indexes["foo"] = "foo-settings"
+    settings.pypi_indexes["foo"] = "foo-settings"  # type: ignore[index]
 
     assert lookup_pypi_index("foo") == "foo-settings"
 
@@ -158,7 +158,7 @@ def test_download_wheel_whitebox(
     assert download_args[0].index == somewhere_from_pypirc
 
     somewhere_from_settings = "https://settings.somewhere.com/pypi/"
-    settings.pypi_indexes["somewhere"] = somewhere_from_settings
+    settings.pypi_indexes["somewhere"] = somewhere_from_settings  # type: ignore[index]
     whl = download_wheel("foo", index="somewhere")
     assert download_args[0].index == somewhere_from_settings
 

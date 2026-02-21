@@ -283,8 +283,8 @@ def test_config_remove(
     main(["config", "--set", "pypi-indexes.bar", "https://bar.com/pypi"])
     assert tmp_settings_file.exists()
     assert settings.conda_format is CondaPackageFormat.V1
-    assert settings.pypi_indexes["foo"] == "https://foo.com/pypi"
-    assert settings.pypi_indexes["bar"] == "https://bar.com/pypi"
+    assert settings.pypi_indexes["foo"] == "https://foo.com/pypi"  # type: ignore[index]
+    assert settings.pypi_indexes["bar"] == "https://bar.com/pypi"  # type: ignore[index]
 
     main(["config", "--remove", "conda-format", "--dry-run"])
     assert settings.conda_format is CondaPackageFormat.V2  # prev default

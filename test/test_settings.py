@@ -51,7 +51,7 @@ def test_Whl2CondaSettings(tmp_path: Path):
     settings.conda_format = "V1"
     assert settings.conda_format is CondaPackageFormat.V1
 
-    settings.pypi_indexes["somewhere"] = "https://somewhere.com/pypi"
+    settings.pypi_indexes["somewhere"] = "https://somewhere.com/pypi"  # type: ignore[index]
     assert settings.pypi_indexes == {"somewhere": "https://somewhere.com/pypi"}
     check_settings(settings, tmp_path)
 
@@ -74,7 +74,7 @@ def test_settings_get() -> None:
     with pytest.raises(KeyError, match=r"Bad settings key 'conda_format\.value'"):
         settings.get("conda_format.value")
 
-    settings.pypi_indexes["somewhere"] = "https://somewhere.com/pypi"
+    settings.pypi_indexes["somewhere"] = "https://somewhere.com/pypi"  # type: ignore[index]
     assert settings.get("pypi_indexes.somewhere") == "https://somewhere.com/pypi"
 
 
@@ -118,8 +118,8 @@ def test_settings_unset(tmp_path: Path) -> None:
     settings.conda_format = "V1"
     assert settings.conda_format is CondaPackageFormat.V1
 
-    settings.pypi_indexes["somewhere"] = "https://somewhere.com/pypi"
-    settings.pypi_indexes["nowhere"] = "https://nowhere.com/pypi"
+    settings.pypi_indexes["somewhere"] = "https://somewhere.com/pypi"  # type: ignore[index]
+    settings.pypi_indexes["nowhere"] = "https://nowhere.com/pypi"  # type: ignore[index]
 
     settings.unset("pypi-indexes.somewhere")
     assert settings.pypi_indexes == {"nowhere": "https://nowhere.com/pypi"}

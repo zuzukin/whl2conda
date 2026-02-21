@@ -59,6 +59,7 @@ hatchling = ">=1.21,<2.0"
 
 [tool.pixi.feature.test.dependencies]
 mypy = ">=1.8,<2.0"
+pyright = ">=1.1,<2.0"
 pytest = ">=7.4,<8.0"
 pytest-cov = ">=4.1.0,<5.0"
 ruff = ">=0.3.7"
@@ -114,8 +115,13 @@ cmd = "ruff format --check src test"
 description = "Check code formatting with ruff"
 inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
 
+[tool.pixi.tasks.pyright]
+cmd = "pyright"
+description = "Run pyright type checking"
+inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
+
 [tool.pixi.tasks.lint]
-depends-on = ["ruff", "mypy", "check-format"]
+depends-on = ["ruff", "pyright", "mypy", "check-format"]
 description = "Run all linting and type checking"
 
 [tool.pixi.tasks.test]
@@ -349,6 +355,12 @@ module = [
     "wheel.*"
 ]
 ignore_missing_imports = true
+
+[tool.pyright]
+pythonVersion = "3.10"
+include = ["src/whl2conda", "test"]
+exclude = ["src/whl2conda/external"]
+typeCheckingMode = "basic"
 
 [tool.ruff]
 line-length = 88

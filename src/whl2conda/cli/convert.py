@@ -486,7 +486,8 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
     elif pyproj_info.conda_format:
         out_fmt = pyproj_info.conda_format
     else:
-        out_fmt = settings.conda_format
+        out_fmt = settings.conda_format  # pyright: ignore[reportAssignmentType]
+        assert isinstance(out_fmt, CondaPackageFormat)
 
     if verbosity < -1:
         level = logging.ERROR

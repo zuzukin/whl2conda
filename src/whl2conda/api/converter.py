@@ -22,6 +22,7 @@ from __future__ import annotations
 import configparser
 import dataclasses
 import email
+import email.message
 import email.policy
 import io
 import json

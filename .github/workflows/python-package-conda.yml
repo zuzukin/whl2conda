@@ -44,7 +44,10 @@ jobs:
       run: pixi run dev-install
     - name: Run linting checks
       run: pixi run ruff
-    - name: Run type checking
+    - name: Run pyright type checking
+      if: success() || failure()
+      run: pixi run pyright
+    - name: Run mypy type checking
       if: success() || failure()
       run: pixi run mypy
     - name: Check code formatting

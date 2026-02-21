@@ -43,7 +43,7 @@ def lookup_pypi_index(index: str) -> str:
 
     Otherwise returns the original string
     """
-    if new_index := settings.pypi_indexes.get(index):
+    if new_index := settings.pypi_indexes.get(index):  # type: ignore[union-attr]
         return new_index
 
     pypirc_path = Path("~/.pypirc").expanduser()
