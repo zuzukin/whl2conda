@@ -844,37 +844,77 @@ def test_check_binary_conversion_blocklist(tmp_path: Path) -> None:
             converter._check_binary_conversion(wheel_md)
 
 
-def test_check_binary_conversion_marker_warning(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Test that skipped environment-marker deps produce a warning."""
-    from whl2conda.api.converter import MetadataFromWheel
+def test_marker_evaluation_for_binary() -> None:
+    """Test that platform markers are evaluated for binary conversions."""
+    from whl2conda.api.converter import _evaluate_marker
 
-    converter = Wheel2CondaConverter(tmp_path / "fake.whl", tmp_path)
-    converter.logger = logging.getLogger(__name__)
+    linux_env = CondaTargetInfo(
+        subdir="linux-64",
+        arch="x86_64",
+        platform="linux",
+        build_string="py312_0",
+        is_noarch=False,
+        site_packages_prefix="lib/python3.12/site-packages",
+        python_version="3.12",
+    ).marker_environment()
 
-    dep_with_marker = RequiresDistEntry("nvidia-cuda-runtime-cu12", version=">=12.0")
-    dep_with_marker.set_marker('platform_system == "Linux"')
+    mac_env = CondaTargetInfo(
+        subdir="osx-arm64",
+        arch="arm64",
+        platform="osx",
+        build_string="py312_0",
+        is_noarch=False,
+        site_packages_prefix="lib/python3.12/site-packages",
+        python_version="3.12",
+    ).marker_environment()
 
-    wheel_md = MetadataFromWheel(
-        md={},
-        package_name="some-package",
-        version="1.0.0",
-        wheel_build_number="",
-        license=None,
-        dependencies=[dep_with_marker],
-        wheel_info_dir=Path("."),
-        is_pure_python=False,
-        python_tag="cp312",
-        abi_tag="cp312",
-        platform_tag="manylinux_2_17_x86_64",
+    # Linux-only dep should match linux env but not mac
+    assert _evaluate_marker('platform_system == "Linux"', linux_env) is True
+    assert _evaluate_marker('platform_system == "Linux"', mac_env) is False
+
+    # macOS dep should match mac env
+    assert _evaluate_marker('sys_platform == "darwin"', mac_env) is True
+    assert _evaluate_marker('sys_platform == "darwin"', linux_env) is False
+
+    # Windows check
+    assert _evaluate_marker('os_name == "nt"', linux_env) is False
+
+    # Invalid marker returns True (conservative)
+    assert _evaluate_marker("this is not valid", linux_env) is True
+
+
+def test_conda_target_marker_environment() -> None:
+    """Test CondaTargetInfo.marker_environment for different platforms."""
+    linux = CondaTargetInfo(
+        subdir="linux-64", arch="x86_64", platform="linux",
+        build_string="py312_0", is_noarch=False,
+        site_packages_prefix="lib/python3.12/site-packages",
+        python_version="3.12",
     )
+    env = linux.marker_environment()
+    assert env["os_name"] == "posix"
+    assert env["sys_platform"] == "linux"
+    assert env["platform_system"] == "Linux"
+    assert env["platform_machine"] == "x86_64"
+    assert env["python_version"] == "3.12"
 
-    with caplog.at_level(logging.WARNING):
-        converter._check_binary_conversion(wheel_md)
+    win = CondaTargetInfo(
+        subdir="win-64", arch="x86_64", platform="win",
+        build_string="py312_0", is_noarch=False,
+        site_packages_prefix="Lib/site-packages",
+        python_version="3.12",
+    )
+    env = win.marker_environment()
+    assert env["os_name"] == "nt"
+    assert env["sys_platform"] == "win32"
+    assert env["platform_system"] == "Windows"
 
-    assert "platform-conditional dependencies" in caplog.text
-    assert "nvidia-cuda-runtime-cu12" in caplog.text
+    noarch = CondaTargetInfo(
+        subdir="noarch", arch=None, platform=None,
+        build_string="py_0", is_noarch=True,
+        site_packages_prefix="site-packages",
+    )
+    assert noarch.marker_environment() == {}
 
 
 def test_check_binary_conversion_ok(tmp_path: Path) -> None:

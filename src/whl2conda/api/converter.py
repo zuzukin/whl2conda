@@ -245,6 +245,52 @@ class CondaTargetInfo:
     python_version: str = ""
     """Python version for binary packages (e.g. '3.13'). Empty for noarch."""
 
+    def marker_environment(self) -> dict[str, str]:
+        """Return PEP 508 marker environment for the target platform.
+
+        Used to evaluate environment markers on dependencies when
+        converting binary wheels.
+        """
+        match self.platform:
+            case "linux":
+                os_name = "posix"
+                sys_platform = "linux"
+                platform_system = "Linux"
+            case "osx":
+                os_name = "posix"
+                sys_platform = "darwin"
+                platform_system = "Darwin"
+            case "win":
+                os_name = "nt"
+                sys_platform = "win32"
+                platform_system = "Windows"
+            case _:
+                return {}
+
+        # Map conda arch to platform_machine values
+        machine_map = {
+            "x86_64": "x86_64",
+            "arm64": "arm64",
+            "aarch64": "aarch64",
+            "x86": "x86",
+            "ppc64le": "ppc64le",
+            "s390x": "s390x",
+            "armv7l": "armv7l",
+        }
+        platform_machine = machine_map.get(self.arch or "", "")
+
+        return {
+            "os_name": os_name,
+            "sys_platform": sys_platform,
+            "platform_system": platform_system,
+            "platform_machine": platform_machine,
+            "platform_python_implementation": "CPython",
+            "implementation_name": "cpython",
+            "python_version": self.python_version,
+            "python_full_version": f"{self.python_version}.0",
+            "implementation_version": f"{self.python_version}.0",
+        }
+
     @classmethod
     def from_wheel_metadata(
         cls,
@@ -363,6 +409,21 @@ def _python_pin_from_version(python_version: str) -> list[str]:
         f"python >={python_version},<{major}.{next_minor}.0a0",
         f"python_abi {python_version}.* *_cp{major}{minor}",
     ]
+
+
+def _evaluate_marker(marker: str, env: dict[str, str]) -> bool:
+    """Evaluate a PEP 508 environment marker against the given environment.
+
+    Returns True if the marker is satisfied, False otherwise.
+    Returns True on parse errors (conservative — include the dependency).
+    """
+    try:
+        from packaging.markers import Marker
+
+        m = Marker(marker)
+        return bool(m.evaluate(env))
+    except Exception:
+        return True
 
 
 class DependencyRename(NamedTuple):
@@ -530,7 +591,15 @@ class Wheel2CondaConverter:
                 if f.is_file()
             ]
 
-            conda_dependencies = self._compute_conda_dependencies(wheel_md.dependencies)
+            # For binary packages, evaluate platform markers against target
+            marker_env = (
+                conda_target.marker_environment()
+                if not conda_target.is_noarch
+                else None
+            )
+            conda_dependencies = self._compute_conda_dependencies(
+                wheel_md.dependencies, marker_env=marker_env
+            )
 
             # Add binary-specific dependencies
             if not conda_target.is_noarch:
@@ -809,6 +878,7 @@ class Wheel2CondaConverter:
     def _compute_conda_dependencies(
         self,
         dependencies: Sequence[RequiresDistEntry],
+        marker_env: dict[str, str] | None = None,
     ) -> list[str]:
         conda_dependencies: list[str] = []
 
@@ -819,9 +889,20 @@ class Wheel2CondaConverter:
                 self._debug("Skipping extra dependency: %s", entry)
                 continue
             if not entry.generic:
-                # TODO - support non-generic packages
-                self._warn("Skipping dependency with environment marker: %s", entry)
-                continue
+                if marker_env:
+                    # Evaluate marker against target platform
+                    if not _evaluate_marker(entry.marker, marker_env):
+                        self._debug(
+                            "Skipping dependency (marker not satisfied): %s", entry
+                        )
+                        continue
+                    self._debug("Including marker dependency for target platform: %s", entry)
+                else:
+                    # TODO - support non-generic packages
+                    self._warn(
+                        "Skipping dependency with environment marker: %s", entry
+                    )
+                    continue
 
             conda_name = pip_name = entry.name
             version = self.translate_version_spec(entry.version)
@@ -938,20 +1019,6 @@ class Wheel2CondaConverter:
                     f"to work correctly when converted from a wheel. "
                     f"Use conda-forge packages instead."
                 )
-
-        # Warn about skipped environment-marker dependencies
-        marker_deps = [
-            dep
-            for dep in wheel_md.dependencies
-            if not dep.generic and not dep.extra_marker_name
-        ]
-        if marker_deps:
-            self._warn(
-                "Wheel has %d platform-conditional dependencies that will be "
-                "dropped during conversion. This may cause import errors:\n  %s",
-                len(marker_deps),
-                "\n  ".join(str(d) for d in marker_deps),
-            )
 
     def _copy_wheel_files(self, wheel_dir: Path, conda_dir: Path) -> None:
         """
