@@ -46,7 +46,7 @@ __all__ = ["convert_main"]
 
 
 # pylint: disable=too-many-instance-attributes
-@dataclass
+@dataclass(slots=True)
 class ConvertArgs:
     """
     Parsed arguments
@@ -476,12 +476,13 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
             parser.error(str(ex))
 
     if fmtname := parsed.out_format:
-        if fmtname in ("V1", "tar.bz2"):
-            out_fmt = CondaPackageFormat.V1
-        elif fmtname in ("V2", "conda"):
-            out_fmt = CondaPackageFormat.V2
-        else:
-            out_fmt = CondaPackageFormat.TREE
+        match fmtname:
+            case "V1" | "tar.bz2":
+                out_fmt = CondaPackageFormat.V1
+            case "V2" | "conda":
+                out_fmt = CondaPackageFormat.V2
+            case _:
+                out_fmt = CondaPackageFormat.TREE
     elif pyproj_info.conda_format:
         out_fmt = pyproj_info.conda_format
     else:

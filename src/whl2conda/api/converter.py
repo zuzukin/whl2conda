@@ -119,7 +119,7 @@ Regular expression matching pip version spec
 """
 
 
-@dataclass
+@dataclass(slots=True)
 class RequiresDistEntry:
     """
     Requires-Dist metadata entry parsed from wheel
@@ -200,7 +200,7 @@ def non_none_dict(**kwargs: Any) -> dict[str, Any]:
     return {k: v for k, v in kwargs.items() if v is not None}
 
 
-@dataclass
+@dataclass(slots=True)
 class MetadataFromWheel:
     """Metadata parsed from wheel distribution"""
 
@@ -217,7 +217,7 @@ class MetadataFromWheel:
     platform_tag: str
 
 
-@dataclass
+@dataclass(slots=True)
 class CondaTargetInfo:
     """Conda package target metadata derived from wheel tags.
 

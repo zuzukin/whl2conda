@@ -41,7 +41,7 @@ from .install import install_main
 __all__ = ["build_main"]
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class BuildArgs:
     """Parsed arguments for whl2conda build"""
 

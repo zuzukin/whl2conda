@@ -37,7 +37,7 @@ from .common import add_markdown_help, dedent, existing_path, get_conda_bld_path
 __all__ = ["install_main"]
 
 
-@dataclass
+@dataclass(slots=True)
 class InstallArgs:
     """Parsed arguments"""
 

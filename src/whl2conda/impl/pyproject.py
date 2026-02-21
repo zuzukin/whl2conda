@@ -62,7 +62,7 @@ class CondaPackageFormat(str, enum.Enum):
             return cls(name.lower())
 
 
-@dataclass
+@dataclass(slots=True)
 class PyProjInfo:
     """
     Information parsed from pyproject.toml file
