@@ -23,21 +23,22 @@ import platform
 import subprocess
 import tempfile
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Sequence
+
+from ..api.converter import CondaPackageFormat, DependencyRename, Wheel2CondaConverter
 
 # this project
 from ..impl.download import download_wheel
-from ..impl.prompt import is_interactive, choose_wheel
-from ..api.converter import Wheel2CondaConverter, CondaPackageFormat, DependencyRename
-from ..impl.pyproject import read_pyproject, PyProjInfo
+from ..impl.prompt import choose_wheel, is_interactive
+from ..impl.pyproject import PyProjInfo, read_pyproject
 from ..settings import settings
 from .common import (
     add_markdown_help,
     dedent,
-    existing_path,
     existing_dir,
+    existing_path,
     maybe_existing_dir,
 )
 
@@ -53,32 +54,32 @@ class ConvertArgs:
 
     allow_impure: bool
     allow_metadata_version: str
-    build_number: Optional[int]
+    build_number: int | None
     build_wheel: bool
     dep_renames: Sequence[tuple[str, str]]
     dropped_deps: Sequence[str]
     dry_run: bool
     extra_deps: list[str]
-    from_index: Optional[tuple[str, str]]
-    from_pypi: Optional[str]
+    from_index: tuple[str, str] | None
+    from_pypi: str | None
     ignore_pyproject: bool
     interactive: bool
     keep_pip_deps: bool
     name: str
-    out_dir: Optional[Path]
+    out_dir: Path | None
     out_format: str
     overwrite: bool
-    project_root: Optional[Path]
+    project_root: Path | None
     python: str
     quiet: int
     update_stdrenames: bool
     verbose: int
-    wheel_dir: Optional[Path]
-    wheel_or_root: Optional[Path]
+    wheel_dir: Path | None
+    wheel_or_root: Path | None
     yes: bool
 
 
-def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
+def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
     """Creates the argument parser
 
     The parser will return a namespace with attributes matching
@@ -333,7 +334,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
 
 
 def _parse_args(
-    parser: argparse.ArgumentParser, args: Optional[Sequence[str]]
+    parser: argparse.ArgumentParser, args: Sequence[str] | None
 ) -> ConvertArgs:
     """Parse and return arguments"""
     return ConvertArgs(**vars(parser.parse_args(args)))
@@ -344,7 +345,7 @@ def _is_project_root(path: Path) -> bool:
 
 
 # pylint: disable=too-many-statements,too-many-branches,too-many-locals
-def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
+def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
     """
     Main command line interface
     """
@@ -359,9 +360,9 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     # dry_run implies at least verbosity of 1 unless turned off by quiet flag
     verbosity = max(parsed.verbose, int(dry_run)) - parsed.quiet
 
-    project_root: Optional[Path] = None
-    wheel_file: Optional[Path] = None
-    wheel_dir: Optional[Path] = parsed.wheel_dir
+    project_root: Path | None = None
+    wheel_file: Path | None = None
+    wheel_dir: Path | None = parsed.wheel_dir
 
     build_wheel = parsed.build_wheel
     build_no_deps = True  # pylint: disable=unused-variable
@@ -377,19 +378,18 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     saw_positional_root = False
     if not wheel_or_root:
         project_root = Path.cwd()
+    elif wheel_or_root.is_dir():
+        project_root = wheel_or_root
+        saw_positional_root = True
     else:
-        if wheel_or_root.is_dir():
-            project_root = wheel_or_root
-            saw_positional_root = True
-        else:
-            wheel_file = wheel_or_root
-            if wheel_file.suffix != ".whl":
-                parser.error(f"Input file '{wheel_file} does not have .whl suffix")
-            if not wheel_dir:
-                wheel_dir = wheel_file.parent
-            # Look for project root in wheel's parent directories
-            if any((pr := p) for p in wheel_file.parents if _is_project_root(p)):
-                project_root = pr
+        wheel_file = wheel_or_root
+        if wheel_file.suffix != ".whl":
+            parser.error(f"Input file '{wheel_file} does not have .whl suffix")
+        if not wheel_dir:
+            wheel_dir = wheel_file.parent
+        # Look for project root in wheel's parent directories
+        if any((pr := p) for p in wheel_file.parents if _is_project_root(p)):
+            project_root = pr
 
     if parsed.project_root:
         if saw_positional_root:
@@ -436,12 +436,11 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
         for pat, repl in parsed.dep_renames:
             renames.append(DependencyRename.from_strings(pat, repl))
         source = "-D/--drop-dependency option"
-        for dropname in parsed.dropped_deps:
-            renames.append(DependencyRename.from_strings(dropname, ""))
+        renames.extend(DependencyRename.from_strings(dropname, "") for dropname in parsed.dropped_deps)
     except ValueError as ex:
         parser.error(f"Bad rename pattern from {source}:\n{ex}")
 
-    out_dir: Optional[Path] = None
+    out_dir: Path | None = None
     if parsed.out_dir:
         out_dir = parsed.out_dir.expanduser().absolute()
     elif pyproj_info.out_dir:
@@ -510,7 +509,8 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
                     index=download_index,
                 )
             elif build_wheel:  # pragma: no branch
-                assert project_root and wheel_dir
+                assert project_root
+                assert wheel_dir
                 wheel_file = do_build_wheel(
                     project_root,
                     wheel_dir,
@@ -541,7 +541,7 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
         converter.allow_impure = parsed.allow_impure
         if parsed.allow_metadata_version:
             converter.SUPPORTED_METADATA_VERSIONS = (
-                converter.SUPPORTED_METADATA_VERSIONS + (parsed.allow_metadata_version,)
+                (*converter.SUPPORTED_METADATA_VERSIONS, parsed.allow_metadata_version)
             )
 
         converter.dependency_rename.extend(renames)

@@ -17,8 +17,8 @@ Test fixtures providing wheels and conda packages for tests
 """
 
 import shutil
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
 import pytest
 
@@ -69,7 +69,7 @@ def simple_conda_package(
         "--yes",
         "--quiet",
     ])
-    yield list(simple_wheel.parent.glob("*.conda"))[0]
+    yield next(iter(simple_wheel.parent.glob("*.conda")))
 
 
 @pytest.fixture(scope="session")

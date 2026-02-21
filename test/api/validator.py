@@ -24,8 +24,9 @@ import logging
 import os.path
 import re
 import shutil
+from collections.abc import Generator, Sequence
 from pathlib import Path
-from typing import Any, Generator, Optional, Sequence
+from typing import Any
 
 import conda_package_handling.api as cphapi
 import pytest
@@ -68,8 +69,8 @@ class PackageValidator:
         conda_pkg: Path,
         *,
         name: str = "",
-        renamed: Optional[dict[str, str]] = None,
-        std_renames: Optional[dict[str, str]] = None,
+        renamed: dict[str, str] | None = None,
+        std_renames: dict[str, str] | None = None,
         extra: Sequence[str] = (),
         expected_python_version: str = "",
         keep_pip_dependencies: bool = False,
@@ -98,7 +99,7 @@ class PackageValidator:
         md_file = dist_info_dir / "METADATA"
         md_msg = Wheel2CondaConverter.read_metadata_file(md_file)
 
-        list_keys = set(s.lower() for s in Wheel2CondaConverter.MULTI_USE_METADATA_KEYS)
+        list_keys = {s.lower() for s in Wheel2CondaConverter.MULTI_USE_METADATA_KEYS}
         md: dict[str, Any] = {}
         for key, value in md_msg.items():
             key = key.lower()
@@ -322,7 +323,8 @@ class PackageValidator:
 
         # Only used for version translation
         cvt = Wheel2CondaConverter(self.tmp_dir, self.tmp_dir)
-        cvt.logger = logging.Logger(__name__, logging.CRITICAL)
+        cvt.logger = logging.getLogger(__name__)
+        cvt.logger.setLevel(logging.CRITICAL)
 
         wheel_md = self._wheel_md
         if self._expected_python_version:
@@ -352,7 +354,7 @@ class PackageValidator:
 
         expected_depends.update(self._extra_dependencies)
 
-        if not output_depends == expected_depends:
+        if output_depends != expected_depends:
             pytest.fail(
                 "Dependencies don't match\n"
                 + f"Unexpected entries: {output_depends - expected_depends}\n"
@@ -390,9 +392,9 @@ class PackageValidator:
         """
         rel_files = info_dir.joinpath("files").read_text().splitlines()
         pkg_dir = self._unpacked_conda
-        files: set[Path] = set(
+        files: set[Path] = {
             pkg_dir.joinpath(rel_file.strip()) for rel_file in rel_files
-        )
+        }
         for file in files:
             assert file.is_file()
 
@@ -415,7 +417,7 @@ class PackageValidator:
 
         assert files == path_files
 
-        all_files = set(f for f in pkg_dir.glob("**/*") if f.is_file())
+        all_files = {f for f in pkg_dir.glob("**/*") if f.is_file()}
         info_files = set(info_dir.glob("**/*"))
         non_info_files = all_files - info_files
         assert files == non_info_files

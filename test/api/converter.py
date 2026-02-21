@@ -34,8 +34,8 @@ from __future__ import annotations
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Generator, Sequence
 from pathlib import Path
-from typing import Union, Sequence, Optional, Generator
 
 import pytest
 
@@ -55,7 +55,7 @@ class ConverterTestCase:
     Runner for a test case
     """
 
-    wheel_src: Union[Path, str]
+    wheel_src: Path | str
     dependency_rename: Sequence[DependencyRename]
     extra_dependencies: Sequence[str]
     overwrite: bool
@@ -66,7 +66,7 @@ class ConverterTestCase:
     pip_downloads: Path
     was_run: bool = False
 
-    _converter: Optional[Wheel2CondaConverter] = None
+    _converter: Wheel2CondaConverter | None = None
     _validator_dir: Path
     _validator: PackageValidator
 
@@ -80,7 +80,7 @@ class ConverterTestCase:
 
     def __init__(
         self,
-        wheel_src: Union[Path, str],
+        wheel_src: Path | str,
         *,
         tmp_dir: Path,
         project_dir: Path,
@@ -201,7 +201,7 @@ class ConverterTestCaseFactory:
 
     def __call__(
         self,
-        wheel_src: Union[Path, str],
+        wheel_src: Path | str,
         *,
         package_name: str = "",
         dependency_rename: Sequence[tuple[str, str]] = (),

@@ -21,23 +21,22 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from http.client import HTTPException
 from pathlib import Path
-from typing import Optional, Sequence
 from urllib.error import URLError
 
-from ..api.stdrename import update_renames_file
-from .common import add_markdown_help, dedent
+from ..api.stdrename import update_renames_file, user_stdrenames_path
 from ..impl.pyproject import add_pyproject_defaults
-from ..api.stdrename import user_stdrenames_path
-from ..settings import settings, _fromidentifier
+from ..settings import _fromidentifier, settings
+from .common import add_markdown_help, dedent
 
 __all__ = ["config_main"]
 
 
 def config_main(
-    args: Optional[Sequence[str]] = None,
-    prog: Optional[str] = None,
+    args: Sequence[str] | None = None,
+    prog: str | None = None,
 ) -> None:
     """Main routine for `whl2conda config` subcommand"""
 

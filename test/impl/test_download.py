@@ -121,7 +121,8 @@ def test_download_wheel_whitebox(
     assert download_args[0].spec == "pylint"
     assert download_args[0].index is None
     out, err = capsys.readouterr()
-    assert not out and not err
+    assert not out
+    assert not err
 
     somewhere_from_pypirc = "https://pypirc.somewhere.com/pypi/"
 

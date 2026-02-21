@@ -357,6 +357,57 @@ exclude = [
     "src/whl2conda/external"
 ]
 
+[tool.ruff.lint]
+extend-select = [
+    "I",
+    "PL",
+    "RUF",
+    "EXE",
+    "UP",
+    "FURB",
+    "PERF",
+    "INP001",
+    "PT",
+    # TODO: add "ANN" (type annotations), "D" (docstrings), "C90" (complexity)
+]
+ignore = [
+    "D105",    # missing doc string for dunder methods
+    "D200",    # one line doc string
+    "D202",    # blank lines after function docstring
+    "D205",    # doc on first line
+    "D212",    # doc on first line
+    "D410",    # blank line after doc section
+    "D411",    # blank line before doc section
+    "D412",    # no blank lines after section header
+    "D415",    # doc title punctuation
+    "PLC0105", # covariant metatype names (use _co, _contra suffixes)
+    "PLR0402", # import aliases
+    "PLR2004", # magic value
+    "PLR0913", # too many arguments
+    "PLR0912", # too many branches
+    "PLR0915", # too many statements
+    "PLW2901", # redefining loop variable
+    "BLE001",  # blind exception
+    "PERF203", # try-except in loop
+    "PLC0415", # import not at top level
+    "S110",    # try-except-pass
+    "SIM102",  # collapsible if statements
+    "RUF009",  # function call in dataclass default
+    "PT022",
+    "UP015",   # unnecessary mode argument to open
+]
+preview = true
+explicit-preview-rules = true
+
+[tool.ruff.lint.per-file-ignores]
+"test/**" = [
+    "F811",    # pytest fixture redefinitions
+    "PT011",   # too-broad pytest.raises
+    "PT012",   # multi-statement pytest.raises block
+    "PT017",   # assertion on exception in except block
+    "PT018",   # composite assertion
+]
+
 [tool.ruff.format]
 line-ending = "lf"
 preview = true

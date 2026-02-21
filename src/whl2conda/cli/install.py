@@ -24,14 +24,15 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple, Optional, Sequence
+from typing import NamedTuple
 
 from conda_package_handling.api import extract as extract_conda_pkg
 
-from .common import dedent, existing_path, add_markdown_help, get_conda_bld_path
 from ..external.version import ver_eval
+from .common import add_markdown_help, dedent, existing_path, get_conda_bld_path
 
 __all__ = ["install_main"]
 
@@ -48,7 +49,7 @@ class InstallArgs:
     only_deps: bool
     no_deps: bool
     package_files: list[Path]
-    prefix: Optional[Path]
+    prefix: Path | None
     yes: bool
     remaining_args: list[str]
 
@@ -56,7 +57,7 @@ class InstallArgs:
     def parse(
         cls,
         parser: argparse.ArgumentParser,
-        args: Optional[Sequence[str]],
+        args: Sequence[str] | None,
     ):
         """Parses and returns parsed args"""
         ns = parser.parse_args(args)
@@ -73,8 +74,8 @@ class InstallFileInfo(NamedTuple):
 
 # pylint: disable=too-many-locals
 def install_main(
-    args: Optional[Sequence[str]] = None,
-    prog: Optional[str] = None,
+    args: Sequence[str] | None = None,
+    prog: str | None = None,
 ) -> None:
     """Main routine for `whl2conda config` subcommand"""
 
@@ -191,7 +192,7 @@ def install_main(
 
     for conda_file in conda_files:
         conda_fname = str(conda_file.name)
-        if not (conda_fname.endswith(".conda") or conda_fname.endswith(".tar.bz2")):
+        if not (conda_fname.endswith((".conda", ".tar.bz2"))):
             parser.error(f"Package file has unsupported suffix: {conda_file}")
 
         with tempfile.TemporaryDirectory(prefix="whl2conda-install-") as tmpdir:
@@ -286,7 +287,7 @@ def conda_env_install(parsed: InstallArgs, dependencies: list[str]):
             else:
                 subprocess.check_call(install_pkg_cmd)
 
-        check_libmamba_cmd = "conda list -n base conda-libmamba-solver --json".split()
+        check_libmamba_cmd = ["conda", "list", "-n", "base", "conda-libmamba-solver", "--json"]
         if parsed.dry_run:
             print("running ", check_libmamba_cmd)
         else:
@@ -298,9 +299,7 @@ def conda_env_install(parsed: InstallArgs, dependencies: list[str]):
                 # Workaround for https://github.com/conda/conda/issues/13479
                 # If a package is installed directly from file, then set solver to classic
                 set_solver_cmd = (
-                    ["conda", "run"]
-                    + env_opts
-                    + ["conda", "config", "--env", "--set", "solver", "classic"]
+                    ["conda", "run", *env_opts, "conda", "config", "--env", "--set", "solver", "classic"]
                 )
                 if parsed.dry_run:
                     print("Running ", set_solver_cmd)

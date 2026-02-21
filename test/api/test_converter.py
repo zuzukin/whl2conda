@@ -22,9 +22,9 @@ import logging
 import platform
 import re
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 from time import sleep
-from typing import Iterator
 
 # third party
 import pytest
@@ -35,20 +35,24 @@ from whl2conda.api.converter import (
     CondaPackageFormat,
     DependencyRename,
     RequiresDistEntry,
-    Wheel2CondaError,
     Wheel2CondaConverter,
+    Wheel2CondaError,
 )
-from whl2conda.cli.convert import do_build_wheel
-from .converter import ConverterTestCaseFactory
 from whl2conda.api.stdrename import load_std_renames
+from whl2conda.cli.convert import do_build_wheel
+
+from ..test_packages import (  # noqa: F401
+    markers_wheel,
+    setup_wheel,
+    simple_wheel,
+)
 
 # pylint: disable=unused-import
-from .converter import test_case  # noqa: F401
-from ..test_packages import (
-    markers_wheel,  # noqa: F401
-    setup_wheel,  # noqa: F401
-    simple_wheel,  # noqa: F401
+from .converter import (  # noqa: F401
+    ConverterTestCaseFactory,
+    test_case,
 )
+
 # pylint: enable=unused-import
 
 this_dir = Path(__file__).parent.absolute()
@@ -190,7 +194,6 @@ def test_dependency_rename() -> None:
 #
 
 # ignore redefinition of test_case
-# ruff: noqa: F811
 
 
 def test_init(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -234,7 +237,7 @@ def test_this(test_case: ConverterTestCaseFactory) -> None:
     wheel_dir = test_case.tmp_path_factory.mktemp("test_this_wjheel_dir")
     do_build_wheel(root_dir, wheel_dir, no_build_isolation=True, capture_output=True)
 
-    wheel_path = list(wheel_dir.glob("*"))[0]
+    wheel_path = next(iter(wheel_dir.glob("*")))
     assert wheel_path.is_file()
 
     case = test_case(wheel_path)
@@ -366,10 +369,7 @@ def test_debug_log(
     case.build()
 
     def get_debug_out() -> str:
-        messages: list[str] = []
-        for record in caplog.records:
-            if record.levelno == logging.DEBUG:
-                messages.append(record.message)
+        messages: list[str] = [record.message for record in caplog.records if record.levelno == logging.DEBUG]
         return "\n".join(messages)
 
     debug_out = get_debug_out()
@@ -399,10 +399,7 @@ def test_warnings(
     """
 
     def get_warn_out() -> str:
-        messages: list[str] = []
-        for record in caplog.records:
-            if record.levelno == logging.WARNING:
-                messages.append(record.message)
+        messages: list[str] = [record.message for record in caplog.records if record.levelno == logging.WARNING]
         return "\n".join(messages)
 
     test_case(markers_wheel).build()

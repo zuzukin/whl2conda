@@ -24,9 +24,10 @@ import pytest
 
 from whl2conda.api.converter import Wheel2CondaError
 
-from .converter import ConverterTestCaseFactory
-from .converter import test_case  # pylint: disable=unused-import # noqa: F401
-
+from .converter import (
+    ConverterTestCaseFactory,  # pylint: disable=unused-import
+    test_case,  # noqa: F401
+)
 
 # pylint: disable=redefined-outer-name
 
@@ -35,7 +36,6 @@ from .converter import test_case  # pylint: disable=unused-import # noqa: F401
 #
 
 # ignore redefinition of test_case
-# ruff: noqa: F811
 
 
 @pytest.mark.external

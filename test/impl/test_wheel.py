@@ -30,7 +30,7 @@ from ..test_packages import setup_wheel  # noqa: F401
 def test_unpack_wheel(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
-    setup_wheel: Path,  # noqa: F811
+    setup_wheel: Path,
 ) -> None:
     """
     Unit test for unpack_wheel
@@ -38,7 +38,7 @@ def test_unpack_wheel(
 
     unpack_wheel(setup_wheel, tmp_path)
 
-    if not platform.system() == "Windows":
+    if platform.system() != "Windows":
         # Regression case for #135
         script_paths = list(tmp_path.rglob("**/scripts/*.py"))
         assert script_paths

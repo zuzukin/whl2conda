@@ -32,12 +32,12 @@ from platformdirs import user_cache_path
 
 from whl2conda.api.stdrename import (
     NAME_MAPPINGS_DOWNLOAD_URL,
+    DownloadedMappings,
     NotModified,
     download_mappings,
     load_std_renames,
     update_renames_file,
     user_stdrenames_path,
-    DownloadedMappings,
 )
 
 

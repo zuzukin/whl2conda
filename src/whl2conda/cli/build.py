@@ -25,15 +25,17 @@ import shutil
 import subprocess
 import tempfile
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any
 
 # third party
 import yaml
 
+from ..api.converter import Wheel2CondaConverter
+
 # this project
 from .common import add_markdown_help, dedent, existing_dir, get_conda_bld_path
-from ..api.converter import Wheel2CondaConverter
 from .install import install_main
 
 __all__ = ["build_main"]
@@ -49,8 +51,8 @@ class BuildArgs:
 
 
 def build_main(
-    args: Optional[Sequence[str]] = None,
-    prog: Optional[str] = None,
+    args: Sequence[str] | None = None,
+    prog: str | None = None,
 ) -> None:
     """Main procedure for `whl2conda build` command"""
     parser = argparse.ArgumentParser(
@@ -195,8 +197,7 @@ class CondaBuild:
             shell=True,
         )
         dist_dir = self.work_dir / "dist"
-        wheel = next(dist_dir.glob("*.whl"))
-        return wheel
+        return next(dist_dir.glob("*.whl"))
 
     def _build_package(self, wheel: Path) -> Path:
         converter = Wheel2CondaConverter(wheel, self.work_dir)
@@ -241,7 +242,7 @@ class CondaBuild:
             if commands := test_section.get("commands", []):
                 for command in commands:
                     subprocess.check_call(
-                        f"conda run -p {str(test_prefix)} {command}", shell=True
+                        f"conda run -p {test_prefix!s} {command}", shell=True
                     )
         finally:
             shutil.rmtree(test_prefix, ignore_errors=True)

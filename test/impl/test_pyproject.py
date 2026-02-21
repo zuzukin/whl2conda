@@ -19,18 +19,19 @@ Unit tests for whl2conda.pyproject module
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from textwrap import dedent
+from typing import Any
 
 import pytest
 import tomlkit
-from textwrap import dedent
 
 from whl2conda.impl.pyproject import (
     CondaPackageFormat,
-    read_pyproject,
-    add_pyproject_defaults,
     PyProjInfo,
+    add_pyproject_defaults,
+    read_pyproject,
 )
 
 
@@ -55,7 +56,7 @@ def test_read_pyproject(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         read_pyproject(tmp_path)
 
-    with pytest.raises(ValueError, match="lacks .toml"):
+    with pytest.raises(ValueError, match=r"lacks \.toml"):
         read_pyproject(tmp_path.joinpath("pyproject.txt"))
 
     # test empty projectfile
@@ -160,7 +161,7 @@ def test_read_pyproject(tmp_path: Path) -> None:
         proj_file.write_text(
             dedent(f"""
                 [tool.whl2conda]
-                {key} = {repr(value)}
+                {key} = {value!r}
                 """)
         )
         inval = "value in " if is_value else ""

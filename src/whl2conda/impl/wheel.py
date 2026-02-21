@@ -15,20 +15,21 @@
 """
 Utilities for working with wheel files
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional, Union
+
 from wheel.wheelfile import WheelFile
 
 __all__ = ["unpack_wheel"]
 
 
 def unpack_wheel(
-    wheel: Union[Path, str],
-    dest_dir: Union[Path, str],
+    wheel: Path | str,
+    dest_dir: Path | str,
     *,
-    logger: Optional[logging.Logger] = None,
+    logger: logging.Logger | None = None,
 ) -> None:
     """
     Unpack wheel into specified directory.

@@ -26,8 +26,9 @@ import platform
 import re
 import shutil
 import time
+from collections.abc import Generator, Sequence
 from pathlib import Path
-from typing import Any, Generator, Optional, Sequence
+from typing import Any
 
 # third party
 import pytest
@@ -36,8 +37,8 @@ import pytest
 from whl2conda.api.converter import (
     CondaPackageFormat,
     CondaTargetInfo,
-    Wheel2CondaConverter,
     DependencyRename,
+    Wheel2CondaConverter,
 )
 from whl2conda.cli import main
 from whl2conda.cli.convert import do_build_wheel
@@ -45,8 +46,7 @@ from whl2conda.impl.prompt import is_interactive
 from whl2conda.settings import settings
 
 from ..impl.test_prompt import monkeypatch_interactive
-
-from ..test_packages import simple_wheel  # pylint: disable=unused-import # noqa: F401
+from ..test_packages import simple_wheel  # noqa: F401
 
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent.parent
@@ -80,7 +80,7 @@ class CliTestCase:
     args: list[str]
     interactive: bool
     expected_allow_metadata_version: str = ""
-    expected_build_number: Optional[int] = None
+    expected_build_number: int | None = None
     expected_dependency_renames: list[DependencyRename]
     expected_download_spec: str = ""
     expected_download_index: str = ""
@@ -122,9 +122,9 @@ class CliTestCase:
         tmp_path: Path,
         project_dir: Path,
         # optional
-        interactive: Optional[bool] = None,
+        interactive: bool | None = None,
         expected_allow_metadata_version: str = "",
-        expected_build_number: Optional[int] = None,
+        expected_build_number: int | None = None,
         expected_dry_run: bool = False,
         expected_extra_dependencies: Sequence[str] = (),
         expected_download_index: str = "",
@@ -197,7 +197,7 @@ class CliTestCase:
         def fake_download_wheel(
             spec: str,
             index: str = "",
-            into: Optional[Path] = None,
+            into: Path | None = None,
         ) -> Path:
             """Fake version of download_wheel"""
             assert spec == self.expected_download_spec
@@ -264,7 +264,7 @@ class CliTestCase:
             # Run the command
             exit_code: Any = None
             try:
-                main(["convert"] + self.args, "whl2conda")
+                main(["convert", *self.args], "whl2conda")
             except SystemExit as exit_err:
                 exit_code = exit_err.code
 
@@ -379,9 +379,9 @@ class CliTestCaseFactory:
         self,
         args: Sequence[str],
         *,
-        interactive: Optional[bool] = None,
+        interactive: bool | None = None,
         expected_allow_metadata_version: str = "",
-        expected_build_number: Optional[int] = None,
+        expected_build_number: int | None = None,
         expected_download_index: str = "",
         expected_download_spec: str = "",
         expected_dry_run: bool = False,
@@ -714,7 +714,6 @@ def test_do_build_wheel(
 
 
 # ignore redefinition of test_case
-# ruff: noqa: F811
 
 
 def test_input_wheel(

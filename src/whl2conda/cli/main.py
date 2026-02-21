@@ -20,17 +20,17 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional, Sequence
 
 from ..__about__ import __version__
-from .common import dedent, Subcommands, add_markdown_help
 from ..settings import settings
+from .common import Subcommands, add_markdown_help, dedent
 
 __all__ = ["main"]
 
 
-def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None) -> None:
+def main(args: Sequence[str] | None = None, prog: str | None = None) -> None:
     """
     Main command line interface for whl2conda
     """

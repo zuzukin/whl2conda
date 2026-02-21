@@ -19,15 +19,17 @@ Unit tests for `whl2conda install` subcommand
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Sequence
+from typing import Any
 
 import pytest
 
 from whl2conda.cli import main
 from whl2conda.cli.install import InstallFileInfo, _prune_dependencies
-from ..test_conda import conda_config, conda_output, conda_json
+
+from ..test_conda import conda_config, conda_json, conda_output
 
 # pylint: disable=unused-import
 from ..test_packages import simple_conda_package, simple_wheel  # noqa: F401
@@ -68,7 +70,6 @@ def test_errors(capsys: pytest.CaptureFixture, tmp_path: Path):
 
 
 # ignore redefinition of simple_conda_package
-# ruff: noqa: F811
 
 
 # pylint: disable=too-many-locals
@@ -99,7 +100,7 @@ def test_bld_install(
 
     cmd_start = ["install", str(simple_conda_package), "--conda-bld"]
 
-    main(cmd_start + ["--dry-run"])
+    main([*cmd_start, "--dry-run"])
     out, err = capsys.readouterr()
     assert not err
     assert f"Installing {simple_conda_package} into {croot}" in out
@@ -253,7 +254,7 @@ def test_env_install_whitebox(
 
     cmd_start = ["install", str(simple_conda_package)]
 
-    main(cmd_start + ["--prefix", str(prefix), "--yes"])
+    main([*cmd_start, "--prefix", str(prefix), "--yes"])
 
     assert len(call_args) == 3
     call1 = call_args[0]
@@ -272,7 +273,7 @@ def test_env_install_whitebox(
 
     call_args.clear()
 
-    main(cmd_start + ["--name", "test-env", "--create", "--mamba"])
+    main([*cmd_start, "--name", "test-env", "--create", "--mamba"])
     assert len(call_args) == 3
     call1 = call_args[0]
     call2 = call_args[1]
@@ -282,7 +283,7 @@ def test_env_install_whitebox(
     assert call2[call2.index("--name") + 1] == "test-env"
 
     call_args.clear()
-    main(cmd_start + ["-n", "foo", "--only-deps", "--extra", "-c", "channel"])
+    main([*cmd_start, "-n", "foo", "--only-deps", "--extra", "-c", "channel"])
     assert len(call_args) == 1
     call1 = call_args[0]
     assert call1[:2] == ["conda", "install"]
@@ -294,7 +295,7 @@ def test_env_install_whitebox(
     assert not err
 
     call_args.clear()
-    main(cmd_start + ["-p", str(prefix), "--dry-run"])
+    main([*cmd_start, "-p", str(prefix), "--dry-run"])
     assert len(call_args) == 1
     call1 = call_args[0]
     assert call1[:2] == ["conda", 'install']
@@ -323,11 +324,11 @@ def test_env_install_whitebox(
         """
     )
 
-    main(cmd_start + ["--name", "test-env", "--create", "--mamba"])
+    main([*cmd_start, "--name", "test-env", "--create", "--mamba"])
     assert len(call_args) == 4
     call4 = call_args[3]
-    assert call4[:4] == "conda run --name test-env".split()
-    assert call4[4:6] == "conda config".split()
+    assert call4[:4] == ["conda", "run", "--name", "test-env"]
+    assert call4[4:6] == ["conda", "config"]
     assert "--set solver classic" in " ".join(call4)
     assert "--env" in call4
 

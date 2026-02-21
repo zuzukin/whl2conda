@@ -24,7 +24,6 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from ..settings import settings
 
@@ -61,7 +60,7 @@ def lookup_pypi_index(index: str) -> str:
 def download_wheel(
     spec: str,
     index: str = "",
-    into: Optional[Path] = None,
+    into: Path | None = None,
 ) -> Path:
     """
     Downloads wheel with given specification from pypi index.
@@ -107,7 +106,7 @@ def download_wheel(
             raise FileNotFoundError("No wheels downloaded")
         if len(wheels) > 1:
             raise AssertionError(
-                f"More than one wheel downloaded: {list(w.name for w in wheels)}"
+                f"More than one wheel downloaded: {[w.name for w in wheels]}"
             )
 
         tmp_wheel = wheels[0]

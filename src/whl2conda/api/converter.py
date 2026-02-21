@@ -30,10 +30,11 @@ import re
 import shutil
 import tempfile
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, NamedTuple, Optional, Sequence
+from typing import Any, NamedTuple
 
 # third party
 from conda_package_handling.api import create as create_conda_pkg
@@ -158,7 +159,7 @@ class RequiresDistEntry:
         """
         m = requires_dist_re.fullmatch(raw)
         if not m:
-            raise SyntaxError(f"Cannot parse Requires-Dist entry: {repr(raw)}")
+            raise SyntaxError(f"Cannot parse Requires-Dist entry: {raw!r}")
         entry = RequiresDistEntry(name=m.group("name"))
         if extra := m.group("extra"):
             entry.extras = tuple(re.split(r"\s*,\s*", extra))
@@ -196,11 +197,7 @@ class Wheel2CondaError(RuntimeError):
 
 def non_none_dict(**kwargs: Any) -> dict[str, Any]:
     """dict that drops keys with None values"""
-    d = dict()
-    for k, v in kwargs.items():
-        if v is not None:
-            d[k] = v
-    return d
+    return {k: v for k, v in kwargs.items() if v is not None}
 
 
 @dataclass
@@ -211,7 +208,7 @@ class MetadataFromWheel:
     package_name: str
     version: str
     wheel_build_number: str
-    license: Optional[str]
+    license: str | None
     dependencies: list[RequiresDistEntry]
     wheel_info_dir: Path
     is_pure_python: bool
@@ -229,8 +226,8 @@ class CondaTargetInfo:
     """
 
     subdir: str
-    arch: Optional[str]
-    platform: Optional[str]
+    arch: str | None
+    platform: str | None
     build_string: str
     is_noarch: bool
     site_packages_prefix: str
@@ -387,7 +384,7 @@ class Wheel2CondaConverter:
         "2.3",
         "2.4",
     )
-    MULTI_USE_METADATA_KEYS = {
+    MULTI_USE_METADATA_KEYS: frozenset[str] = frozenset({
         "Classifier",
         "Dynamic",
         "License-File",
@@ -402,7 +399,7 @@ class Wheel2CondaConverter:
         "Requires-Dist",
         "Requires-External",
         "Supported-Platform",
-    }
+    })
 
     package_name: str = ""
     logger: logging.Logger
@@ -416,12 +413,12 @@ class Wheel2CondaConverter:
     extra_dependencies: list[str]
     python_version: str = ""
     interactive: bool = False
-    build_number: Optional[int] = None
+    build_number: int | None = None
     allow_impure: bool = False
 
-    wheel_md: Optional[MetadataFromWheel] = None
-    conda_target: Optional[CondaTargetInfo] = None
-    conda_pkg_path: Optional[Path] = None
+    wheel_md: MetadataFromWheel | None = None
+    conda_target: CondaTargetInfo | None = None
+    conda_pkg_path: Path | None = None
     std_renames: dict[str, str]
 
     def __init__(
@@ -475,11 +472,11 @@ class Wheel2CondaConverter:
             self._copy_wheel_files(extracted_wheel_dir, conda_dir)
 
             # collect relative paths before constructing info/ directory
-            rel_files = list(
+            rel_files = [
                 str(f.relative_to(conda_dir))
                 for f in conda_dir.glob("**/*")
                 if f.is_file()
-            )
+            ]
 
             conda_dependencies = self._compute_conda_dependencies(wheel_md.dependencies)
 
@@ -583,15 +580,15 @@ class Wheel2CondaConverter:
             abs_file = conda_dir.joinpath(rel_file)
             file_bytes = abs_file.read_bytes()
             paths.append(
-                dict(
-                    _path=rel_file,
-                    path_type="hardlink",
-                    sha256=sha256(file_bytes).hexdigest(),
-                    size_in_bytes=len(file_bytes),
-                )
+                {
+                    "_path": rel_file,
+                    "path_type": "hardlink",
+                    "sha256": sha256(file_bytes).hexdigest(),
+                    "size_in_bytes": len(file_bytes),
+                }
             )
         conda_paths_file.write_text(
-            json.dumps(dict(paths=paths, paths_version=1), indent=2), encoding="utf8"
+            json.dumps({"paths": paths, "paths_version": 1}, indent=2), encoding="utf8"
         )
 
     def _write_link_file(self, conda_info_dir: Path, wheel_md: MetadataFromWheel) -> None:
@@ -607,9 +604,9 @@ class Wheel2CondaConverter:
                     section = wheel_entry_points[section_name]
                     console_scripts.extend(f"{k}={v}" for k, v in section.items())
 
-        link_dict: dict[str, Any] = dict(package_metadata_version=1)
+        link_dict: dict[str, Any] = {"package_metadata_version": 1}
         if wheel_md.is_pure_python:
-            noarch_dict: dict[str, Any] = dict(type="python")
+            noarch_dict: dict[str, Any] = {"type": "python"}
             if console_scripts:
                 noarch_dict["entry_points"] = console_scripts
             link_dict["noarch"] = noarch_dict
@@ -637,18 +634,18 @@ class Wheel2CondaConverter:
             except ValueError:
                 build_number = 0
 
-        index_dict: dict[str, Any] = dict(
-            arch=conda_target.arch,
-            build=conda_target.build_string,
-            build_number=build_number,
-            depends=conda_dependencies,
-            license=wheel_md.license,
-            name=wheel_md.package_name,
-            platform=conda_target.platform,
-            subdir=conda_target.subdir,
-            timestamp=int(time.time() + time.timezone),  # UTC timestamp
-            version=wheel_md.version,
-        )
+        index_dict: dict[str, Any] = {
+            "arch": conda_target.arch,
+            "build": conda_target.build_string,
+            "build_number": build_number,
+            "depends": conda_dependencies,
+            "license": wheel_md.license,
+            "name": wheel_md.package_name,
+            "platform": conda_target.platform,
+            "subdir": conda_target.subdir,
+            "timestamp": int(time.time() + time.timezone),  # UTC timestamp
+            "version": wheel_md.version,
+        }
         if conda_target.is_noarch:
             index_dict["noarch"] = "python"
 
@@ -702,8 +699,8 @@ class Wheel2CondaConverter:
         )
 
         proj_url_pat = re.compile(r"\s*(?P<key>\w+(\s+\w+)*)\s*,\s*(?P<url>\w.*)\s*")
-        doc_url: Optional[str] = None
-        dev_url: Optional[str] = None
+        doc_url: str | None = None
+        dev_url: str | None = None
         for urlline in md.get("project-url", ()):
             if m := proj_url_pat.match(urlline):  # pragma: no branch
                 key = m.group("key")
@@ -1056,8 +1053,7 @@ class Wheel2CondaConverter:
             if m := pip_version_re.match(spec):
                 operator = m.group("operator")
                 v = m.group("version")
-                if v.startswith("v"):  # e.g. convert v1.2 to 1.2
-                    v = v[1:]
+                v = v.removeprefix("v")
                 if operator == "~=":
                     # compatible operator, e.g. convert ~=1.2.3 to >=1.2.3,==1.2.*
                     rv = m.group("release")
