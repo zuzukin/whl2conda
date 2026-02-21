@@ -134,3 +134,13 @@ not automatically inherit correct library dependencies.
 macOS `universal2` wheels (containing both x86_64 and arm64 code) are mapped
 to `osx-arm64` only. There is currently no way to produce separate packages
 for both architectures from a single universal2 wheel.
+
+### No pre-compiled `.pyc` files
+
+Conda-forge packages typically include pre-compiled Python bytecode (`.pyc`
+files) for faster first imports. Converted wheels do not include these because
+wheels themselves omit `.pyc` files per
+[PEP 427](https://peps.python.org/pep-0427/), and cross-platform conversions
+cannot generate valid bytecode for a different Python version than the one
+running the conversion. Conda will compile `.pyc` files at install time, so
+this only affects first-import performance.
