@@ -284,7 +284,11 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
     experimental_opts.add_argument(
         "--allow-impure",
         action="store_true",
-        help="Allow experimental conversion of non-pure python packages",
+        help=(
+            "Allow experimental conversion of non-pure python wheels "
+            "containing binary extensions into platform-specific conda packages. "
+            "Generates tight Python version pins and OS constraints from wheel tags."
+        ),
     )
 
     info_opts.add_argument(
