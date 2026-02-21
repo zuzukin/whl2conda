@@ -902,12 +902,12 @@ class Wheel2CondaConverter:
                             "Skipping dependency (marker not satisfied): %s", entry
                         )
                         continue
-                    self._debug("Including marker dependency for target platform: %s", entry)
+                    self._debug(
+                        "Including marker dependency for target platform: %s", entry
+                    )
                 else:
                     # TODO - support non-generic packages
-                    self._warn(
-                        "Skipping dependency with environment marker: %s", entry
-                    )
+                    self._warn("Skipping dependency with environment marker: %s", entry)
                     continue
 
             conda_name = pip_name = entry.name

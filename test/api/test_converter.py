@@ -886,8 +886,11 @@ def test_marker_evaluation_for_binary() -> None:
 def test_conda_target_marker_environment() -> None:
     """Test CondaTargetInfo.marker_environment for different platforms."""
     linux = CondaTargetInfo(
-        subdir="linux-64", arch="x86_64", platform="linux",
-        build_string="py312_0", is_noarch=False,
+        subdir="linux-64",
+        arch="x86_64",
+        platform="linux",
+        build_string="py312_0",
+        is_noarch=False,
         site_packages_prefix="lib/python3.12/site-packages",
         python_version="3.12",
     )
@@ -899,8 +902,11 @@ def test_conda_target_marker_environment() -> None:
     assert env["python_version"] == "3.12"
 
     win = CondaTargetInfo(
-        subdir="win-64", arch="x86_64", platform="win",
-        build_string="py312_0", is_noarch=False,
+        subdir="win-64",
+        arch="x86_64",
+        platform="win",
+        build_string="py312_0",
+        is_noarch=False,
         site_packages_prefix="Lib/site-packages",
         python_version="3.12",
     )
@@ -910,8 +916,11 @@ def test_conda_target_marker_environment() -> None:
     assert env["platform_system"] == "Windows"
 
     noarch = CondaTargetInfo(
-        subdir="noarch", arch=None, platform=None,
-        build_string="py_0", is_noarch=True,
+        subdir="noarch",
+        arch=None,
+        platform=None,
+        build_string="py_0",
+        is_noarch=True,
         site_packages_prefix="site-packages",
     )
     assert noarch.marker_environment() == {}
