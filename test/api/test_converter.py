@@ -792,3 +792,111 @@ def test_conda_target_info_binary() -> None:
     assert target_win.build_string == "py310_2"
     assert target_win.site_packages_prefix == "Lib/site-packages"
     assert target_win.python_version == "3.10"
+
+
+def test_check_binary_conversion_local_version(tmp_path: Path) -> None:
+    """Test that local version suffixes (e.g. +cu121) are rejected."""
+    from whl2conda.api.converter import MetadataFromWheel
+
+    converter = Wheel2CondaConverter(tmp_path / "fake.whl", tmp_path)
+    converter.logger = logging.getLogger(__name__)
+
+    wheel_md = MetadataFromWheel(
+        md={},
+        package_name="torch",
+        version="2.3.0+cu121",
+        wheel_build_number="",
+        license=None,
+        dependencies=[],
+        wheel_info_dir=Path("."),
+        is_pure_python=False,
+        python_tag="cp312",
+        abi_tag="cp312",
+        platform_tag="manylinux_2_17_x86_64",
+    )
+
+    with pytest.raises(Wheel2CondaError, match=r"local version suffix '\+cu121'"):
+        converter._check_binary_conversion(wheel_md)
+
+
+def test_check_binary_conversion_blocklist(tmp_path: Path) -> None:
+    """Test that known-problematic packages are blocked."""
+    from whl2conda.api.converter import MetadataFromWheel
+
+    converter = Wheel2CondaConverter(tmp_path / "fake.whl", tmp_path)
+    converter.logger = logging.getLogger(__name__)
+
+    for pkg_name in ["torch", "tensorflow", "nvidia-cudnn", "triton"]:
+        wheel_md = MetadataFromWheel(
+            md={},
+            package_name=pkg_name,
+            version="1.0.0",
+            wheel_build_number="",
+            license=None,
+            dependencies=[],
+            wheel_info_dir=Path("."),
+            is_pure_python=False,
+            python_tag="cp312",
+            abi_tag="cp312",
+            platform_tag="manylinux_2_17_x86_64",
+        )
+        with pytest.raises(Wheel2CondaError, match="known to bundle"):
+            converter._check_binary_conversion(wheel_md)
+
+
+def test_check_binary_conversion_marker_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test that skipped environment-marker deps produce a warning."""
+    from whl2conda.api.converter import MetadataFromWheel
+
+    converter = Wheel2CondaConverter(tmp_path / "fake.whl", tmp_path)
+    converter.logger = logging.getLogger(__name__)
+
+    dep_with_marker = RequiresDistEntry("nvidia-cuda-runtime-cu12", version=">=12.0")
+    dep_with_marker.set_marker('platform_system == "Linux"')
+
+    wheel_md = MetadataFromWheel(
+        md={},
+        package_name="some-package",
+        version="1.0.0",
+        wheel_build_number="",
+        license=None,
+        dependencies=[dep_with_marker],
+        wheel_info_dir=Path("."),
+        is_pure_python=False,
+        python_tag="cp312",
+        abi_tag="cp312",
+        platform_tag="manylinux_2_17_x86_64",
+    )
+
+    with caplog.at_level(logging.WARNING):
+        converter._check_binary_conversion(wheel_md)
+
+    assert "platform-conditional dependencies" in caplog.text
+    assert "nvidia-cuda-runtime-cu12" in caplog.text
+
+
+def test_check_binary_conversion_ok(tmp_path: Path) -> None:
+    """Test that simple packages pass binary conversion checks."""
+    from whl2conda.api.converter import MetadataFromWheel
+
+    converter = Wheel2CondaConverter(tmp_path / "fake.whl", tmp_path)
+    converter.logger = logging.getLogger(__name__)
+
+    wheel_md = MetadataFromWheel(
+        md={},
+        package_name="markupsafe",
+        version="3.0.3",
+        wheel_build_number="",
+        license=None,
+        dependencies=[],
+        wheel_info_dir=Path("."),
+        is_pure_python=False,
+        python_tag="cp312",
+        abi_tag="cp312",
+        platform_tag="macosx_11_0_arm64",
+    )
+
+    # Should not raise
+    converter._check_binary_conversion(wheel_md)

@@ -35,7 +35,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, ClassVar, NamedTuple
 
 # third party
 from conda_package_handling.api import create as create_conda_pkg
@@ -513,6 +513,9 @@ class Wheel2CondaConverter:
             )
             self.conda_target = conda_target
 
+            if not conda_target.is_noarch:
+                self._check_binary_conversion(wheel_md)
+
             conda_dir = temp_dir / "conda-files"
             conda_info_dir = conda_dir.joinpath("info")
             conda_dir.mkdir()
@@ -891,6 +894,64 @@ class Wheel2CondaConverter:
             self._debug("OS constraint: %s", os_constraint)
 
         return result
+
+    # Known package prefixes that are unlikely to work as binary conversions
+    # due to bundled GPU libraries, complex runtime dependencies, etc.
+    _BINARY_CONVERSION_BLOCKLIST: ClassVar[frozenset[str]] = frozenset({
+        "torch",
+        "torchvision",
+        "torchaudio",
+        "tensorflow",
+        "tensorrt",
+        "nvidia-",
+        "cupy",
+        "jaxlib",
+        "triton",
+        "onnxruntime",
+    })
+
+    def _check_binary_conversion(self, wheel_md: MetadataFromWheel) -> None:
+        """Check for conditions that make binary conversion unlikely to succeed.
+
+        Raises:
+            Wheel2CondaError: if conversion is blocked due to known-bad patterns
+        """
+        version = wheel_md.version
+
+        # Check for local version suffix (e.g. +cu121, +rocm5.6)
+        if "+" in version:
+            local = version.split("+", 1)[1]
+            raise Wheel2CondaError(
+                f"Wheel {self.wheel_path.name} has local version suffix '+{local}' "
+                f"indicating a custom build variant (e.g. CUDA). "
+                f"Such wheels bundle variant-specific libraries that are unlikely "
+                f"to work correctly as conda packages. Use conda-forge packages instead."
+            )
+
+        # Check against blocklist of known-problematic packages
+        pkg_name = normalize_pypi_name(wheel_md.package_name)
+        for blocked in self._BINARY_CONVERSION_BLOCKLIST:
+            if pkg_name == blocked or pkg_name.startswith(blocked):
+                raise Wheel2CondaError(
+                    f"Package '{wheel_md.package_name}' is known to bundle "
+                    f"complex runtime libraries (GPU, CUDA, etc.) that are unlikely "
+                    f"to work correctly when converted from a wheel. "
+                    f"Use conda-forge packages instead."
+                )
+
+        # Warn about skipped environment-marker dependencies
+        marker_deps = [
+            dep
+            for dep in wheel_md.dependencies
+            if not dep.generic and not dep.extra_marker_name
+        ]
+        if marker_deps:
+            self._warn(
+                "Wheel has %d platform-conditional dependencies that will be "
+                "dropped during conversion. This may cause import errors:\n  %s",
+                len(marker_deps),
+                "\n  ".join(str(d) for d in marker_deps),
+            )
 
     def _copy_wheel_files(self, wheel_dir: Path, conda_dir: Path) -> None:
         """
