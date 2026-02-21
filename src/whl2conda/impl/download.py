@@ -95,7 +95,14 @@ def download_wheel(
         cmd.extend(["-d", str(tmpdirname)])
         cmd.append(spec)
 
-        p = subprocess.run(cmd, check=True, stderr=subprocess.PIPE)
+        try:
+            p = subprocess.run(cmd, check=True, capture_output=True)
+        except subprocess.CalledProcessError as ex:
+            stderr = (ex.stderr or b"").decode(errors="replace").strip()
+            msg = f"Could not download '{spec}' from {'index ' + index if index else 'pypi'}"
+            if stderr:
+                msg += f":\n\n  {stderr.replace(chr(10), chr(10) + '  ')}"
+            raise RuntimeError(msg) from ex
         if p.stderr:
             print(p.stderr, file=sys.stderr)
 

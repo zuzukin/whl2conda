@@ -171,6 +171,35 @@ def test_download_wheel_whitebox(
         download_wheel("bar")
 
 
+def test_download_wheel_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Test that download failures produce informative error messages (#125)"""
+
+    def call_pip_download_fail(
+        cmd: list[str], **_kwargs
+    ) -> subprocess.CompletedProcess:
+        raise subprocess.CalledProcessError(
+            1,
+            cmd,
+            stderr=b"ERROR: No matching distribution found for nonexistent-pkg",
+        )
+
+    monkeypatch.setattr(subprocess, "run", call_pip_download_fail)
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(
+        RuntimeError, match=r"Could not download 'nonexistent-pkg'.*from pypi"
+    ):
+        download_wheel("nonexistent-pkg")
+
+    with pytest.raises(
+        RuntimeError, match=r"Could not download 'foo'.*from index https://example.com"
+    ):
+        download_wheel("foo", index="https://example.com")
+
+
 def test_download(tmp_path: Path) -> None:
     """
     Test actual downloads
@@ -181,8 +210,8 @@ def test_download(tmp_path: Path) -> None:
         assert whl.name.startswith("tomlkit")
         assert whl.name.endswith(".whl")
         assert whl.parent == tmp_path
-    except subprocess.CalledProcessError as ex:
-        if b"ConnectionError" in ex.stderr:
+    except RuntimeError as ex:
+        if "ConnectionError" in str(ex):
             # Don't fail test if we are offline.
             pytest.skip("Cannot connect to pypi index ")
         else:

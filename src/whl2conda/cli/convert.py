@@ -507,11 +507,14 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
     ) as tmpdirname:
         if not wheel_file:
             if download_spec:
-                wheel_file = download_wheel(
-                    download_spec,
-                    into=Path(tmpdirname),
-                    index=download_index,
-                )
+                try:
+                    wheel_file = download_wheel(
+                        download_spec,
+                        into=Path(tmpdirname),
+                        index=download_index,
+                    )
+                except RuntimeError as ex:
+                    parser.error(str(ex))
             elif build_wheel:  # pragma: no branch
                 assert project_root
                 assert wheel_dir
