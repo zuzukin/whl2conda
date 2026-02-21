@@ -623,7 +623,7 @@ class Wheel2CondaConverter:
             self._write_index(
                 conda_info_dir, wheel_md, conda_dependencies, conda_target
             )
-            self._write_link_file(conda_info_dir, wheel_md)
+            self._write_link_file(conda_info_dir, wheel_md, conda_target)
             self._write_paths_file(conda_dir, rel_files)
             self._write_git_file(conda_info_dir)
 
@@ -721,8 +721,15 @@ class Wheel2CondaConverter:
         )
 
     def _write_link_file(
-        self, conda_info_dir: Path, wheel_md: MetadataFromWheel
+        self,
+        conda_info_dir: Path,
+        wheel_md: MetadataFromWheel,
+        conda_target: CondaTargetInfo,
     ) -> None:
+        # Binary packages don't use link.json (matches conda-forge convention)
+        if not conda_target.is_noarch:
+            return
+
         # info/link.json
         conda_link_file = conda_info_dir.joinpath("link.json")
         wheel_entry_points_file = wheel_md.wheel_info_dir.joinpath("entry_points.txt")
@@ -736,11 +743,10 @@ class Wheel2CondaConverter:
                     console_scripts.extend(f"{k}={v}" for k, v in section.items())
 
         link_dict: dict[str, Any] = {"package_metadata_version": 1}
-        if wheel_md.is_pure_python:
-            noarch_dict: dict[str, Any] = {"type": "python"}
-            if console_scripts:
-                noarch_dict["entry_points"] = console_scripts
-            link_dict["noarch"] = noarch_dict
+        noarch_dict: dict[str, Any] = {"type": "python"}
+        if console_scripts:
+            noarch_dict["entry_points"] = console_scripts
+        link_dict["noarch"] = noarch_dict
 
         conda_link_file.write_text(
             json.dumps(link_dict, indent=2, sort_keys=True),

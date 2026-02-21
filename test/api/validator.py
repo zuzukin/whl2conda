@@ -413,13 +413,15 @@ class PackageValidator:
         Validates the contents of the info/link.json file
         """
         link_file = info_dir / "link.json"
+
+        if self._is_binary:
+            # Binary packages should not have link.json (matches conda-forge)
+            assert not link_file.is_file(), "Binary packages should not have link.json"
+            return
+
         assert link_file.is_file()
         jobj = json.loads(link_file.read_text("utf8"))
         assert jobj["package_metadata_version"] == 1
-
-        if self._is_binary:
-            assert "noarch" not in jobj
-            return
 
         noarch = jobj["noarch"]
         assert noarch["type"] == "python"
