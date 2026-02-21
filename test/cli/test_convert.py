@@ -198,6 +198,9 @@ class CliTestCase:
             spec: str,
             index: str = "",
             into: Path | None = None,
+            platform: str = "",
+            python_version: str = "",
+            abi: str = "",
         ) -> Path:
             """Fake version of download_wheel"""
             assert spec == self.expected_download_spec

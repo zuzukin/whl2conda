@@ -57,6 +57,9 @@ class ConvertArgs:
     build_number: int | None
     build_wheel: bool
     dep_renames: Sequence[tuple[str, str]]
+    download_abi: str | None
+    download_platform: str | None
+    download_python_version: str | None
     dropped_deps: Sequence[str]
     dry_run: bool
     extra_deps: list[str]
@@ -291,6 +294,33 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
         ),
     )
 
+    experimental_opts.add_argument(
+        "--download-platform",
+        metavar="<tag>",
+        help=dedent("""
+            Target platform tag for download (e.g. 'manylinux2014_x86_64',
+            'macosx_11_0_arm64', 'win_amd64'). Used with --from-pypi or
+            --from-index to download a platform-specific binary wheel.
+            Implies --allow-impure.
+        """),
+    )
+    experimental_opts.add_argument(
+        "--download-python-version",
+        metavar="<ver>",
+        help=dedent("""
+            Target Python version for download (e.g. '3.12').
+            Used with --from-pypi or --from-index.
+        """),
+    )
+    experimental_opts.add_argument(
+        "--download-abi",
+        metavar="<tag>",
+        help=dedent("""
+            Target ABI tag for download (e.g. 'cp312').
+            Used with --from-pypi or --from-index.
+        """),
+    )
+
     info_opts.add_argument(
         "-n",
         "--dry-run",
@@ -377,6 +407,17 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
         download_spec = parsed.from_pypi
     elif parsed.from_index:
         download_index, download_spec = parsed.from_index
+
+    download_platform: str = parsed.download_platform or ""
+    download_python_version: str = parsed.download_python_version or ""
+    download_abi: str = parsed.download_abi or ""
+
+    if any([download_platform, download_python_version, download_abi]):
+        if not download_spec:
+            parser.error(
+                "--download-platform, --download-python-version, and --download-abi "
+                "require --from-pypi or --from-index"
+            )
 
     wheel_or_root = parsed.wheel_or_root
     saw_positional_root = False
@@ -517,6 +558,9 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
                         download_spec,
                         into=Path(tmpdirname),
                         index=download_index,
+                        platform=download_platform,
+                        python_version=download_python_version,
+                        abi=download_abi,
                     )
                 except RuntimeError as ex:
                     parser.error(str(ex))
@@ -550,7 +594,7 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
         converter.python_version = parsed.python
         converter.interactive = interactive
         converter.build_number = parsed.build_number
-        converter.allow_impure = parsed.allow_impure
+        converter.allow_impure = parsed.allow_impure or bool(download_platform)
         if parsed.allow_metadata_version:
             converter.SUPPORTED_METADATA_VERSIONS = (
                 *converter.SUPPORTED_METADATA_VERSIONS,

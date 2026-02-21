@@ -61,6 +61,9 @@ def download_wheel(
     spec: str,
     index: str = "",
     into: Path | None = None,
+    platform: str = "",
+    python_version: str = "",
+    abi: str = "",
 ) -> Path:
     """
     Downloads wheel with given specification from pypi index.
@@ -69,6 +72,10 @@ def download_wheel(
         spec: requirement specifier for wheel to download: package name and optional version
         index: URL of index from which to download. Defaults to pypi.org
         into: directory into which wheel will be download. Defaults to current directory.
+        platform: target platform tag (e.g. 'manylinux2014_x86_64', 'win_amd64').
+            If not specified, downloads a pure-python wheel.
+        python_version: target Python version (e.g. '3.12').
+        abi: target ABI tag (e.g. 'cp312').
 
     Returns:
         Path of downloaded file.
@@ -81,13 +88,23 @@ def download_wheel(
         cmd = [
             "pip",
             "download",
-            "--only-binary",  # TODO support building from a source distribution
+            "--only-binary",
             ":all:",
             "--no-deps",
-            "--ignore-requires-python",  # TODO: support specific python version
-            "--implementation",
-            "py",
         ]
+        if platform:
+            cmd.extend(["--platform", platform])
+        if python_version:
+            cmd.extend(["--python-version", python_version])
+        if abi:
+            cmd.extend(["--abi", abi])
+        if not platform and not python_version and not abi:
+            # Default to pure-python wheel
+            cmd.extend([
+                "--ignore-requires-python",
+                "--implementation",
+                "py",
+            ])
         if index:
             index = lookup_pypi_index(index)
         if index:
