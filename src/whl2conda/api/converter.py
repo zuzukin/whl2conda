@@ -1134,6 +1134,8 @@ class Wheel2CondaConverter:
         md, requires = self._parse_dist_metadata(wheel_info_dir)
 
         package_name = self.package_name or str(md.get("name"))
+        # Conda package names are lowercase with hyphens
+        package_name = re.sub(r"[-_.]+", "-", package_name).lower()
         self.package_name = package_name
         version = md.get("version")
 

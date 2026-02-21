@@ -487,7 +487,7 @@ def test_poetry(
         pytest.skip(str(err))
     pkg = test_case(wheel).build()
     # conda package name taken from project name
-    assert pkg.name.startswith("poetry.example")
+    assert pkg.name.startswith("poetry-example")
 
 
 def test_poetry_2_1(
@@ -503,7 +503,7 @@ def test_poetry_2_1(
         pytest.skip(str(err))
     pkg = test_case(wheel).build()
     # conda package name taken from project name
-    assert pkg.name.startswith("poetry.example")
+    assert pkg.name.startswith("poetry-example")
 
 
 def test_bad_wheels(

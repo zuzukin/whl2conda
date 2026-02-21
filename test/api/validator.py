@@ -313,7 +313,7 @@ class PackageValidator:
         if self._override_name:
             assert name == self._override_name
         else:
-            assert name == wheel_md["name"]
+            assert name == re.sub(r"[-_.]+", "-", wheel_md["name"]).lower()
         assert version == wheel_md["version"]
 
         if self._is_binary:
