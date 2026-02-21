@@ -2,5 +2,6 @@ nav:
   - Basic Usage: basic-usage.md
   - Dependency Modification: renaming.md
   - Configuring pyproject.toml: pyproject.md
+  - Binary Conversion: binary-conversion.md
   - Installing and Testing: testing.md
   - Limitations: limitations.md

@@ -44,8 +44,7 @@ generated directly from pure python wheels.
     (e.g., markupsafe, wrapt, ujson) where the wheel is self-contained. It will
     refuse to convert packages known to bundle complex runtime libraries (PyTorch,
     TensorFlow, CUDA packages, etc.) or wheels with local version suffixes
-    (e.g., `+cu121`). Dependencies with platform-specific environment markers
-    are dropped during conversion. For complex GPU/CUDA packages, use conda-forge
+    (e.g., `+cu121`). For complex GPU/CUDA packages, use conda-forge
     packages instead.
 
 
