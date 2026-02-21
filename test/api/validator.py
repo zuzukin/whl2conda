@@ -1,4 +1,4 @@
-#  Copyright 2023-2024 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -20,11 +20,12 @@ from __future__ import annotations
 import configparser
 import hashlib
 import json
+import logging
 import os.path
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Generator, Optional, Sequence
+from typing import Any, Generator, Optional, Sequence
 
 import conda_package_handling.api as cphapi
 import pytest
@@ -264,6 +265,10 @@ class PackageValidator:
                 print(json.dumps(dist_md, sort_keys=True, indent=2))
                 print("== original wheel metadata ==")
                 print(json.dumps(wheel_md, sort_keys=True, indent=2))
+                dist_info_dir = next(site_packages.glob("*.dist-info"))
+                md_file = dist_info_dir / "METADATA"
+                print("== raw dist-info METADATA file ==")
+                print(md_file.read_bytes())
                 assert dist_md == wheel_md
 
     def _validate_hash_input(self, info_dir: Path) -> None:
@@ -315,6 +320,10 @@ class PackageValidator:
         output_depends = set(dependencies)
         expected_depends: set[str] = set()
 
+        # Only used for version translation
+        cvt = Wheel2CondaConverter(self.tmp_dir, self.tmp_dir)
+        cvt.logger = logging.Logger(__name__, logging.CRITICAL)
+
         wheel_md = self._wheel_md
         if self._expected_python_version:
             expected_depends.add(f"python {self._expected_python_version}")
@@ -329,6 +338,7 @@ class PackageValidator:
                 continue
             name = entry.name
             version = entry.version
+            conda_version = cvt.translate_version_spec(version)
             renamed = False
             for pat, template in self._renamed_dependencies.items():
                 if m := re.fullmatch(name, pat):
@@ -338,7 +348,7 @@ class PackageValidator:
             if not renamed:
                 name = self._std_renames.get(name, name)
             if name:
-                expected_depends.add(f"{name} {version}")
+                expected_depends.add(f"{name} {conda_version}")
 
         expected_depends.update(self._extra_dependencies)
 
@@ -392,7 +402,7 @@ class PackageValidator:
         assert paths["paths_version"] == 1
         entry_keys = {"_path", "path_type", "sha256", "size_in_bytes"}
         for path_entry in paths["paths"]:
-            assert isinstance(path_entry, Dict)
+            assert isinstance(path_entry, dict)
             assert set(path_entry.keys()) == entry_keys
             rel_path = path_entry["_path"]
             file = pkg_dir.joinpath(rel_path)
@@ -431,9 +441,9 @@ class PackageValidator:
                 continue
             rel_path = wheel_file.relative_to(wheel_dir)
             conda_file = site_packages_dir / rel_path
-            assert (
-                conda_file.exists()
-            ), f"{conda_file.relative_to(pkg_dir)} does not exist"
+            assert conda_file.exists(), (
+                f"{conda_file.relative_to(pkg_dir)} does not exist"
+            )
             assert wheel_file.read_bytes() == conda_file.read_bytes()
 
         # Check that all *.data/data/ files get copied into top level
@@ -446,9 +456,9 @@ class PackageValidator:
                 *rel_path.parts[2:]
             )  # strip *.data/data/ from head of rel path
             conda_file = pkg_dir / rel_path
-            assert (
-                conda_file.exists()
-            ), f"{conda_file.relative_to(pkg_dir)} does not exist"
+            assert conda_file.exists(), (
+                f"{conda_file.relative_to(pkg_dir)} does not exist"
+            )
             # NOTE: in theory this could fail if there is more than one *.data dir that
             #  specify the same file path with different contents, but in practice we do not
             #  expect that to ever happen.
@@ -464,9 +474,9 @@ class PackageValidator:
                 *rel_path.parts[2:]
             )  # strip *.data/scripts/ from head of rel path
             conda_file = pkg_dir / "python-scripts" / rel_path
-            assert (
-                conda_file.exists()
-            ), f"{conda_file.relative_to(pkg_dir)} does not exist"
+            assert conda_file.exists(), (
+                f"{conda_file.relative_to(pkg_dir)} does not exist"
+            )
             # NOTE: in theory this could fail if there is more than one *.data dir that
             #  specify the same file path with different contents, but in practice we do not
             #  expect that to ever happen.

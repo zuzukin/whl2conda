@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -23,6 +23,18 @@ is given.
 
 import pytest
 
+from whl2conda.settings import settings
+
+
+@pytest.fixture(autouse=True)
+def clear_settings():
+    """
+    Fixture clears user settings and resets location of settings file
+    prior to each test.
+    """
+    settings.unset_all()
+    settings._settings_file = settings.DEFAULT_SETTINGS_FILE
+
 
 def pytest_addoption(parser):
     """
@@ -41,7 +53,7 @@ def pytest_configure(config):
     Add external marker to pytest configuration
     """
     config.addinivalue_line(
-        "markers", "external: mark test as depending on extenral pypi package to run"
+        "markers", "external: mark test as depending on external pypi package to run"
     )
     config.addinivalue_line("markers", "slow: mark test as slow to run")
 

@@ -1,4 +1,4 @@
-#  Copyright 2023-2024 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import argparse
 # standard
 import logging
 import os
+import platform
 import re
 import shutil
 import time
@@ -40,6 +41,7 @@ from whl2conda.api.converter import (
 from whl2conda.cli import main
 from whl2conda.cli.convert import do_build_wheel
 from whl2conda.impl.prompt import is_interactive
+from whl2conda.settings import settings
 
 from ..impl.test_prompt import monkeypatch_interactive
 
@@ -76,6 +78,7 @@ class CliTestCase:
 
     args: list[str]
     interactive: bool
+    expected_allow_metadata_version: str = ""
     expected_build_number: Optional[int] = None
     expected_dependency_renames: list[DependencyRename]
     expected_download_spec: str = ""
@@ -98,6 +101,7 @@ class CliTestCase:
     responses: list[str]
     from_dir: Path
     was_run: bool = False
+    stdrenames_updated: bool = False
 
     #
     # Other test state
@@ -118,6 +122,7 @@ class CliTestCase:
         project_dir: Path,
         # optional
         interactive: Optional[bool] = None,
+        expected_allow_metadata_version: str = "",
         expected_build_number: Optional[int] = None,
         expected_dry_run: bool = False,
         expected_extra_dependencies: Sequence[str] = (),
@@ -133,6 +138,7 @@ class CliTestCase:
         expected_project_root: str = "",
         expected_python_version: str = "",
         expected_wheel_path: str = "",
+        expected_stdrenames_update: bool = False,
         from_dir: str = "",
     ):
         self.caplog = caplog
@@ -142,6 +148,7 @@ class CliTestCase:
 
         self.args = list(args)
         self.interactive = is_interactive() if interactive is None else interactive
+        self.expected_allow_metadata_version = expected_allow_metadata_version
         self.expected_build_number = expected_build_number
         self.expected_dry_run = expected_dry_run
         self.expected_dependency_renames = []
@@ -159,6 +166,7 @@ class CliTestCase:
         self.expected_prompts = []
         self.expected_python_version = expected_python_version
         self.expected_wheel_path = expected_wheel_path
+        self.expected_stdrenames_update = expected_stdrenames_update
         self.responses = []
 
         self.project_dir = project_dir
@@ -198,9 +206,9 @@ class CliTestCase:
 
         def fake_input(prompt: str) -> str:
             expected_prompt = next(prompts)
-            assert re.search(
-                expected_prompt, prompt
-            ), f"'{expected_prompt}' does not match prompt '{prompt}'"
+            assert re.search(expected_prompt, prompt), (
+                f"'{expected_prompt}' does not match prompt '{prompt}'"
+            )
             return next(responses)
 
         def fake_convert(converter: Wheel2CondaConverter) -> Path:
@@ -218,8 +226,12 @@ class CliTestCase:
             if not conda_pkg_path.is_file() and not converter.dry_run:
                 # just write an empty file so that existence check will work
                 conda_pkg_path.parent.mkdir(parents=True, exist_ok=True)
-                conda_pkg_path.write_text("")
+                conda_pkg_path.write_text("", encoding="utf8")
             return conda_pkg_path
+
+        def fake_stdrenames_update(*_args, **_kwargs) -> bool:
+            self.stdrenames_updated = True
+            return True
 
         with self.monkeypatch.context() as mp:
             # TODO monkeypatch for --test-install
@@ -228,6 +240,10 @@ class CliTestCase:
             mp.setattr("whl2conda.cli.convert.do_build_wheel", fake_build_wheel)
             mp.setattr("whl2conda.impl.download.download_wheel", fake_download_wheel)
             mp.setattr("whl2conda.cli.convert.download_wheel", fake_download_wheel)
+            mp.setattr(
+                "whl2conda.api.stdrename.update_renames_file",
+                fake_stdrenames_update,
+            )
             if self.interactive is not is_interactive():
                 monkeypatch_interactive(mp, self.interactive)
             mp.chdir(self.from_dir)
@@ -255,6 +271,7 @@ class CliTestCase:
 
             assert not list(prompts)
             assert not list(responses)
+            assert self.stdrenames_updated == self.expected_stdrenames_update
 
     def add_dependency_rename(self, pypi_name: str, conda_name: str) -> CliTestCase:
         """Add an expected dependency rename
@@ -292,9 +309,15 @@ class CliTestCase:
                 expected_outdir = os.path.join(expected_root, "dist")
         if expected_outdir:
             assert converter.out_dir == projects / expected_outdir
+        if self.expected_allow_metadata_version:
+            assert (
+                self.expected_allow_metadata_version
+                in converter.SUPPORTED_METADATA_VERSIONS
+            )
         assert converter.build_number == self.expected_build_number
         assert converter.dry_run is self.expected_dry_run
-        assert converter.package_name == self.expected_package_name
+        if self.expected_package_name:
+            assert converter.package_name == self.expected_package_name
         assert converter.out_format is self.expected_out_fmt
         assert converter.overwrite is self.expected_overwrite
         assert converter.keep_pip_dependencies is self.expected_keep_pip
@@ -308,7 +331,7 @@ class CliTestCaseFactory:
 
     The factory copies the test-projects/ directory tree
     into tmp directory shared by all test cases produced
-    by the factory rooted undr the `project_dir` path.
+    by the factory rooted under the `project_dir` path.
 
     Note that all test cases will share the same tree
     and can see any changes introduced by previous test
@@ -346,6 +369,7 @@ class CliTestCaseFactory:
         args: Sequence[str],
         *,
         interactive: Optional[bool] = None,
+        expected_allow_metadata_version: str = "",
         expected_build_number: Optional[int] = None,
         expected_download_index: str = "",
         expected_download_spec: str = "",
@@ -361,6 +385,7 @@ class CliTestCaseFactory:
         expected_project_root: str = "",
         expected_python_version: str = "",
         expected_wheel_path: str = "",
+        expected_stdrenames_update: bool = False,
         from_dir: str = "",
     ) -> CliTestCase:
         case = CliTestCase(
@@ -371,6 +396,7 @@ class CliTestCaseFactory:
             project_dir=self.project_dir,
             args=args,
             interactive=interactive,
+            expected_allow_metadata_version=expected_allow_metadata_version,
             expected_build_number=expected_build_number,
             expected_download_index=expected_download_index,
             expected_download_spec=expected_download_spec,
@@ -386,6 +412,7 @@ class CliTestCaseFactory:
             expected_project_root=expected_project_root,
             expected_python_version=expected_python_version,
             expected_wheel_path=expected_wheel_path,
+            expected_stdrenames_update=expected_stdrenames_update,
             from_dir=from_dir,
         )
         self.cases.append(case)
@@ -425,6 +452,7 @@ def test_simple_default(test_case: CliTestCaseFactory) -> None:
     case = test_case(
         ["simple"],
         interactive=False,
+        expected_package_name="simple",
         expected_project_root="simple",
         expected_parser_error="No wheels found in directory",
     )
@@ -433,6 +461,7 @@ def test_simple_default(test_case: CliTestCaseFactory) -> None:
     case = test_case(
         ["simple"],
         interactive=True,
+        expected_package_name="simple",
         expected_project_root="simple",
     )
     case.add_prompt(
@@ -445,6 +474,7 @@ def test_simple_default(test_case: CliTestCaseFactory) -> None:
     case = test_case(
         [],
         interactive=True,
+        expected_package_name="simple",
         expected_project_root="simple",
         from_dir="simple",
     )
@@ -456,6 +486,7 @@ def test_simple_default(test_case: CliTestCaseFactory) -> None:
 
     case = test_case(
         ["--project-root", "simple"],
+        expected_package_name="simple",
         interactive=True,
         expected_project_root="simple",
     )
@@ -474,7 +505,7 @@ def test_simple_log_level(
     """
     root_logger = logging.getLogger()
     wheel_file = test_case.tmp_path.joinpath("acme-1.0.whl")
-    wheel_file.write_text("")
+    wheel_file.write_text("", encoding="utf8")
 
     case = test_case([str(wheel_file), "--dry-run"], expected_dry_run=True)
     case.run()
@@ -556,8 +587,18 @@ def test_out_format(test_case: CliTestCaseFactory) -> None:
     Test --out-format
     """
 
+    assert settings.conda_format is CondaPackageFormat.V2
+
     wheel_file = test_case.tmp_path.joinpath("fake-1.0.whl")
     wheel_file.write_text("")
+
+    case = test_case([str(wheel_file)], expected_out_fmt=CondaPackageFormat.V2)
+    case.run()
+
+    settings.conda_format = CondaPackageFormat.V1
+
+    case = test_case([str(wheel_file)], expected_out_fmt=CondaPackageFormat.V1)
+    case.run()
 
     case = test_case(
         [str(wheel_file), "--out-format", "V1"], expected_out_fmt=CondaPackageFormat.V1
@@ -641,16 +682,24 @@ def test_do_build_wheel(
     wheel_file = do_build_wheel(project_root, wheel_dir)
     assert wheel_file.parent == wheel_dir
     assert wheel_file.is_file()
+    wheel_file.unlink()
+    assert not wheel_file.is_file()
 
     expected_no_build_isolation = False
     expected_no_deps = True
     wheel_file = do_build_wheel(project_root, wheel_dir, no_deps=True)
+    assert wheel_file.parent == wheel_dir
+    assert wheel_file.is_file()
+    wheel_file.unlink()
 
     expected_no_build_isolation = True
     expected_no_deps = False
     wheel_file = do_build_wheel(
         project_root, wheel_dir, no_deps=False, no_build_isolation=True
     )
+    assert wheel_file.parent == wheel_dir
+    assert wheel_file.is_file()
+    wheel_file.unlink()
 
 
 # ignore redefinition of test_case
@@ -737,7 +786,9 @@ def test_choose_wheel(
     case.run()
 
     # add second copy of wheel
-    time.sleep(0.01)  # wait to ensure later timestamp
+    # Use longer sleep on Windows due to lower timestamp resolution
+    sleep_duration = 0.1 if platform.system() == "Windows" else 0.01
+    time.sleep(sleep_duration)  # wait to ensure later timestamp
     dist_wheel2 = dist / f"{dist_wheel.stem}-2.whl"
     shutil.copyfile(simple_wheel, dist_wheel2)
     case = test_case(
@@ -892,3 +943,47 @@ def test_python_override(
     test_case(
         [str(simple_wheel), "--python", ">=3.10"], expected_python_version=">=3.10"
     ).run()
+
+
+def test_allow_metadata_version(
+    test_case: CliTestCaseFactory,
+    simple_wheel: Path,
+) -> None:
+    """Test processing of --allow-metadata-version option"""
+    test_case(
+        [str(simple_wheel), "--allow-metadata-version", "12.3"],
+        expected_allow_metadata_version="12.3",
+    ).run()
+
+
+def test_stdrenames_update(
+    test_case: CliTestCaseFactory,
+    simple_wheel: Path,
+) -> None:
+    """
+    Test --update-stdrenames options
+    """
+    assert not settings.auto_update_std_renames
+
+    test_case(
+        [str(simple_wheel)],
+        expected_stdrenames_update=False,
+    ).run()
+
+    test_case(
+        [str(simple_wheel), "--update-stdrenames"],
+        expected_stdrenames_update=True,
+    ).run()
+
+    settings.auto_update_std_renames = True
+    test_case(
+        [str(simple_wheel)],
+        expected_stdrenames_update=True,
+    ).run()
+
+    test_case(
+        [str(simple_wheel), "--no-update-stdrenames"],
+        expected_stdrenames_update=False,
+    ).run()
+
+    settings.auto_update_std_renames = False

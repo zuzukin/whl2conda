@@ -6,6 +6,8 @@ site_dir: site
 site_author: Christopher Barber
 repo_name: GitHub
 copyright: Copyright &copy; 2023 Christopher Barber
+exclude_docs: |
+  /internal/
 
 # https://squidfunk.github.io/mkdocs-material/setup/changing-the-colors/
 #extra_css:
@@ -30,8 +32,8 @@ theme:
   hljs_languages:
     python
     json
-  logo: whl2conda.svg
-  favicon: whl2conda.svg
+  logo: whl2conda.jpg
+  favicon: whl2conda.jpg
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -77,13 +79,12 @@ plugins:
       enable_inventory: true
       handlers:
         python_xref:
-          import:
-            - https://docs.python.org/3/objects.inv
+          inventories:
+            - url: https://docs.python.org/3/objects.inv
+              domains: [std, py]
 
           options:
             docstring_style: google
-            docstring_options:
-              replace_admonitions: true
             filters:
               - "!^_"
               - "^__.*__$"
@@ -113,6 +114,3 @@ markdown_extensions:
           class: mermaid
 #          format: !!python/name:pymdownx.superfences.fence_code_format
   - attr_list
-  - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg

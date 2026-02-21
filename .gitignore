@@ -5,6 +5,13 @@
 *.pyc
 __pycache__/
 
+# Pixi environment
+.pixi/
+
+# poetry environment (for tests)
+.venv/
+poetry.lock
+
 # Build artifacts
 dist/
 htmlcov/
@@ -16,7 +23,8 @@ build/
 *.tar.bz2
 
 # test files
-.coverage*
+.coverage
+.coverage.*
 coverage.json
 coverage.xml
 

@@ -53,6 +53,13 @@ there is package new to [conda-forge] that may have appeared since installing
 $ whl2conda --update-std-renames
 ```
 
+You can also configure whl2conda to automatically update the standard rename
+mappings prior to operations that require via a persistent user setting:
+
+```bash
+$ whl2conda config --set auto-update-std-renames true
+```
+
 The cache file is kept in a location in your user directory that is specific 
 to your operating system:
 

@@ -1,6 +1,35 @@
 # whl2conda changes
 
-## [24.4.0] - *in progress*
+## [25.9.0] - *in progress*
+
+### Features
+
+* Support parsing name from Poetry 2.0 pyproject.toml
+* Handle bad UTF-8 in METADATA files
+
+### Development
+
+* Switched to pixi for development environment management
+
+## [25.3.0] - 2025-3-20
+
+### Features
+
+* Support metadata version 2.4 (PEP 688)
+* Added --allow-metadata-version option to convert command
+
+### Changes
+
+* Drops support for python 3.8
+
+## [24.5.0] - 2024-5-5
+### Features
+* Added persistent user settings for:
+    * default conda format
+    * whether to automatically update stdrenames table
+    * specify aliases for extra pypi indexes
+
+## [24.4.0] - 2024-4-14
 ### Changes
 * Only use classic installer in `whl2conda install` environments if 
     `conda-libmamba-solver` in base environment has version less than 24.1.0 (see #118)

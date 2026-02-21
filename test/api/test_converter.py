@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ from __future__ import annotations
 
 # standard
 import logging
+import platform
 import re
 import subprocess
 from pathlib import Path
@@ -39,6 +40,7 @@ from whl2conda.api.converter import (
 )
 from whl2conda.cli.convert import do_build_wheel
 from .converter import ConverterTestCaseFactory
+from whl2conda.api.stdrename import load_std_renames
 
 # pylint: disable=unused-import
 from .converter import test_case  # noqa: F401
@@ -191,6 +193,42 @@ def test_dependency_rename() -> None:
 # ruff: noqa: F811
 
 
+def test_init(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test Whl2CondaConverter.__init__"""
+    update_called = False
+
+    def fake_update(*_args, **_kwargs) -> bool:
+        nonlocal update_called
+        update_called = True
+        return True
+
+    monkeypatch.setattr("whl2conda.api.stdrename.update_renames_file", fake_update)
+
+    wheel_path = Path("wheel")
+    out_dir = Path("out_dir")
+
+    converter = Wheel2CondaConverter(wheel_path, out_dir)
+    assert converter.wheel_path == wheel_path
+    assert converter.out_dir == out_dir
+    assert not converter.dependency_rename
+    assert not converter.extra_dependencies
+    assert not converter.package_name
+    assert not converter.dry_run
+    assert not converter.overwrite
+    assert not converter.keep_pip_dependencies
+    assert not converter.python_version
+    assert not converter.interactive
+    assert not converter.wheel_md
+    assert not converter.conda_pkg_path
+    assert converter.std_renames == load_std_renames(update=False)
+    assert not update_called
+
+    converter2 = Wheel2CondaConverter(wheel_path, out_dir, update_std_renames=True)
+    assert converter2.wheel_path == wheel_path
+    assert converter2.out_dir == out_dir
+    assert update_called
+
+
 def test_this(test_case: ConverterTestCaseFactory) -> None:
     """Test using this own project's wheel"""
     wheel_dir = test_case.tmp_path_factory.mktemp("test_this_wjheel_dir")
@@ -244,7 +282,8 @@ def test_simple_wheel(
 
     # Do another dry run, show that old package not removed
     mtime = v2pkg.stat().st_mtime_ns
-    sleep(0.01)
+    sleep_duration = 0.1 if platform.system() == "Windows" else 0.01
+    sleep(sleep_duration)  # ensure mtime will be different if file is replaced
     case = test_case(simple_wheel, overwrite=True)
     case.converter.dry_run = True
     assert case.build() == v2pkg
@@ -343,7 +382,7 @@ def test_debug_log(
     debug_out = get_debug_out()
 
     assert re.search(r"Extracted.*METADATA", debug_out)
-    assert "Packaging info/about.json" in debug_out
+    assert re.search(r"Packaging info[/\\]about\.json", debug_out)
     assert re.search(r"Skipping extra dependency.*pylint", debug_out)
     assert re.search(r"Dependency copied.*black", debug_out)
     assert re.search(r"Dependency renamed.*numpy-quaternion.*quaternion", debug_out)
@@ -384,7 +423,7 @@ def test_warnings(
     contents = metadata_file.read_text("utf8")
     # Add bogus !!! to Requires-Dist entries with markers
     contents = re.sub(r"Requires-Dist:(.*);", r"Requires-Dist:!!!\1;", contents)
-    metadata_file.write_text(contents)
+    metadata_file.write_text(contents, encoding="utf8")
     bad_wheel_file = bad_wheel_dir / markers_wheel.name
     with WheelFile(str(bad_wheel_file), "w") as wf:
         wf.write_files(str(bad_wheel_dir))
@@ -400,6 +439,22 @@ def test_poetry(
 ) -> None:
     """Unit test on simple poetry package"""
     poetry_dir = test_projects / "poetry"
+    try:
+        wheel = do_build_wheel(poetry_dir, tmp_path, capture_output=True)
+    except subprocess.CalledProcessError as err:
+        # TODO - look at captured output
+        pytest.skip(str(err))
+    pkg = test_case(wheel).build()
+    # conda package name taken from project name
+    assert pkg.name.startswith("poetry.example")
+
+
+def test_poetry_2_1(
+    test_case: ConverterTestCaseFactory,
+    tmp_path: Path,
+) -> None:
+    """Unit test on simple poetry package"""
+    poetry_dir = test_projects / "poetry-2.1"
     try:
         wheel = do_build_wheel(poetry_dir, tmp_path, capture_output=True)
     except subprocess.CalledProcessError as err:
@@ -431,7 +486,7 @@ def test_bad_wheels(
     #
 
     WHEEL_msg.replace_header("Wheel-Version", "999.0")
-    WHEEL_file.write_text(WHEEL_msg.as_string())
+    WHEEL_file.write_text(WHEEL_msg.as_string(), encoding="utf8")
 
     bad_version_wheel = tmp_path / "bad-version" / simple_wheel.name
     bad_version_wheel.parent.mkdir(parents=True)
@@ -452,7 +507,7 @@ def test_bad_wheels(
 
     WHEEL_msg.replace_header("Wheel-Version", "1.0")
     WHEEL_msg.replace_header("Root-Is-Purelib", "False")
-    WHEEL_file.write_text(WHEEL_msg.as_string())
+    WHEEL_file.write_text(WHEEL_msg.as_string(), encoding="utf8")
 
     impure_wheel = tmp_path / "impure" / simple_wheel.name
     impure_wheel.parent.mkdir(parents=True)
@@ -467,12 +522,12 @@ def test_bad_wheels(
     #
 
     WHEEL_msg.replace_header("Root-Is-Purelib", "True")
-    WHEEL_file.write_text(WHEEL_msg.as_string())
+    WHEEL_file.write_text(WHEEL_msg.as_string(), encoding="utf8")
 
     METADATA_file = extract_info_dir / 'METADATA'
     METADATA_msg = Wheel2CondaConverter.read_metadata_file(METADATA_file)
     METADATA_msg.replace_header("Metadata-Version", "999.2")
-    METADATA_file.write_text(METADATA_msg.as_string())
+    METADATA_file.write_text(METADATA_msg.as_string(), encoding="utf8")
 
     bad_md_version_wheel = tmp_path / "bad-md-version" / simple_wheel.name
     bad_md_version_wheel.parent.mkdir(parents=True)
@@ -481,6 +536,10 @@ def test_bad_wheels(
 
     with pytest.raises(Wheel2CondaError, match="unsupported metadata version"):
         test_case(bad_md_version_wheel).build()
+
+    c = test_case(bad_md_version_wheel)
+    c.converter.SUPPORTED_METADATA_VERSIONS += ("999.2",)
+    c.build()
 
 
 def test_overwrite_prompt(
@@ -497,9 +556,9 @@ def test_overwrite_prompt(
     # pylint: disable=duplicate-code
     def fake_input(prompt: str) -> str:
         expected_prompt = next(prompts)
-        assert re.search(
-            expected_prompt, prompt
-        ), f"'{expected_prompt}' does not match prompt '{prompt}'"
+        assert re.search(expected_prompt, prompt), (
+            f"'{expected_prompt}' does not match prompt '{prompt}'"
+        )
         return next(responses)
 
     monkeypatch.setattr("builtins.input", fake_input)

@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ import importlib.resources
 import json
 import re
 import urllib.request
-import sys
 import time
 from email.utils import formatdate, parsedate_to_datetime
 from http import HTTPStatus
@@ -124,16 +123,8 @@ def load_std_renames(
     # Look for local copy of stdrenames
     local_std_rename_file = user_stdrenames_path()
     if not local_std_rename_file.exists():
-        # pylint: disable=no-member
-        if sys.version_info >= (3, 9):  # pragma: no cover
-            resources = importlib.resources.files('whl2conda.api')
-            s = resources.joinpath("stdrename.json").read_text("utf8")
-        else:  # pragma: no cover
-            s = importlib.resources.read_text(
-                "whl2conda.api",
-                "stdrename.json",
-                encoding="utf",
-            )
+        resources = importlib.resources.files('whl2conda.api')
+        s = resources.joinpath("stdrename.json").read_text("utf8")
         local_std_rename_file.parent.mkdir(parents=True, exist_ok=True)
         local_std_rename_file.write_text(s, "utf8")
 

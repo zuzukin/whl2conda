@@ -1,4 +1,4 @@
-#  Copyright 2023-2024 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -277,7 +277,15 @@ class Wheel2CondaConverter:
     """
 
     SUPPORTED_WHEEL_VERSIONS = ("1.0",)
-    SUPPORTED_METADATA_VERSIONS = ("1.0", "1.1", "1.2", "2.1", "2.2", "2.3")
+    SUPPORTED_METADATA_VERSIONS: tuple[str, ...] = (
+        "1.0",
+        "1.1",
+        "1.2",
+        "2.1",
+        "2.2",
+        "2.3",
+        "2.4",
+    )
     MULTI_USE_METADATA_KEYS = {
         "Classifier",
         "Dynamic",
@@ -318,6 +326,8 @@ class Wheel2CondaConverter:
         self,
         wheel_path: Path,
         out_dir: Path,
+        *,
+        update_std_renames: bool = False,
     ):
         self.logger = logging.getLogger(__name__)
         self.wheel_path = wheel_path
@@ -325,7 +335,7 @@ class Wheel2CondaConverter:
         self.dependency_rename = []
         self.extra_dependencies = []
         # TODO - option to ignore this
-        self.std_renames = load_std_renames()
+        self.std_renames = load_std_renames(update=update_std_renames)
 
     def convert(self) -> Path:
         """
@@ -391,8 +401,8 @@ class Wheel2CondaConverter:
             Message object
         """
         return email.message_from_string(
-            file.read_text(encoding="utf8"),
-            policy=email.policy.EmailPolicy(utf8=True, refold_source="none"),
+            file.read_text(encoding="utf8", errors="backslashreplace"),
+            policy=email.policy.EmailPolicy(utf8=True, refold_source="none"),  # type: ignore
         )
 
     def _conda_package_path(self, package_name: str, version: str) -> Path:
@@ -463,7 +473,7 @@ class Wheel2CondaConverter:
                 )
             )
         conda_paths_file.write_text(
-            json.dumps(dict(paths=paths, paths_version=1), indent=2)
+            json.dumps(dict(paths=paths, paths_version=1), indent=2), encoding="utf8"
         )
 
     def _write_link_file(self, conda_info_dir: Path, wheel_info_dir: Path) -> None:
@@ -489,7 +499,8 @@ class Wheel2CondaConverter:
                 ),
                 indent=2,
                 sort_keys=True,
-            )
+            ),
+            encoding="utf8",
         )
 
     # pylint: disable=too-many-arguments
@@ -528,7 +539,8 @@ class Wheel2CondaConverter:
                     version=wheel_md.version,
                 ),
                 indent=2,
-            )
+            ),
+            encoding="utf8",
         )
 
     # Convert wheel tags to arch/platform/subdir
@@ -589,14 +601,14 @@ class Wheel2CondaConverter:
     def _write_files_list(self, conda_info_dir: Path, rel_files: Sequence[str]) -> None:
         # * info/files - list of relative paths of files not including info/
         conda_files_file = conda_info_dir.joinpath("files")
-        with open(conda_files_file, "w") as f:
+        with open(conda_files_file, "w", encoding="utf8") as f:
             for rel_file in rel_files:
                 f.write(str(rel_file))
                 f.write("\n")
 
     def _write_hash_input(self, conda_info_dir: Path) -> None:
         conda_hash_input_file = conda_info_dir.joinpath("hash_input.json")
-        conda_hash_input_file.write_text(json.dumps({}, indent=2))
+        conda_hash_input_file.write_text(json.dumps({}, indent=2), encoding="utf8")
 
     # pylint: disable=too-many-locals
     def _write_about(self, conda_info_dir: Path, md: dict[str, Any]) -> None:
@@ -670,7 +682,8 @@ class Wheel2CondaConverter:
                 ),
                 indent=2,
                 sort_keys=True,
-            )
+            ),
+            encoding="utf8",
         )
 
     # pylint: disable=too-many-locals
@@ -785,9 +798,9 @@ class Wheel2CondaConverter:
         assert self.wheel_md is not None
         dist_info_dir = conda_site_packages / self.wheel_md.wheel_info_dir.name
         installer_file = dist_info_dir / "INSTALLER"
-        installer_file.write_text("whl2conda")
+        installer_file.write_text("whl2conda", encoding="utf8")
         requested_file = dist_info_dir / "REQUESTED"
-        requested_file.write_text("")
+        requested_file.write_text("", encoding="utf8")
 
     def _copy_licenses(self, conda_info_dir: Path, wheel_md: MetadataFromWheel) -> None:
         to_license_dir = conda_info_dir / "licenses"
@@ -856,21 +869,23 @@ class Wheel2CondaConverter:
         python_tag, abi_tag, platform_tag = wheel_tags
 
         wheel_md_file = wheel_info_dir.joinpath("METADATA")
-        md: dict[str, list[Any]] = {}
+        md: dict[str, str | list[Any]] = {}
         # Metdata spec: https://packaging.python.org/en/latest/specifications/core-metadata/
         # Required keys: Metadata-Version, Name, Version
         md_msg = self.read_metadata_file(wheel_md_file)
         md_version_str = md_msg.get("Metadata-Version")
         if md_version_str not in self.SUPPORTED_METADATA_VERSIONS:
+            msg = f"Wheel {self.wheel_path} has unsupported metadata version {md_version_str}"
             # TODO - perhaps just warn about this if not in "strict" mode
-            raise Wheel2CondaError(
-                f"Wheel {self.wheel_path} has unsupported metadata version {md_version_str}"
-            )
+            raise Wheel2CondaError(msg)
         # md_version = tuple(int(x) for x in md_version_str.split("."))
         for mdkey, mdval in md_msg.items():
             mdkey = mdkey.strip()
             if mdkey in self.MULTI_USE_METADATA_KEYS:
-                md.setdefault(mdkey.lower(), []).append(mdval)
+                if curmdval := md.get(mdkey):
+                    if isinstance(curmdval, str):
+                        md[mdkey] = [curmdval]
+                md.setdefault(mdkey.lower(), []).append(mdval)  # type: ignore
             else:
                 md[mdkey.lower()] = mdval
 
@@ -893,7 +908,7 @@ class Wheel2CondaConverter:
                     entry = entry.with_extra('original')
                 md_msg.add_header("Requires-Dist", str(entry))
             md_msg.add_header("Provides-Extra", "original")
-            wheel_md_file.write_text(md_msg.as_string())
+            wheel_md_file.write_text(md_msg.as_string(), encoding="utf8")
         package_name = self.package_name or str(md.get("name"))
         self.package_name = package_name
         version = md.get("version")

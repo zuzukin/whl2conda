@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2024 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -20,10 +20,12 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 from typing import Optional, Sequence
 
 from ..__about__ import __version__
 from .common import dedent, Subcommands, add_markdown_help
+from ..settings import settings
 
 __all__ = ["main"]
 
@@ -83,10 +85,19 @@ def main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None) -> No
         "--list-subcommands", action=ListSubcommands, nargs=0, help=argparse.SUPPRESS
     )
 
+    parser.add_argument(
+        "--settings",
+        metavar="<filepath>",
+        help="Override default settings file",
+    )
+
     add_markdown_help(parser)
     parser.add_argument("--version", action="version", version=__version__)
 
     parsed = parser.parse_args(args)
+
+    if parsed.settings:
+        settings.load(Path(parsed.settings).expanduser())
 
     subcmds.run(parsed)
 

@@ -1,4 +1,4 @@
-#  Copyright 2023-2024 Christopher Barber
+#  Copyright 2023-2025 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ from __future__ import annotations
 # standard lib
 import argparse
 import logging
+import platform
 import subprocess
 import tempfile
 import time
@@ -31,6 +32,7 @@ from ..impl.download import download_wheel
 from ..impl.prompt import is_interactive, choose_wheel
 from ..api.converter import Wheel2CondaConverter, CondaPackageFormat, DependencyRename
 from ..impl.pyproject import read_pyproject, PyProjInfo
+from ..settings import settings
 from .common import (
     add_markdown_help,
     dedent,
@@ -44,12 +46,13 @@ __all__ = ["convert_main"]
 
 # pylint: disable=too-many-instance-attributes
 @dataclass
-class Whl2CondaArgs:
+class ConvertArgs:
     """
     Parsed arguments
     """
 
     allow_impure: bool
+    allow_metadata_version: str
     build_number: Optional[int]
     build_wheel: bool
     dep_renames: Sequence[tuple[str, str]]
@@ -68,6 +71,7 @@ class Whl2CondaArgs:
     project_root: Optional[Path]
     python: str
     quiet: int
+    update_stdrenames: bool
     verbose: int
     wheel_dir: Optional[Path]
     wheel_or_root: Optional[Path]
@@ -161,6 +165,25 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         "--ignore-pyproject",
         action="store_true",
         help="Ignore settings from pyproject.toml file, if any",
+    )
+
+    input_opts.add_argument(
+        "--update-stdrenames",
+        action=argparse.BooleanOptionalAction,
+        default=settings.auto_update_std_renames,
+        help=dedent("""
+            Whether to update list of standard pypi to conda renames from internet. 
+            Default from settings: %(default)s
+            """),
+    )
+
+    input_opts.add_argument(
+        "--allow-metadata-version",
+        metavar="<version>",
+        default="",
+        help=dedent("""
+            Allow specified (unsupported) metadata version in input wheel files.
+        """),
     )
 
     output_opts.add_argument(
@@ -311,9 +334,9 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
 
 def _parse_args(
     parser: argparse.ArgumentParser, args: Optional[Sequence[str]]
-) -> Whl2CondaArgs:
+) -> ConvertArgs:
     """Parse and return arguments"""
-    return Whl2CondaArgs(**vars(parser.parse_args(args)))
+    return ConvertArgs(**vars(parser.parse_args(args)))
 
 
 def _is_project_root(path: Path) -> bool:
@@ -460,7 +483,7 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     elif pyproj_info.conda_format:
         out_fmt = pyproj_info.conda_format
     else:
-        out_fmt = CondaPackageFormat.V2
+        out_fmt = settings.conda_format
 
     if verbosity < -1:
         level = logging.ERROR
@@ -498,7 +521,11 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
 
         assert wheel_file
 
-        converter = Wheel2CondaConverter(wheel_file, out_dir)
+        converter = Wheel2CondaConverter(
+            wheel_file,
+            out_dir,
+            update_std_renames=parsed.update_stdrenames,
+        )
         converter.dry_run = parsed.dry_run
         converter.package_name = (
             parsed.name or pyproj_info.conda_name or pyproj_info.name
@@ -512,6 +539,10 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
         converter.interactive = interactive
         converter.build_number = parsed.build_number
         converter.allow_impure = parsed.allow_impure
+        if parsed.allow_metadata_version:
+            converter.SUPPORTED_METADATA_VERSIONS = (
+                converter.SUPPORTED_METADATA_VERSIONS + (parsed.allow_metadata_version,)
+            )
 
         converter.dependency_rename.extend(renames)
 
@@ -563,7 +594,9 @@ def do_build_wheel(
         wheel = wheel_dir.joinpath("dry-run-1.0-py3-none-any.whl")
     else:
         start = time.time()
-        time.sleep(0.01)  # wait to avoid time resolution issues
+        # Use longer sleep on Windows due to lower timestamp resolution
+        sleep_duration = 0.1 if platform.system() == "Windows" else 0.01
+        time.sleep(sleep_duration)  # wait to avoid time resolution issues
 
         subprocess.run(
             cmd,
@@ -578,12 +611,12 @@ def do_build_wheel(
         )
 
         assert wheels, f"No wheel created in '{wheel_dir}'"
-        create_time = wheels[0].stat().st_ctime
-        assert (
-            create_time >= start
-        ), f"Latest wheel {wheels[0]} has create time {create_time} older than start {start}"
-
         wheel = wheels[0]
+
+        create_time = wheel.stat().st_mtime
+        assert create_time >= start, (
+            f"Latest wheel {wheel} has modification time {create_time} older than start {start}"
+        )
 
     return wheel
 
