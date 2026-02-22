@@ -1,0 +1,54 @@
+name: Release checklist
+description: Checklist for publishing a new whl2conda release
+title: "Release <version>"
+labels: ["deploy"]
+assignees: ["analog-cbarber"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The version number to release (e.g. 26.2.0)
+      placeholder: "YY.M.patch"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Release checklist
+
+        See [RELEASING.md](../blob/main/RELEASING.md) for detailed instructions.
+
+  - type: checkboxes
+    id: pre-release
+    attributes:
+      label: Pre-release
+      options:
+        - label: Update `src/whl2conda/VERSION`
+        - label: Update `CHANGELOG.md` with release date and all changes
+        - label: Run `pixi run update-stdrename` and commit any changes
+        - label: All tests pass locally (`pixi run test`)
+        - label: Linting passes (`pixi run lint && pixi run typecheck`)
+        - label: Build packages (`pixi run clean-build && pixi run build`)
+        - label: Verify packages (`pixi run check-upload`)
+        - label: Commit, tag (`vYY.M.patch`), and push
+        - label: CI passes on all platforms
+
+  - type: checkboxes
+    id: publish
+    attributes:
+      label: Publish
+      options:
+        - label: Upload to PyPI (`pixi run upload`)
+        - label: Create GitHub release from tag with changelog notes
+        - label: Deploy documentation (`pixi run doc-deploy && pixi run doc-push`)
+        - label: Merge release branch to main
+
+  - type: checkboxes
+    id: post-release
+    attributes:
+      label: Post-release
+      options:
+        - label: conda-forge feedstock PR merged
+        - label: Bump version on main for next development cycle
