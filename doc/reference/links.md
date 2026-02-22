@@ -12,6 +12,9 @@
 * [Recording installed packages](https://packaging.python.org/en/latest/specifications/recording-installed-packages/)
 * [Current meta-data specification](https://packaging.python.org/en/latest/specifications/core-metadata/)
 * [Platform compatibility tags](https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/)
+* [Version specifiers](https://packaging.python.org/en/latest/specifications/version-specifiers/)
+* [Name normalization](https://packaging.python.org/en/latest/specifications/name-normalization/)
+* [Dependency specifiers (PEP 508)](https://peps.python.org/pep-0508/)
 * [Wheel 1.0 file format (PEP 427)](https://peps.python.org/pep-0427/)
 * [Wheel metadata 1.0 (PEP 241)](https://peps.python.org/pep-0241/)
 * [Wheel metadata 1.1 (PEP 314)](https://peps.python.org/pep-0314/)
@@ -19,6 +22,8 @@
 * [Wheel metadata 2.1 (PEP 566)](https://peps.python.org/pep-0566/)
 * [Wheel metadata 2.2 (PEP 643)](https://peps.python.org/pep-0643/)
 * [Wheel metadata 2.3 (PEP 685)](https://peps.python.org/pep-0685/)
+* [Wheel metadata 2.4 (PEP 639)](https://peps.python.org/pep-0639/) - license expression and license files
+* [Wheel metadata 2.5 (PEP 770)](https://peps.python.org/pep-0770/) - SBOM documents
 
 ## pyproject.toml metadata format:
 
@@ -26,6 +31,10 @@
 * [PEP 621](https://peps.python.org/pep-0621/)
 * [PEP 639](https://peps.python.org/pep-0639/) - license files
 * [PEP 725](https://peps.python.org/pep-0725/) - external dependencies
+
+## Repository layout
+
+* [PEP 503](https://peps.python.org/pep-0503/) - simple repository API and normalized package names
 
 ## Poetry issues:
 

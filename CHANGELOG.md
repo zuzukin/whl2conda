@@ -7,6 +7,7 @@
 * Experimental support for converting binary (non-pure Python) wheels via `--allow-impure` flag
 * Support parsing name from Poetry 2.0 pyproject.toml
 * Handle bad UTF-8 in METADATA files
+* Support wheel metadata version 2.5 (PEP 770) - SBOM documents
 
 ### Bug fixes
 

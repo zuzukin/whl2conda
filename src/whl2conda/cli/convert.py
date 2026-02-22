@@ -26,6 +26,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from textwrap import dedent
 
 from ..api.converter import CondaPackageFormat, DependencyRename, Wheel2CondaConverter
 
@@ -287,11 +288,11 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
     experimental_opts.add_argument(
         "--allow-impure",
         action="store_true",
-        help=(
-            "Allow experimental conversion of non-pure python wheels "
-            "containing binary extensions into platform-specific conda packages. "
-            "Generates tight Python version pins and OS constraints from wheel tags."
-        ),
+        help=dedent("""
+            Allow experimental conversion of non-pure python wheels
+            containing binary extensions into platform-specific conda packages.
+            Generates tight Python version pins and OS constraints from wheel tags.
+        """),
     )
 
     experimental_opts.add_argument(

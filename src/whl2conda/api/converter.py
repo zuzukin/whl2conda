@@ -490,6 +490,7 @@ class Wheel2CondaConverter:
         "2.2",
         "2.3",
         "2.4",
+        "2.5",
     )
     MULTI_USE_METADATA_KEYS: frozenset[str] = frozenset({
         "Classifier",
@@ -1159,12 +1160,17 @@ class Wheel2CondaConverter:
                 f"Wheel {self.wheel_path} has unsupported wheel version {wheel_version}"
             )
 
-        # Pick the best tag: prefer py3 over py2
-        wheel_tag = all_tags[0]
+        # Pick the best py3-compatible tag
+        wheel_tag = ""
         for tag in all_tags:
-            if tag.lower().startswith("py3"):
+            parts = tag.lower().split("-")
+            if parts[0].startswith("py3") or parts[0].startswith("cp3"):
                 wheel_tag = tag
                 break
+        if not wheel_tag:
+            raise Wheel2CondaError(
+                f"Wheel {self.wheel_path} has no Python 3 compatible tag"
+            )
 
         if not self.allow_impure:
             if not is_pure_lib:

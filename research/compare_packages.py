@@ -4,11 +4,6 @@ Compare binary wheel packages from PyPI with their conda-forge equivalents.
 
 Downloads and extracts both formats, then reports on structural differences
 in file layout, metadata, platform encoding, and dependencies.
-
-Usage:
-    pixi run python research/compare_packages.py [package_names...]
-
-If no packages specified, compares a default set of binary packages.
 """
 
 from __future__ import annotations
@@ -437,9 +432,36 @@ def compare_package(package: str, work_dir: Path) -> dict | None:
 
 
 def main():
-    packages = sys.argv[1:] if len(sys.argv) > 1 else DEFAULT_PACKAGES
+    import argparse
 
-    work_dir = Path(tempfile.mkdtemp(prefix="whl2conda_research_"))
+    parser = argparse.ArgumentParser(
+        description=(
+            "Compare binary wheel packages from PyPI with their conda-forge "
+            "equivalents. Downloads both formats for the current platform, "
+            "extracts them, and reports on structural differences in file "
+            "layout, metadata, dependencies, and binary content."
+        ),
+    )
+    parser.add_argument(
+        "packages",
+        nargs="*",
+        default=DEFAULT_PACKAGES,
+        help=(
+            "PyPI package names to compare "
+            f"(default: {', '.join(DEFAULT_PACKAGES)})"
+        ),
+    )
+    parser.add_argument(
+        "-o", "--output-dir",
+        type=Path,
+        default=None,
+        help="Directory for downloads and results (default: auto-created temp dir)",
+    )
+    args = parser.parse_args()
+
+    packages = args.packages
+    work_dir = args.output_dir or Path(tempfile.mkdtemp(prefix="whl2conda_research_"))
+    work_dir.mkdir(parents=True, exist_ok=True)
     print(f"Working directory: {work_dir}")
 
     results = {}
