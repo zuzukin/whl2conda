@@ -994,7 +994,6 @@ def test_reject_py2_only_wheel(
 
 def test_add_binary_dependencies() -> None:
     """Test _add_binary_dependencies adds python pin and OS constraint."""
-    from whl2conda.api.converter import MetadataFromWheel
 
     converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
     converter.logger = logging.getLogger(__name__)
@@ -1010,9 +1009,7 @@ def test_add_binary_dependencies() -> None:
     )
 
     deps = ["numpy >=1.20", "python >=3.8"]
-    result = converter._add_binary_dependencies(
-        deps, target, "macosx_11_0_arm64"
-    )
+    result = converter._add_binary_dependencies(deps, target, "macosx_11_0_arm64")
 
     # Should have tight python pin instead of loose spec
     assert any("python >=3.12" in d for d in result)
