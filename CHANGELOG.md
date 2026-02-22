@@ -1,11 +1,23 @@
 # whl2conda changes
 
-## [25.9.0] - *in progress*
+## [26.2.0] - *in progress*
 
 ### Features
 
+* Experimental support for converting binary (non-pure Python) wheels via `--allow-impure` flag
 * Support parsing name from Poetry 2.0 pyproject.toml
 * Handle bad UTF-8 in METADATA files
+* Support wheel metadata version 2.5 (PEP 770) - SBOM documents
+
+### Bug fixes
+
+* Normalize PyPI package names per PEP 503 when applying dependency renames (#134)
+* Show user-friendly error message when wheel download from PyPI fails (#125)
+
+### Changes
+
+* Drop support for python 3.9
+* Internal code refactoring and cleanup
 
 ### Development
 

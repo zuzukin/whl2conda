@@ -1,4 +1,4 @@
-#  Copyright 2024-2025 Christopher Barber
+#  Copyright 2024-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ def test_lookup_pypi_index(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> N
     assert lookup_pypi_index("foo") == "foo-pypirc"
     assert lookup_pypi_index("bar") == "bar"
 
-    settings.pypi_indexes["foo"] = "foo-settings"
+    settings.pypi_indexes["foo"] = "foo-settings"  # type: ignore[index]
 
     assert lookup_pypi_index("foo") == "foo-settings"
 
@@ -121,7 +121,8 @@ def test_download_wheel_whitebox(
     assert download_args[0].spec == "pylint"
     assert download_args[0].index is None
     out, err = capsys.readouterr()
-    assert not out and not err
+    assert not out
+    assert not err
 
     somewhere_from_pypirc = "https://pypirc.somewhere.com/pypi/"
 
@@ -157,7 +158,7 @@ def test_download_wheel_whitebox(
     assert download_args[0].index == somewhere_from_pypirc
 
     somewhere_from_settings = "https://settings.somewhere.com/pypi/"
-    settings.pypi_indexes["somewhere"] = somewhere_from_settings
+    settings.pypi_indexes["somewhere"] = somewhere_from_settings  # type: ignore[index]
     whl = download_wheel("foo", index="somewhere")
     assert download_args[0].index == somewhere_from_settings
 
@@ -170,6 +171,35 @@ def test_download_wheel_whitebox(
         download_wheel("bar")
 
 
+def test_download_wheel_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Test that download failures produce informative error messages (#125)"""
+
+    def call_pip_download_fail(
+        cmd: list[str], **_kwargs
+    ) -> subprocess.CompletedProcess:
+        raise subprocess.CalledProcessError(
+            1,
+            cmd,
+            stderr=b"ERROR: No matching distribution found for nonexistent-pkg",
+        )
+
+    monkeypatch.setattr(subprocess, "run", call_pip_download_fail)
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(
+        RuntimeError, match=r"Could not download 'nonexistent-pkg'.*from pypi"
+    ):
+        download_wheel("nonexistent-pkg")
+
+    with pytest.raises(
+        RuntimeError, match=r"Could not download 'foo'.*from index https://example.com"
+    ):
+        download_wheel("foo", index="https://example.com")
+
+
 def test_download(tmp_path: Path) -> None:
     """
     Test actual downloads
@@ -180,8 +210,8 @@ def test_download(tmp_path: Path) -> None:
         assert whl.name.startswith("tomlkit")
         assert whl.name.endswith(".whl")
         assert whl.parent == tmp_path
-    except subprocess.CalledProcessError as ex:
-        if b"ConnectionError" in ex.stderr:
+    except RuntimeError as ex:
+        if "ConnectionError" in str(ex):
             # Don't fail test if we are offline.
             pytest.skip("Cannot connect to pypi index ")
         else:

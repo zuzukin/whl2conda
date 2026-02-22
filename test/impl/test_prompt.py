@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -20,12 +20,12 @@ from __future__ import annotations
 
 import time
 from collections import deque
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Deque, Iterator
 
 import pytest
 
-from whl2conda.impl.prompt import is_interactive, bool_input, choose_wheel
+from whl2conda.impl.prompt import bool_input, choose_wheel, is_interactive
 
 __all__ = ["monkeypatch_interactive"]
 
@@ -58,7 +58,7 @@ def test_bool_input(monkeypatch: pytest.MonkeyPatch) -> None:
         try:
             expected, response = next(input_calls)
         except StopIteration:
-            pytest.fail(f"Unexpected input({repr(prompt)}) call")
+            pytest.fail(f"Unexpected input({prompt!r}) call")
         assert expected in prompt
         return response
 
@@ -112,7 +112,7 @@ def test_choose_wheel(
     # Interactive cases
     #
 
-    inputs: Deque[str] = deque()
+    inputs: deque[str] = deque()
 
     def fake_input(prompt: str) -> str:
         print(prompt)

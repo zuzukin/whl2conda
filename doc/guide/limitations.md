@@ -46,23 +46,19 @@ will include the `black` dependency itself, but not any extra dependencies
 that are declared with the `extra == 'jupyter'` marker. This will be addressed
 in a future release. See [issue 36](https://github.com/zuzukin/whl2conda/issues/36).
 
-## Only supports noarch python
+## Only supports noarch python by default
 
-Currently, only generic python conda packages with `noarch: python` will be generated.
+By default, only generic python conda packages with `noarch: python` will be generated.
 
-In the future we might be able to allow `noarch: python` packages with a pinned python
-version (see [issue 50](https://github.com/zuzukin/whl2conda/issues/50)) and
-architecture-specific python packages that do not have a pinned python version
-(see [issue 51](https://github.com/zuzukin/whl2conda/issues/51)).
+Experimental support for converting binary wheels is available using the
+`--allow-impure` flag. See the [Binary Conversion](binary-conversion.md) guide
+for details and limitations.
 
-## Cannot handle dependencies with environment markers
+## Dependencies with environment markers
 
-Currently, dependencies with environment markers are not included in the conda
-package. Instead, they could conditionally be included in an OS-specific package
-(as mentioned above).
-
-## Pure python only
-
-**whl2conda** does not support wheels with binary content. 
+For noarch conversions, dependencies with environment markers are not included
+in the conda package. For binary conversions, markers are evaluated against
+the target platform and matching dependencies are included. See the
+[Binary Conversion](binary-conversion.md) guide for details. 
 
 

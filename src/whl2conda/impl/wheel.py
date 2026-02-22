@@ -1,4 +1,4 @@
-#  Copyright 2024 Christopher Barber
+#  Copyright 2024-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -16,19 +16,21 @@
 Utilities for working with wheel files
 """
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
-from typing import Optional, Union
+
 from wheel.wheelfile import WheelFile
 
 __all__ = ["unpack_wheel"]
 
 
 def unpack_wheel(
-    wheel: Union[Path, str],
-    dest_dir: Union[Path, str],
+    wheel: Path | str,
+    dest_dir: Path | str,
     *,
-    logger: Optional[logging.Logger] = None,
+    logger: logging.Logger | None = None,
 ) -> None:
     """
     Unpack wheel into specified directory.

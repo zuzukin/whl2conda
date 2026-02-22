@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ Script to find candidate test packages that use pypi/conda renamed packages.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 from whl2conda.api.stdrename import load_std_renames
@@ -46,7 +46,7 @@ def main():
     candidates: dict[str, Any] = {}
 
     print("filtering")
-    for _k, v in repodata.get("packages.conda", {}).items():
+    for v in repodata.get("packages.conda", {}).values():
         if v.get("noarch") != "python":
             continue
         depends = set(v.get("depends", ()))

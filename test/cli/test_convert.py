@@ -1,4 +1,4 @@
-#  Copyright 2023-2025 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -26,8 +26,9 @@ import platform
 import re
 import shutil
 import time
+from collections.abc import Generator, Sequence
 from pathlib import Path
-from typing import Any, Generator, Optional, Sequence
+from typing import Any
 
 # third party
 import pytest
@@ -35,8 +36,9 @@ import pytest
 # this project
 from whl2conda.api.converter import (
     CondaPackageFormat,
-    Wheel2CondaConverter,
+    CondaTargetInfo,
     DependencyRename,
+    Wheel2CondaConverter,
 )
 from whl2conda.cli import main
 from whl2conda.cli.convert import do_build_wheel
@@ -44,8 +46,7 @@ from whl2conda.impl.prompt import is_interactive
 from whl2conda.settings import settings
 
 from ..impl.test_prompt import monkeypatch_interactive
-
-from ..test_packages import simple_wheel  # pylint: disable=unused-import # noqa: F401
+from ..test_packages import simple_wheel  # noqa: F401
 
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent.parent
@@ -79,7 +80,7 @@ class CliTestCase:
     args: list[str]
     interactive: bool
     expected_allow_metadata_version: str = ""
-    expected_build_number: Optional[int] = None
+    expected_build_number: int | None = None
     expected_dependency_renames: list[DependencyRename]
     expected_download_spec: str = ""
     expected_download_index: str = ""
@@ -121,9 +122,9 @@ class CliTestCase:
         tmp_path: Path,
         project_dir: Path,
         # optional
-        interactive: Optional[bool] = None,
+        interactive: bool | None = None,
         expected_allow_metadata_version: str = "",
-        expected_build_number: Optional[int] = None,
+        expected_build_number: int | None = None,
         expected_dry_run: bool = False,
         expected_extra_dependencies: Sequence[str] = (),
         expected_download_index: str = "",
@@ -196,7 +197,10 @@ class CliTestCase:
         def fake_download_wheel(
             spec: str,
             index: str = "",
-            into: Optional[Path] = None,
+            into: Path | None = None,
+            platform: str = "",
+            python_version: str = "",
+            abi: str = "",
         ) -> Path:
             """Fake version of download_wheel"""
             assert spec == self.expected_download_spec
@@ -221,8 +225,18 @@ class CliTestCase:
             default_package_name = re.sub("_", "-", m.group(1))
             version = m.group(2)
             package_name = converter.package_name or default_package_name
-            # pylint: disable=protected-access
-            conda_pkg_path = converter._conda_package_path(package_name, version)
+            # Create a default noarch target for the fake converter
+            conda_target = CondaTargetInfo(
+                subdir="noarch",
+                arch=None,
+                platform=None,
+                build_string="py_0",
+                is_noarch=True,
+                site_packages_prefix="site-packages",
+            )
+            conda_pkg_path = converter._conda_package_path(
+                package_name, version, conda_target
+            )
             if not conda_pkg_path.is_file() and not converter.dry_run:
                 # just write an empty file so that existence check will work
                 conda_pkg_path.parent.mkdir(parents=True, exist_ok=True)
@@ -253,7 +267,7 @@ class CliTestCase:
             # Run the command
             exit_code: Any = None
             try:
-                main(["convert"] + self.args, "whl2conda")
+                main(["convert", *self.args], "whl2conda")
             except SystemExit as exit_err:
                 exit_code = exit_err.code
 
@@ -368,9 +382,9 @@ class CliTestCaseFactory:
         self,
         args: Sequence[str],
         *,
-        interactive: Optional[bool] = None,
+        interactive: bool | None = None,
         expected_allow_metadata_version: str = "",
-        expected_build_number: Optional[int] = None,
+        expected_build_number: int | None = None,
         expected_download_index: str = "",
         expected_download_spec: str = "",
         expected_dry_run: bool = False,
@@ -703,7 +717,6 @@ def test_do_build_wheel(
 
 
 # ignore redefinition of test_case
-# ruff: noqa: F811
 
 
 def test_input_wheel(

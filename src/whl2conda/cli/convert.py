@@ -1,4 +1,4 @@
-#  Copyright 2023-2025 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -23,21 +23,22 @@ import platform
 import subprocess
 import tempfile
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Sequence
+
+from ..api.converter import CondaPackageFormat, DependencyRename, Wheel2CondaConverter
 
 # this project
 from ..impl.download import download_wheel
-from ..impl.prompt import is_interactive, choose_wheel
-from ..api.converter import Wheel2CondaConverter, CondaPackageFormat, DependencyRename
-from ..impl.pyproject import read_pyproject, PyProjInfo
+from ..impl.prompt import choose_wheel, is_interactive
+from ..impl.pyproject import PyProjInfo, read_pyproject
 from ..settings import settings
 from .common import (
     add_markdown_help,
     dedent,
-    existing_path,
     existing_dir,
+    existing_path,
     maybe_existing_dir,
 )
 
@@ -45,39 +46,43 @@ __all__ = ["convert_main"]
 
 
 # pylint: disable=too-many-instance-attributes
-@dataclass
+@dataclass(slots=True)
 class ConvertArgs:
     """
     Parsed arguments
     """
 
+    allow_impure: bool
     allow_metadata_version: str
-    build_number: Optional[int]
+    build_number: int | None
     build_wheel: bool
     dep_renames: Sequence[tuple[str, str]]
+    download_abi: str | None
+    download_platform: str | None
+    download_python_version: str | None
     dropped_deps: Sequence[str]
     dry_run: bool
     extra_deps: list[str]
-    from_index: Optional[tuple[str, str]]
-    from_pypi: Optional[str]
+    from_index: tuple[str, str] | None
+    from_pypi: str | None
     ignore_pyproject: bool
     interactive: bool
     keep_pip_deps: bool
     name: str
-    out_dir: Optional[Path]
+    out_dir: Path | None
     out_format: str
     overwrite: bool
-    project_root: Optional[Path]
+    project_root: Path | None
     python: str
     quiet: int
     update_stdrenames: bool
     verbose: int
-    wheel_dir: Optional[Path]
-    wheel_or_root: Optional[Path]
+    wheel_dir: Path | None
+    wheel_or_root: Path | None
     yes: bool
 
 
-def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
+def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
     """Creates the argument parser
 
     The parser will return a namespace with attributes matching
@@ -100,6 +105,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
     input_opts = parser.add_argument_group("Input options")
     output_opts = parser.add_argument_group("Output options")
     override_opts = parser.add_argument_group("Override options")
+    experimental_opts = parser.add_argument_group("Experimental options")
     info_opts = parser.add_argument_group("Help and debug options")
 
     input_opts.add_argument(
@@ -278,6 +284,43 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
         help="Set/override python dependency.",
     )
 
+    experimental_opts.add_argument(
+        "--allow-impure",
+        action="store_true",
+        help=dedent("""
+            Allow experimental conversion of non-pure python wheels
+            containing binary extensions into platform-specific conda packages.
+            Generates tight Python version pins and OS constraints from wheel tags.
+        """),
+    )
+
+    experimental_opts.add_argument(
+        "--download-platform",
+        metavar="<tag>",
+        help=dedent("""
+            Target platform tag for download (e.g. 'manylinux2014_x86_64',
+            'macosx_11_0_arm64', 'win_amd64'). Used with --from-pypi or
+            --from-index to download a platform-specific binary wheel.
+            Implies --allow-impure.
+        """),
+    )
+    experimental_opts.add_argument(
+        "--download-python-version",
+        metavar="<ver>",
+        help=dedent("""
+            Target Python version for download (e.g. '3.12').
+            Used with --from-pypi or --from-index.
+        """),
+    )
+    experimental_opts.add_argument(
+        "--download-abi",
+        metavar="<tag>",
+        help=dedent("""
+            Target ABI tag for download (e.g. 'cp312').
+            Used with --from-pypi or --from-index.
+        """),
+    )
+
     info_opts.add_argument(
         "-n",
         "--dry-run",
@@ -325,7 +368,7 @@ def _create_argparser(prog: Optional[str] = None) -> argparse.ArgumentParser:
 
 
 def _parse_args(
-    parser: argparse.ArgumentParser, args: Optional[Sequence[str]]
+    parser: argparse.ArgumentParser, args: Sequence[str] | None
 ) -> ConvertArgs:
     """Parse and return arguments"""
     return ConvertArgs(**vars(parser.parse_args(args)))
@@ -336,7 +379,7 @@ def _is_project_root(path: Path) -> bool:
 
 
 # pylint: disable=too-many-statements,too-many-branches,too-many-locals
-def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = None):
+def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
     """
     Main command line interface
     """
@@ -351,9 +394,9 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     # dry_run implies at least verbosity of 1 unless turned off by quiet flag
     verbosity = max(parsed.verbose, int(dry_run)) - parsed.quiet
 
-    project_root: Optional[Path] = None
-    wheel_file: Optional[Path] = None
-    wheel_dir: Optional[Path] = parsed.wheel_dir
+    project_root: Path | None = None
+    wheel_file: Path | None = None
+    wheel_dir: Path | None = parsed.wheel_dir
 
     build_wheel = parsed.build_wheel
     build_no_deps = True  # pylint: disable=unused-variable
@@ -365,23 +408,33 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     elif parsed.from_index:
         download_index, download_spec = parsed.from_index
 
+    download_platform: str = parsed.download_platform or ""
+    download_python_version: str = parsed.download_python_version or ""
+    download_abi: str = parsed.download_abi or ""
+
+    if any([download_platform, download_python_version, download_abi]):
+        if not download_spec:
+            parser.error(
+                "--download-platform, --download-python-version, and --download-abi "
+                "require --from-pypi or --from-index"
+            )
+
     wheel_or_root = parsed.wheel_or_root
     saw_positional_root = False
     if not wheel_or_root:
         project_root = Path.cwd()
+    elif wheel_or_root.is_dir():
+        project_root = wheel_or_root
+        saw_positional_root = True
     else:
-        if wheel_or_root.is_dir():
-            project_root = wheel_or_root
-            saw_positional_root = True
-        else:
-            wheel_file = wheel_or_root
-            if wheel_file.suffix != ".whl":
-                parser.error(f"Input file '{wheel_file} does not have .whl suffix")
-            if not wheel_dir:
-                wheel_dir = wheel_file.parent
-            # Look for project root in wheel's parent directories
-            if any((pr := p) for p in wheel_file.parents if _is_project_root(p)):
-                project_root = pr
+        wheel_file = wheel_or_root
+        if wheel_file.suffix != ".whl":
+            parser.error(f"Input file '{wheel_file} does not have .whl suffix")
+        if not wheel_dir:
+            wheel_dir = wheel_file.parent
+        # Look for project root in wheel's parent directories
+        if any((pr := p) for p in wheel_file.parents if _is_project_root(p)):
+            project_root = pr
 
     if parsed.project_root:
         if saw_positional_root:
@@ -428,12 +481,14 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
         for pat, repl in parsed.dep_renames:
             renames.append(DependencyRename.from_strings(pat, repl))
         source = "-D/--drop-dependency option"
-        for dropname in parsed.dropped_deps:
-            renames.append(DependencyRename.from_strings(dropname, ""))
+        renames.extend(
+            DependencyRename.from_strings(dropname, "")
+            for dropname in parsed.dropped_deps
+        )
     except ValueError as ex:
         parser.error(f"Bad rename pattern from {source}:\n{ex}")
 
-    out_dir: Optional[Path] = None
+    out_dir: Path | None = None
     if parsed.out_dir:
         out_dir = parsed.out_dir.expanduser().absolute()
     elif pyproj_info.out_dir:
@@ -466,16 +521,18 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
             parser.error(str(ex))
 
     if fmtname := parsed.out_format:
-        if fmtname in ("V1", "tar.bz2"):
-            out_fmt = CondaPackageFormat.V1
-        elif fmtname in ("V2", "conda"):
-            out_fmt = CondaPackageFormat.V2
-        else:
-            out_fmt = CondaPackageFormat.TREE
+        match fmtname:
+            case "V1" | "tar.bz2":
+                out_fmt = CondaPackageFormat.V1
+            case "V2" | "conda":
+                out_fmt = CondaPackageFormat.V2
+            case _:
+                out_fmt = CondaPackageFormat.TREE
     elif pyproj_info.conda_format:
         out_fmt = pyproj_info.conda_format
     else:
-        out_fmt = settings.conda_format
+        out_fmt = settings.conda_format  # pyright: ignore[reportAssignmentType]
+        assert isinstance(out_fmt, CondaPackageFormat)
 
     if verbosity < -1:
         level = logging.ERROR
@@ -496,13 +553,20 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
     ) as tmpdirname:
         if not wheel_file:
             if download_spec:
-                wheel_file = download_wheel(
-                    download_spec,
-                    into=Path(tmpdirname),
-                    index=download_index,
-                )
+                try:
+                    wheel_file = download_wheel(
+                        download_spec,
+                        into=Path(tmpdirname),
+                        index=download_index,
+                        platform=download_platform,
+                        python_version=download_python_version,
+                        abi=download_abi,
+                    )
+                except RuntimeError as ex:
+                    parser.error(str(ex))
             elif build_wheel:  # pragma: no branch
-                assert project_root and wheel_dir
+                assert project_root
+                assert wheel_dir
                 wheel_file = do_build_wheel(
                     project_root,
                     wheel_dir,
@@ -530,9 +594,11 @@ def convert_main(args: Optional[Sequence[str]] = None, prog: Optional[str] = Non
         converter.python_version = parsed.python
         converter.interactive = interactive
         converter.build_number = parsed.build_number
+        converter.allow_impure = parsed.allow_impure or bool(download_platform)
         if parsed.allow_metadata_version:
             converter.SUPPORTED_METADATA_VERSIONS = (
-                converter.SUPPORTED_METADATA_VERSIONS + (parsed.allow_metadata_version,)
+                *converter.SUPPORTED_METADATA_VERSIONS,
+                parsed.allow_metadata_version,
             )
 
         converter.dependency_rename.extend(renames)

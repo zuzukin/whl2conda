@@ -1,4 +1,4 @@
-#  Copyright 2023-2025 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -22,16 +22,16 @@ from __future__ import annotations
 import json
 import platform
 from pathlib import Path
-from typing import Optional
 from urllib.error import URLError
 
 # third party
 import pytest
 
+from whl2conda.api.stdrename import user_stdrenames_path
+
 # this project
 from whl2conda.cli import main
 from whl2conda.cli.config import update_std_renames
-from whl2conda.api.stdrename import user_stdrenames_path
 from whl2conda.impl.pyproject import CondaPackageFormat
 from whl2conda.settings import Whl2CondaSettings, settings
 
@@ -46,7 +46,7 @@ def test_update_std_renames(
 
     fake_update_result = False
     expected_dry_run = True
-    fake_exception: Optional[Exception] = None
+    fake_exception: Exception | None = None
 
     # pylint: disable=unused-argument
     def _fake_update(
@@ -283,8 +283,8 @@ def test_config_remove(
     main(["config", "--set", "pypi-indexes.bar", "https://bar.com/pypi"])
     assert tmp_settings_file.exists()
     assert settings.conda_format is CondaPackageFormat.V1
-    assert settings.pypi_indexes["foo"] == "https://foo.com/pypi"
-    assert settings.pypi_indexes["bar"] == "https://bar.com/pypi"
+    assert settings.pypi_indexes["foo"] == "https://foo.com/pypi"  # type: ignore[index]
+    assert settings.pypi_indexes["bar"] == "https://bar.com/pypi"  # type: ignore[index]
 
     main(["config", "--remove", "conda-format", "--dry-run"])
     assert settings.conda_format is CondaPackageFormat.V2  # prev default
@@ -298,7 +298,7 @@ def test_config_remove(
 
     main(["config", "--remove", "pypi-indexes.foo"])
     settings2 = Whl2CondaSettings.from_file(tmp_settings_file)
-    assert settings.pypi_indexes == dict(bar="https://bar.com/pypi")
+    assert settings.pypi_indexes == {"bar": "https://bar.com/pypi"}
 
 
 def test_override_settings(
@@ -314,6 +314,6 @@ def test_override_settings(
     out, err = capsys.readouterr()
 
     assert not err
-    line1, rest = out.split("\n", maxsplit=1)
+    line1, _rest = out.split("\n", maxsplit=1)
     assert str(new_path) in line1
     assert settings.settings_file == new_path

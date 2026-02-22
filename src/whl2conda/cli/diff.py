@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ import json
 import os
 import subprocess
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional, Sequence
 
 # third party
 import conda_package_handling.api as cphapi
@@ -47,8 +47,8 @@ def existing_conda_package(val: str) -> Path:
 
 
 def diff_main(
-    args: Optional[Sequence[str]] = None,
-    prog: Optional[str] = None,
+    args: Sequence[str] | None = None,
+    prog: str | None = None,
 ) -> None:
     """Main routine for `whl2conda diff` subcommand"""
 
@@ -128,7 +128,7 @@ def diff_main(
         _extract_packge(parsed.package2, pkg2_dir)
 
         subprocess.run(
-            [diff_tool, str(pkg1_dir), str(pkg2_dir)] + diff_args, check=False
+            [diff_tool, str(pkg1_dir), str(pkg2_dir), *diff_args], check=False
         )
 
 

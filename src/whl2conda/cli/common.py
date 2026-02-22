@@ -1,4 +1,4 @@
-#  Copyright 2023-2024 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -24,15 +24,16 @@ import json
 import subprocess
 import sys
 import textwrap
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any
 
 __all__ = [
-    "add_markdown_help",
     "Subcommands",
+    "add_markdown_help",
     "dedent",
-    "existing_path",
     "existing_dir",
+    "existing_path",
     "maybe_existing_dir",
 ]
 
@@ -88,7 +89,7 @@ class MarkdownHelp(argparse.Action):
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
         values: Any,
-        option_string: Optional[str] = None,
+        option_string: str | None = None,
     ):
         parser.formatter_class = MarkdownHelpFormatter
         parser.print_help()
@@ -161,8 +162,8 @@ class _SubcommandParser(argparse.ArgumentParser):
         """Puts all arguments into args attribute, and copies main to main attribute."""
         if namespace is None:  # pragma: no branch
             namespace = argparse.Namespace()
-        setattr(namespace, 'args', args)
-        setattr(namespace, 'main', self.main)
+        namespace.args = args
+        namespace.main = self.main
         return namespace, []
 
 

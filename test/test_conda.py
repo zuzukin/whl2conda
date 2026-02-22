@@ -1,4 +1,4 @@
-#  Copyright 2023 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -33,12 +33,12 @@ def conda_config() -> dict[str, Any]:
 
 def conda_output(*args: str) -> str:
     """Capture output from conda command"""
-    return check_output(["conda"] + list(args), encoding="utf8")
+    return check_output(["conda", *list(args)], encoding="utf8")
 
 
 def conda_json(*args: str) -> Any:
     """Run conda with --json and return parsed dictionary"""
-    _args = list(args) + ["--json"]
+    _args = [*list(args), "--json"]
     content = conda_output(*_args)
     return json.loads(content)
 

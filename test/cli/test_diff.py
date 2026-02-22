@@ -1,4 +1,4 @@
-#  Copyright 2023-2025 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ from ..test_packages import simple_conda_package, simple_wheel  # noqa: F401
 # pylint: disable=redefined-outer-name
 
 # ignore redefinition of simple_conda_package
-# ruff: noqa: F811
 
 
 def test_diff_errors(

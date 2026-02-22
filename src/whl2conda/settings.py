@@ -1,4 +1,4 @@
-#  Copyright 2024-2025 Christopher Barber
+#  Copyright 2024-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -44,8 +44,9 @@ import dataclasses
 import datetime as dt
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, ClassVar, NamedTuple, Union
+from typing import Any, ClassVar, NamedTuple
 
 # third party
 from platformdirs import user_config_path
@@ -155,14 +156,7 @@ def _fromidentifier(name: str) -> str:
     return name.replace("_", "-")
 
 
-if sys.version_info >= (3, 10):
-    # kw_only is not available until 3.10
-    dataclass_args: dict[str, Any] = dict(kw_only=True)
-else:
-    dataclass_args: dict[str, Any] = {}
-
-
-@dataclasses.dataclass(**dataclass_args)
+@dataclasses.dataclass(kw_only=True)
 class Whl2CondaSettings:
     """
     User settings for whl2conda.
@@ -326,7 +320,7 @@ class Whl2CondaSettings:
     #
 
     @classmethod
-    def from_file(cls, filename: Union[Path, str] = "") -> Whl2CondaSettings:
+    def from_file(cls, filename: Path | str = "") -> Whl2CondaSettings:
         """
         Return settings read from file.
 
@@ -338,7 +332,7 @@ class Whl2CondaSettings:
         settings.load(filename or cls.DEFAULT_SETTINGS_FILE)
         return settings
 
-    def load(self, filename: Union[Path, str], reset_all: bool = False) -> None:
+    def load(self, filename: Path | str, reset_all: bool = False) -> None:
         """
         Reload settings from file
 
@@ -364,7 +358,7 @@ class Whl2CondaSettings:
                             file=sys.stderr,
                         )
 
-    def save(self, filename: Union[Path, str] = "") -> None:
+    def save(self, filename: Path | str = "") -> None:
         """
         Write settings to specified file in JSON format.
 
@@ -374,7 +368,7 @@ class Whl2CondaSettings:
         filepath = Path(filename or self._settings_file)
         json_obj = self.to_dict()
         json_obj["$whl2conda-version"] = __version__
-        json_obj["$created"] = str(dt.datetime.now())
+        json_obj["$created"] = str(dt.datetime.now(tz=dt.timezone.utc))
         filepath.parent.mkdir(parents=True, exist_ok=True)
         filepath.write_text(json.dumps(json_obj, indent=2))
 

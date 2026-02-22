@@ -1,4 +1,4 @@
-#  Copyright 2023-2025 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -24,8 +24,9 @@ import logging
 import os.path
 import re
 import shutil
+from collections.abc import Generator, Sequence
 from pathlib import Path
-from typing import Any, Generator, Optional, Sequence
+from typing import Any
 
 import conda_package_handling.api as cphapi
 import pytest
@@ -55,6 +56,9 @@ class PackageValidator:
     _keep_pip_dependencies: bool = False
     _build_number: int | None = None
     _expected_python_version: str = ""
+    _allow_impure: bool = False
+    _is_binary: bool = False
+    _site_packages_prefix: str = "site-packages"
 
     def __init__(self, tmp_dir: Path) -> None:
         self.tmp_dir = tmp_dir
@@ -68,12 +72,13 @@ class PackageValidator:
         conda_pkg: Path,
         *,
         name: str = "",
-        renamed: Optional[dict[str, str]] = None,
-        std_renames: Optional[dict[str, str]] = None,
+        renamed: dict[str, str] | None = None,
+        std_renames: dict[str, str] | None = None,
         extra: Sequence[str] = (),
         expected_python_version: str = "",
         keep_pip_dependencies: bool = False,
         build_number: int | None = None,
+        allow_impure: bool = False,
     ) -> None:
         """Validate conda package against wheel from which it was generated"""
         self._override_name = name
@@ -83,11 +88,29 @@ class PackageValidator:
         self._expected_python_version = expected_python_version
         self._keep_pip_dependencies = keep_pip_dependencies
         self._build_number = build_number
+        self._allow_impure = allow_impure
 
         wheel_dir = self._unpack_wheel(wheel)
         self._unpack_package(conda_pkg)
 
         self._wheel_md = self._parse_wheel_metadata(wheel_dir)
+
+        # Detect binary from WHEEL metadata
+        dist_info_dir = next(wheel_dir.glob("*.dist-info"))
+        wheel_file = dist_info_dir / "WHEEL"
+        wheel_msg = Wheel2CondaConverter.read_metadata_file(wheel_file)
+        self._is_binary = wheel_msg.get("Root-Is-Purelib", "").lower() != "true"
+
+        # Determine site-packages prefix from package contents
+        if self._is_binary:
+            # Find the dist-info dir inside the conda package to determine prefix
+            for dist_info in self._unpacked_conda.rglob("*.dist-info"):
+                self._site_packages_prefix = str(
+                    dist_info.parent.relative_to(self._unpacked_conda)
+                )
+                break
+        else:
+            self._site_packages_prefix = "site-packages"
 
         self._validate_unpacked()
 
@@ -98,7 +121,7 @@ class PackageValidator:
         md_file = dist_info_dir / "METADATA"
         md_msg = Wheel2CondaConverter.read_metadata_file(md_file)
 
-        list_keys = set(s.lower() for s in Wheel2CondaConverter.MULTI_USE_METADATA_KEYS)
+        list_keys = {s.lower() for s in Wheel2CondaConverter.MULTI_USE_METADATA_KEYS}
         md: dict[str, Any] = {}
         for key, value in md_msg.items():
             key = key.lower()
@@ -225,7 +248,7 @@ class PackageValidator:
         # TODO : check author-email, maintainer-email
 
     def _validate_dist_info(self) -> None:
-        site_packages = self._unpacked_conda / "site-packages"
+        site_packages = self._unpacked_conda / self._site_packages_prefix
         dist_md = self._parse_wheel_metadata(site_packages)
         wheel_md = dict(self._wheel_md)
         if self._keep_pip_dependencies:
@@ -290,11 +313,20 @@ class PackageValidator:
         if self._override_name:
             assert name == self._override_name
         else:
-            assert name == wheel_md["name"]
+            assert name == re.sub(r"[-_.]+", "-", wheel_md["name"]).lower()
         assert version == wheel_md["version"]
-        # TODO support pinned python version...
-        assert index["arch"] is None
-        assert index['build'] == 'py_0'
+
+        if self._is_binary:
+            assert index["arch"] is not None
+            assert index["platform"] is not None
+            assert index["subdir"] != "noarch"
+            assert "noarch" not in index
+            assert re.match(r"py\d+_\d+", index["build"])
+        else:
+            assert index["arch"] is None
+            assert index['build'] == 'py_0'
+            assert index["platform"] is None
+            assert index["subdir"] == "noarch"
 
         if self._build_number is not None:
             build_number = self._build_number
@@ -305,8 +337,6 @@ class PackageValidator:
                 build_number = 0
         assert index['build_number'] == build_number
 
-        assert index["platform"] is None
-        assert index["subdir"] == "noarch"
         assert index.get("license") == wheel_md.get(
             "license-expression", wheel_md.get("license")
         )
@@ -318,11 +348,17 @@ class PackageValidator:
         Validates dependencies
         """
         output_depends = set(dependencies)
+
+        if self._is_binary:
+            self._validate_binary_dependencies(output_depends)
+            return
+
         expected_depends: set[str] = set()
 
         # Only used for version translation
         cvt = Wheel2CondaConverter(self.tmp_dir, self.tmp_dir)
-        cvt.logger = logging.Logger(__name__, logging.CRITICAL)
+        cvt.logger = logging.getLogger(__name__)
+        cvt.logger.setLevel(logging.CRITICAL)
 
         wheel_md = self._wheel_md
         if self._expected_python_version:
@@ -352,21 +388,41 @@ class PackageValidator:
 
         expected_depends.update(self._extra_dependencies)
 
-        if not output_depends == expected_depends:
+        if output_depends != expected_depends:
             pytest.fail(
                 "Dependencies don't match\n"
                 + f"Unexpected entries: {output_depends - expected_depends}\n"
                 + f"Missing entries: {expected_depends - output_depends}"
             )
 
+    def _validate_binary_dependencies(self, output_depends: set[str]) -> None:
+        """Validate dependencies for binary packages."""
+        # Must have a tight python pin
+        python_deps = [d for d in output_depends if d.startswith("python >=")]
+        assert python_deps, f"Binary package missing tight python pin: {output_depends}"
+        # The tight pin should have <X.Y+1.0a0 format
+        for dep in python_deps:
+            assert ",<" in dep, f"Python pin missing upper bound: {dep}"
+
+        # Must have python_abi constraint
+        abi_deps = [d for d in output_depends if d.startswith("python_abi ")]
+        assert abi_deps, f"Binary package missing python_abi: {output_depends}"
+
     def _validate_link(self, info_dir: Path) -> None:
         """
         Validates the contents of the info/link.json file
         """
         link_file = info_dir / "link.json"
+
+        if self._is_binary:
+            # Binary packages should not have link.json (matches conda-forge)
+            assert not link_file.is_file(), "Binary packages should not have link.json"
+            return
+
         assert link_file.is_file()
         jobj = json.loads(link_file.read_text("utf8"))
         assert jobj["package_metadata_version"] == 1
+
         noarch = jobj["noarch"]
         assert noarch["type"] == "python"
         entry_points = noarch.get("entry_points")
@@ -390,9 +446,9 @@ class PackageValidator:
         """
         rel_files = info_dir.joinpath("files").read_text().splitlines()
         pkg_dir = self._unpacked_conda
-        files: set[Path] = set(
+        files: set[Path] = {
             pkg_dir.joinpath(rel_file.strip()) for rel_file in rel_files
-        )
+        }
         for file in files:
             assert file.is_file()
 
@@ -415,7 +471,7 @@ class PackageValidator:
 
         assert files == path_files
 
-        all_files = set(f for f in pkg_dir.glob("**/*") if f.is_file())
+        all_files = {f for f in pkg_dir.glob("**/*") if f.is_file()}
         info_files = set(info_dir.glob("**/*"))
         non_info_files = all_files - info_files
         assert files == non_info_files
@@ -435,7 +491,7 @@ class PackageValidator:
         ) - wheel_data_files
 
         # Check that all package files were copied into site-packages/
-        site_packages_dir = pkg_dir / "site-packages"
+        site_packages_dir = pkg_dir / self._site_packages_prefix
         for wheel_file in wheel_site_package_files:
             if wheel_file.is_dir():
                 continue

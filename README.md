@@ -35,6 +35,18 @@ generated directly from pure python wheels.
 * **Hides pypi dependencies**: rewrites the original pip/pypi dependencies in the
     installed dist-info to avoid [compatibility issues](https://zuzukin.github.io/whl2conda/latest/guide/renaming.html#hide-pip).
 
+* **Experimental binary support**: can convert non-pure Python wheels containing
+    binary extensions (`.so`, `.pyd`) into platform-specific conda packages using
+    the `--allow-impure` flag. Automatically generates tight Python version pins
+    and OS constraints from wheel platform tags.
+
+    **Limitations**: Binary conversion works best for **simple C extension packages**
+    (e.g., markupsafe, wrapt, ujson) where the wheel is self-contained. It will
+    refuse to convert packages known to bundle complex runtime libraries (PyTorch,
+    TensorFlow, CUDA packages, etc.) or wheels with local version suffixes
+    (e.g., `+cu121`). For complex GPU/CUDA packages, use conda-forge
+    packages instead.
+
 
 ## Installation
 

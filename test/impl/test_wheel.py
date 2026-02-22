@@ -1,4 +1,4 @@
-#  Copyright 2024 Christopher Barber
+#  Copyright 2024-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ from ..test_packages import setup_wheel  # noqa: F401
 def test_unpack_wheel(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
-    setup_wheel: Path,  # noqa: F811
+    setup_wheel: Path,
 ) -> None:
     """
     Unit test for unpack_wheel
@@ -38,7 +38,7 @@ def test_unpack_wheel(
 
     unpack_wheel(setup_wheel, tmp_path)
 
-    if not platform.system() == "Windows":
+    if platform.system() != "Windows":
         # Regression case for #135
         script_paths = list(tmp_path.rglob("**/scripts/*.py"))
         assert script_paths

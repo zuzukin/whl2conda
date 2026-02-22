@@ -1,4 +1,4 @@
-#  Copyright 2023-2025 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -36,12 +36,13 @@ import email.message
 import importlib.resources
 import json
 import re
-import urllib.request
 import time
+import urllib.request
+from collections.abc import Sequence
 from email.utils import formatdate, parsedate_to_datetime
 from http import HTTPStatus
 from pathlib import Path
-from typing import NamedTuple, Optional, Sequence, TypedDict, Union
+from typing import NamedTuple, TypedDict
 from urllib.error import HTTPError
 
 from platformdirs import user_cache_path
@@ -73,7 +74,7 @@ Default minimum expiration in seconds for cached renames
 """
 
 
-def parse_datetime(s: str) -> Optional[datetime.datetime]:
+def parse_datetime(s: str) -> datetime.datetime | None:
     """Parse datetime string from HTTP header
 
     Returns None if string is empty or time is malformed.
@@ -153,7 +154,7 @@ class DownloadedMappings(NamedTuple):
     mappings: Sequence[NameMapping]
 
     @property
-    def date(self) -> Optional[datetime.datetime]:
+    def date(self) -> datetime.datetime | None:
         """Date from header"""
         return parse_datetime(self.datestr)
 
@@ -168,7 +169,7 @@ class DownloadedMappings(NamedTuple):
         return self.headers.get("ETag", "").strip('"')
 
     @property
-    def expires(self) -> Optional[datetime.datetime]:
+    def expires(self) -> datetime.datetime | None:
         """Expires date string frome header"""
         return parse_datetime(self.headers.get("Expires", ""))
 
@@ -215,7 +216,7 @@ def process_name_mapping_dict(mappings: DownloadedMappings) -> dict[str, str]:
 
 
 def update_renames_file(
-    renames_file: Union[Path, str],
+    renames_file: Path | str,
     *,
     url: str = NAME_MAPPINGS_DOWNLOAD_URL,
     min_expiration: int = DEFAULT_MIN_EXPIRATION,

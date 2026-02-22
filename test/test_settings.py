@@ -1,4 +1,4 @@
-#  Copyright 2024-2025 Christopher Barber
+#  Copyright 2024-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -24,8 +24,6 @@ import pytest
 
 from whl2conda.impl.pyproject import CondaPackageFormat
 from whl2conda.settings import Whl2CondaSettings, _fromidentifier
-
-# ruff: noqa: F811
 
 
 def test_Whl2CondaSettings(tmp_path: Path):
@@ -53,7 +51,7 @@ def test_Whl2CondaSettings(tmp_path: Path):
     settings.conda_format = "V1"
     assert settings.conda_format is CondaPackageFormat.V1
 
-    settings.pypi_indexes["somewhere"] = "https://somewhere.com/pypi"
+    settings.pypi_indexes["somewhere"] = "https://somewhere.com/pypi"  # type: ignore[index]
     assert settings.pypi_indexes == {"somewhere": "https://somewhere.com/pypi"}
     check_settings(settings, tmp_path)
 
@@ -70,13 +68,13 @@ def test_settings_get() -> None:
 
     assert settings.get("pypi_indexes") is settings.pypi_indexes
 
-    with pytest.raises(KeyError, match="'pypi-indexes.somewhere' is not set"):
+    with pytest.raises(KeyError, match=r"'pypi-indexes\.somewhere' is not set"):
         settings.get("pypi-indexes.somewhere")
 
-    with pytest.raises(KeyError, match="Bad settings key 'conda_format.value'"):
+    with pytest.raises(KeyError, match=r"Bad settings key 'conda_format\.value'"):
         settings.get("conda_format.value")
 
-    settings.pypi_indexes["somewhere"] = "https://somewhere.com/pypi"
+    settings.pypi_indexes["somewhere"] = "https://somewhere.com/pypi"  # type: ignore[index]
     assert settings.get("pypi_indexes.somewhere") == "https://somewhere.com/pypi"
 
 
@@ -120,8 +118,8 @@ def test_settings_unset(tmp_path: Path) -> None:
     settings.conda_format = "V1"
     assert settings.conda_format is CondaPackageFormat.V1
 
-    settings.pypi_indexes["somewhere"] = "https://somewhere.com/pypi"
-    settings.pypi_indexes["nowhere"] = "https://nowhere.com/pypi"
+    settings.pypi_indexes["somewhere"] = "https://somewhere.com/pypi"  # type: ignore[index]
+    settings.pypi_indexes["nowhere"] = "https://nowhere.com/pypi"  # type: ignore[index]
 
     settings.unset("pypi-indexes.somewhere")
     assert settings.pypi_indexes == {"nowhere": "https://nowhere.com/pypi"}

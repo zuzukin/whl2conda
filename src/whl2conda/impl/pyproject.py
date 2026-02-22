@@ -1,4 +1,4 @@
-#  Copyright 2023-2025 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -20,9 +20,10 @@ from __future__ import annotations
 
 import enum
 import warnings
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Sequence, Union
+from typing import Any
 
 import tomlkit
 
@@ -61,19 +62,19 @@ class CondaPackageFormat(str, enum.Enum):
             return cls(name.lower())
 
 
-@dataclass
+@dataclass(slots=True)
 class PyProjInfo:
     """
     Information parsed from pyproject.toml file
     """
 
-    project_dir: Optional[Path] = None
+    project_dir: Path | None = None
     """Project root directory, if any."""
 
-    toml_file: Optional[Path] = None
+    toml_file: Path | None = None
     """Path to pyproject.toml file, if any"""
 
-    toml: Optional[tomlkit.TOMLDocument] = None
+    toml: tomlkit.TOMLDocument | None = None
     """raw toml dictionary"""
 
     build_backend: str = ""
@@ -86,13 +87,13 @@ class PyProjInfo:
     conda_name: str = ""
     """tool.whl2conda.conda-name - overrides name of conda package"""
 
-    conda_format: Optional[CondaPackageFormat] = None
+    conda_format: CondaPackageFormat | None = None
     """tool.whl2conda.conda-format - default conda package output format"""
 
-    wheel_dir: Optional[Path] = None
+    wheel_dir: Path | None = None
     """tool.whl2conda.wheel-dir - override default wheel dist directory"""
 
-    out_dir: Optional[Path] = None
+    out_dir: Path | None = None
     """tool.whl2conda.out-dir - override default package output directory"""
 
     dependency_rename: Sequence[tuple[str, str]] = ()
@@ -177,7 +178,7 @@ TOOL_DEFAULTS = {
 }
 
 
-def add_pyproject_defaults(path: Union[Path, str]) -> None:
+def add_pyproject_defaults(path: Path | str) -> None:
     """
     Add default tool.whl2conda entries to pyproject
 
@@ -188,7 +189,7 @@ def add_pyproject_defaults(path: Union[Path, str]) -> None:
             if a file, must end in .toml.
     """
     toml = tomlkit.TOMLDocument()
-    pyproj_file: Optional[Path] = None
+    pyproj_file: Path | None = None
     if path in {"out", "stdout"}:
         pyproj_file = None
     else:

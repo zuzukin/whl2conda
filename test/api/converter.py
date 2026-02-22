@@ -1,4 +1,4 @@
-#  Copyright 2023-2024 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -34,8 +34,8 @@ from __future__ import annotations
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Generator, Sequence
 from pathlib import Path
-from typing import Union, Sequence, Optional, Generator
 
 import pytest
 
@@ -55,7 +55,7 @@ class ConverterTestCase:
     Runner for a test case
     """
 
-    wheel_src: Union[Path, str]
+    wheel_src: Path | str
     dependency_rename: Sequence[DependencyRename]
     extra_dependencies: Sequence[str]
     overwrite: bool
@@ -66,7 +66,7 @@ class ConverterTestCase:
     pip_downloads: Path
     was_run: bool = False
 
-    _converter: Optional[Wheel2CondaConverter] = None
+    _converter: Wheel2CondaConverter | None = None
     _validator_dir: Path
     _validator: PackageValidator
 
@@ -80,7 +80,7 @@ class ConverterTestCase:
 
     def __init__(
         self,
-        wheel_src: Union[Path, str],
+        wheel_src: Path | str,
         *,
         tmp_dir: Path,
         project_dir: Path,
@@ -88,6 +88,7 @@ class ConverterTestCase:
         dependency_rename: Sequence[tuple[str, str]] = (),
         extra_dependencies: Sequence[str] = (),
         overwrite: bool = False,
+        allow_impure: bool = False,
     ) -> None:
         if not str(wheel_src).startswith("pypi:"):
             wheel_src = Path(wheel_src)
@@ -98,6 +99,7 @@ class ConverterTestCase:
         )
         self.extra_dependencies = tuple(extra_dependencies)
         self.overwrite = overwrite
+        self.allow_impure = allow_impure
         self.tmp_dir = tmp_dir
         self.project_dir = project_dir
         self.package_name = package_name
@@ -132,6 +134,7 @@ class ConverterTestCase:
         converter.package_name = self.package_name
         converter.overwrite = self.overwrite
         converter.out_format = out_format
+        converter.allow_impure = self.allow_impure
         self._converter = converter
         return converter.convert()
 
@@ -178,6 +181,7 @@ class ConverterTestCase:
                 expected_python_version=converter.python_version,
                 keep_pip_dependencies=converter.keep_pip_dependencies,
                 build_number=converter.build_number,
+                allow_impure=converter.allow_impure,
             )
 
 
@@ -201,12 +205,13 @@ class ConverterTestCaseFactory:
 
     def __call__(
         self,
-        wheel_src: Union[Path, str],
+        wheel_src: Path | str,
         *,
         package_name: str = "",
         dependency_rename: Sequence[tuple[str, str]] = (),
         extra_dependencies: Sequence[str] = (),
         overwrite: bool = False,
+        allow_impure: bool = False,
     ) -> ConverterTestCase:
         case = ConverterTestCase(
             wheel_src,
@@ -216,6 +221,7 @@ class ConverterTestCaseFactory:
             dependency_rename=dependency_rename,
             extra_dependencies=extra_dependencies,
             overwrite=overwrite,
+            allow_impure=allow_impure,
         )
         self._cases.append(case)
         return case

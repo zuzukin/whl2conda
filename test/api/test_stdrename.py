@@ -1,4 +1,4 @@
-#  Copyright 2023-2025 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ Unit tests for whl2conda.stdrename module
 
 from __future__ import annotations
 
+import email.message
 import email.utils
 import json
 import platform
@@ -32,12 +33,12 @@ from platformdirs import user_cache_path
 
 from whl2conda.api.stdrename import (
     NAME_MAPPINGS_DOWNLOAD_URL,
+    DownloadedMappings,
     NotModified,
     download_mappings,
     load_std_renames,
     update_renames_file,
     user_stdrenames_path,
-    DownloadedMappings,
 )
 
 

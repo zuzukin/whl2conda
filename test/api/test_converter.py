@@ -1,4 +1,4 @@
-#  Copyright 2023-2025 Christopher Barber
+#  Copyright 2023-2026 Christopher Barber
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@ import logging
 import platform
 import re
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 from time import sleep
-from typing import Iterator
 
 # third party
 import pytest
@@ -33,22 +33,32 @@ from wheel.wheelfile import WheelFile
 # this package
 from whl2conda.api.converter import (
     CondaPackageFormat,
+    CondaTargetInfo,
     DependencyRename,
     RequiresDistEntry,
-    Wheel2CondaError,
     Wheel2CondaConverter,
+    Wheel2CondaError,
+    _os_constraint_from_platform_tag,
+    _parse_platform_tag,
+    _python_pin_from_version,
+    _python_version_from_tag,
+    normalize_pypi_name,
 )
-from whl2conda.cli.convert import do_build_wheel
-from .converter import ConverterTestCaseFactory
 from whl2conda.api.stdrename import load_std_renames
+from whl2conda.cli.convert import do_build_wheel
+
+from ..test_packages import (  # noqa: F401
+    markers_wheel,
+    setup_wheel,
+    simple_wheel,
+)
 
 # pylint: disable=unused-import
-from .converter import test_case  # noqa: F401
-from ..test_packages import (
-    markers_wheel,  # noqa: F401
-    setup_wheel,  # noqa: F401
-    simple_wheel,  # noqa: F401
+from .converter import (  # noqa: F401
+    ConverterTestCaseFactory,
+    test_case,
 )
+
 # pylint: enable=unused-import
 
 this_dir = Path(__file__).parent.absolute()
@@ -145,6 +155,30 @@ def test_requires_dist_entry() -> None:
     with pytest.raises(SyntaxError):
         RequiresDistEntry.parse("=123 : bad")
 
+    # Test PEP 503 name normalization (#134)
+    entry_underscore = RequiresDistEntry.parse("Foo_Bar >=1.0")
+    assert entry_underscore.name == "foo-bar"
+
+    entry_dot = RequiresDistEntry.parse("foo.bar.baz >=2.0")
+    assert entry_dot.name == "foo-bar-baz"
+
+    entry_mixed = RequiresDistEntry.parse("Foo_.Bar >=3.0")
+    assert entry_mixed.name == "foo-bar"
+
+    entry_upper = RequiresDistEntry.parse("MyPackage")
+    assert entry_upper.name == "mypackage"
+
+
+def test_normalize_pypi_name() -> None:
+    """Test PEP 503 normalization of PyPI package names"""
+    assert normalize_pypi_name("foo") == "foo"
+    assert normalize_pypi_name("Foo-Bar") == "foo-bar"
+    assert normalize_pypi_name("foo_bar") == "foo-bar"
+    assert normalize_pypi_name("foo.bar") == "foo-bar"
+    assert normalize_pypi_name("Foo_.Bar") == "foo-bar"
+    assert normalize_pypi_name("FOO---BAR") == "foo-bar"
+    assert normalize_pypi_name("typing_extensions") == "typing-extensions"
+
 
 #
 # DependencyRename test cases
@@ -173,6 +207,12 @@ def test_dependency_rename() -> None:
     r = DependencyRename.from_strings("(?P<name>.*)", r"${name}-foo")
     assert r.rename("stuff") == ("stuff-foo", True)
 
+    # Test normalization in rename (#134)
+    r = DependencyRename.from_strings("foo-bar", "conda-foo-bar")
+    assert r.rename("foo_bar") == ("conda-foo-bar", True)
+    assert r.rename("Foo.Bar") == ("conda-foo-bar", True)
+    assert r.rename("foo-bar") == ("conda-foo-bar", True)
+
     # error cases
 
     with pytest.raises(ValueError, match="Bad dependency rename pattern"):
@@ -190,7 +230,6 @@ def test_dependency_rename() -> None:
 #
 
 # ignore redefinition of test_case
-# ruff: noqa: F811
 
 
 def test_init(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -234,7 +273,7 @@ def test_this(test_case: ConverterTestCaseFactory) -> None:
     wheel_dir = test_case.tmp_path_factory.mktemp("test_this_wjheel_dir")
     do_build_wheel(root_dir, wheel_dir, no_build_isolation=True, capture_output=True)
 
-    wheel_path = list(wheel_dir.glob("*"))[0]
+    wheel_path = next(iter(wheel_dir.glob("*")))
     assert wheel_path.is_file()
 
     case = test_case(wheel_path)
@@ -366,10 +405,11 @@ def test_debug_log(
     case.build()
 
     def get_debug_out() -> str:
-        messages: list[str] = []
-        for record in caplog.records:
-            if record.levelno == logging.DEBUG:
-                messages.append(record.message)
+        messages: list[str] = [
+            record.message
+            for record in caplog.records
+            if record.levelno == logging.DEBUG
+        ]
         return "\n".join(messages)
 
     debug_out = get_debug_out()
@@ -399,10 +439,11 @@ def test_warnings(
     """
 
     def get_warn_out() -> str:
-        messages: list[str] = []
-        for record in caplog.records:
-            if record.levelno == logging.WARNING:
-                messages.append(record.message)
+        messages: list[str] = [
+            record.message
+            for record in caplog.records
+            if record.levelno == logging.WARNING
+        ]
         return "\n".join(messages)
 
     test_case(markers_wheel).build()
@@ -446,7 +487,7 @@ def test_poetry(
         pytest.skip(str(err))
     pkg = test_case(wheel).build()
     # conda package name taken from project name
-    assert pkg.name.startswith("poetry.example")
+    assert pkg.name.startswith("poetry-example")
 
 
 def test_poetry_2_1(
@@ -462,7 +503,7 @@ def test_poetry_2_1(
         pytest.skip(str(err))
     pkg = test_case(wheel).build()
     # conda package name taken from project name
-    assert pkg.name.startswith("poetry.example")
+    assert pkg.name.startswith("poetry-example")
 
 
 def test_bad_wheels(
@@ -541,6 +582,45 @@ def test_bad_wheels(
     c.converter.SUPPORTED_METADATA_VERSIONS += ("999.2",)
     c.build()
 
+    #
+    # Restore valid metadata for remaining tag tests
+    #
+
+    METADATA_msg.replace_header("Metadata-Version", "2.1")
+    METADATA_file.write_text(METADATA_msg.as_string(), encoding="utf8")
+
+    #
+    # pure wheel with non-pure tag (e.g. cp312-cp312-linux_x86_64)
+    #
+
+    WHEEL_msg.replace_header("Tag", "cp312-cp312-linux_x86_64")
+    WHEEL_file.write_text(WHEEL_msg.as_string(), encoding="utf8")
+
+    non_any_tag_wheel = tmp_path / "non-any-tag" / simple_wheel.name
+    non_any_tag_wheel.parent.mkdir(parents=True)
+    with WheelFile(str(non_any_tag_wheel), "w") as wf:
+        wf.write_files(str(extract_dir))
+
+    with pytest.raises(Wheel2CondaError, match="unexpected tag"):
+        test_case(non_any_tag_wheel).build()
+
+    #
+    # bad tag format (missing components)
+    #
+
+    WHEEL_msg.replace_header("Tag", "py3-none")  # only 2 parts
+    WHEEL_file.write_text(WHEEL_msg.as_string(), encoding="utf8")
+
+    bad_tag_wheel = tmp_path / "bad-tag" / simple_wheel.name
+    bad_tag_wheel.parent.mkdir(parents=True)
+    with WheelFile(str(bad_tag_wheel), "w") as wf:
+        wf.write_files(str(extract_dir))
+
+    case = test_case(bad_tag_wheel)
+    case.allow_impure = True
+    with pytest.raises(Wheel2CondaError, match="bad tag format"):
+        case.build()
+
 
 def test_overwrite_prompt(
     test_case: ConverterTestCaseFactory,
@@ -604,3 +684,387 @@ def test_version_translation(tmp_path: Path, caplog: pytest.LogCaptureFixture) -
     logrec = caplog.records[0]
     assert logrec.levelname == "WARNING"
     assert "Converted arbitrary equality" in logrec.message
+
+
+#
+# Binary conversion helper tests
+#
+
+
+def test_python_version_from_tag() -> None:
+    """Test _python_version_from_tag helper."""
+    assert _python_version_from_tag("cp313") == "3.13"
+    assert _python_version_from_tag("cp39") == "3.9"
+    assert _python_version_from_tag("cp310") == "3.10"
+    assert _python_version_from_tag("py3") == "3"
+    assert _python_version_from_tag("unknown") == "unknown"
+
+
+def test_parse_platform_tag() -> None:
+    """Test _parse_platform_tag helper."""
+    assert _parse_platform_tag("macosx_11_0_arm64") == ("osx-arm64", "arm64", "osx")
+    assert _parse_platform_tag("macosx_10_9_x86_64") == ("osx-64", "x86_64", "osx")
+    assert _parse_platform_tag("macosx_11_0_universal2") == (
+        "osx-arm64",
+        "arm64",
+        "osx",
+    )
+    assert _parse_platform_tag("manylinux2014_x86_64") == (
+        "linux-64",
+        "x86_64",
+        "linux",
+    )
+    assert _parse_platform_tag("manylinux_2_17_aarch64") == (
+        "linux-aarch64",
+        "aarch64",
+        "linux",
+    )
+    assert _parse_platform_tag("musllinux_1_1_x86_64") == (
+        "linux-64",
+        "x86_64",
+        "linux",
+    )
+    assert _parse_platform_tag("win_amd64") == ("win-64", "x86_64", "win")
+    assert _parse_platform_tag("win32") == ("win-32", "x86", "win")
+    assert _parse_platform_tag("win_arm64") == ("win-arm64", "arm64", "win")
+
+    with pytest.raises(Wheel2CondaError, match="Unsupported wheel platform tag"):
+        _parse_platform_tag("unknown_platform")
+
+
+def test_os_constraint_from_platform_tag() -> None:
+    """Test _os_constraint_from_platform_tag helper."""
+    assert _os_constraint_from_platform_tag("macosx_11_0_arm64") == "__osx >=11.0"
+    assert _os_constraint_from_platform_tag("macosx_10_9_x86_64") == "__osx >=10.9"
+    assert _os_constraint_from_platform_tag("macosx_14_0_arm64") == "__osx >=14.0"
+    assert _os_constraint_from_platform_tag("manylinux2014_x86_64") == ""
+    assert _os_constraint_from_platform_tag("win_amd64") == ""
+
+
+def test_python_pin_from_version() -> None:
+    """Test _python_pin_from_version helper."""
+    pin = _python_pin_from_version("3.13")
+    assert pin == [
+        "python >=3.13,<3.14.0a0",
+        "python_abi 3.13.* *_cp313",
+    ]
+
+    pin = _python_pin_from_version("3.9")
+    assert pin == [
+        "python >=3.9,<3.10.0a0",
+        "python_abi 3.9.* *_cp39",
+    ]
+
+    # No minor version — no pin
+    assert _python_pin_from_version("3") == []
+
+
+def test_conda_target_info_noarch() -> None:
+    """Test CondaTargetInfo for noarch packages."""
+    from whl2conda.api.converter import MetadataFromWheel
+
+    md = MetadataFromWheel(
+        md={},
+        package_name="test",
+        version="1.0",
+        wheel_build_number="",
+        license=None,
+        dependencies=[],
+        wheel_info_dir=Path("."),
+        is_pure_python=True,
+        python_tag="py3",
+        abi_tag="none",
+        platform_tag="any",
+    )
+    target = CondaTargetInfo.from_wheel_metadata(md)
+    assert target.is_noarch
+    assert target.subdir == "noarch"
+    assert target.arch is None
+    assert target.platform is None
+    assert target.build_string == "py_0"
+    assert target.site_packages_prefix == "site-packages"
+    assert target.python_version == ""
+
+
+def test_conda_target_info_binary() -> None:
+    """Test CondaTargetInfo for binary packages."""
+    from whl2conda.api.converter import MetadataFromWheel
+
+    md = MetadataFromWheel(
+        md={},
+        package_name="test",
+        version="1.0",
+        wheel_build_number="",
+        license=None,
+        dependencies=[],
+        wheel_info_dir=Path("."),
+        is_pure_python=False,
+        python_tag="cp313",
+        abi_tag="cp313",
+        platform_tag="macosx_11_0_arm64",
+    )
+    target = CondaTargetInfo.from_wheel_metadata(md)
+    assert not target.is_noarch
+    assert target.subdir == "osx-arm64"
+    assert target.arch == "arm64"
+    assert target.platform == "osx"
+    assert target.build_string == "py313_0"
+    assert target.site_packages_prefix == "lib/python3.13/site-packages"
+    assert target.python_version == "3.13"
+
+    # Windows target
+    md_win = MetadataFromWheel(
+        md={},
+        package_name="test",
+        version="1.0",
+        wheel_build_number="",
+        license=None,
+        dependencies=[],
+        wheel_info_dir=Path("."),
+        is_pure_python=False,
+        python_tag="cp310",
+        abi_tag="cp310",
+        platform_tag="win_amd64",
+    )
+    target_win = CondaTargetInfo.from_wheel_metadata(md_win, build_number=2)
+    assert target_win.subdir == "win-64"
+    assert target_win.build_string == "py310_2"
+    assert target_win.site_packages_prefix == "Lib/site-packages"
+    assert target_win.python_version == "3.10"
+
+
+def test_check_binary_conversion_local_version(tmp_path: Path) -> None:
+    """Test that local version suffixes (e.g. +cu121) are rejected."""
+    from whl2conda.api.converter import MetadataFromWheel
+
+    converter = Wheel2CondaConverter(tmp_path / "fake.whl", tmp_path)
+    converter.logger = logging.getLogger(__name__)
+
+    wheel_md = MetadataFromWheel(
+        md={},
+        package_name="torch",
+        version="2.3.0+cu121",
+        wheel_build_number="",
+        license=None,
+        dependencies=[],
+        wheel_info_dir=Path("."),
+        is_pure_python=False,
+        python_tag="cp312",
+        abi_tag="cp312",
+        platform_tag="manylinux_2_17_x86_64",
+    )
+
+    with pytest.raises(Wheel2CondaError, match=r"local version suffix '\+cu121'"):
+        converter._check_binary_conversion(wheel_md)
+
+
+def test_marker_evaluation_for_binary() -> None:
+    """Test that platform markers are evaluated for binary conversions."""
+    from whl2conda.api.converter import _evaluate_marker
+
+    linux_env = CondaTargetInfo(
+        subdir="linux-64",
+        arch="x86_64",
+        platform="linux",
+        build_string="py312_0",
+        is_noarch=False,
+        site_packages_prefix="lib/python3.12/site-packages",
+        python_version="3.12",
+    ).marker_environment()
+
+    mac_env = CondaTargetInfo(
+        subdir="osx-arm64",
+        arch="arm64",
+        platform="osx",
+        build_string="py312_0",
+        is_noarch=False,
+        site_packages_prefix="lib/python3.12/site-packages",
+        python_version="3.12",
+    ).marker_environment()
+
+    # Linux-only dep should match linux env but not mac
+    assert _evaluate_marker('platform_system == "Linux"', linux_env) is True
+    assert _evaluate_marker('platform_system == "Linux"', mac_env) is False
+
+    # macOS dep should match mac env
+    assert _evaluate_marker('sys_platform == "darwin"', mac_env) is True
+    assert _evaluate_marker('sys_platform == "darwin"', linux_env) is False
+
+    # Windows check
+    assert _evaluate_marker('os_name == "nt"', linux_env) is False
+
+    # Invalid marker returns True (conservative)
+    assert _evaluate_marker("this is not valid", linux_env) is True
+
+
+def test_conda_target_marker_environment() -> None:
+    """Test CondaTargetInfo.marker_environment for different platforms."""
+    linux = CondaTargetInfo(
+        subdir="linux-64",
+        arch="x86_64",
+        platform="linux",
+        build_string="py312_0",
+        is_noarch=False,
+        site_packages_prefix="lib/python3.12/site-packages",
+        python_version="3.12",
+    )
+    env = linux.marker_environment()
+    assert env["os_name"] == "posix"
+    assert env["sys_platform"] == "linux"
+    assert env["platform_system"] == "Linux"
+    assert env["platform_machine"] == "x86_64"
+    assert env["python_version"] == "3.12"
+
+    win = CondaTargetInfo(
+        subdir="win-64",
+        arch="x86_64",
+        platform="win",
+        build_string="py312_0",
+        is_noarch=False,
+        site_packages_prefix="Lib/site-packages",
+        python_version="3.12",
+    )
+    env = win.marker_environment()
+    assert env["os_name"] == "nt"
+    assert env["sys_platform"] == "win32"
+    assert env["platform_system"] == "Windows"
+
+    noarch = CondaTargetInfo(
+        subdir="noarch",
+        arch=None,
+        platform=None,
+        build_string="py_0",
+        is_noarch=True,
+        site_packages_prefix="site-packages",
+    )
+    assert noarch.marker_environment() == {}
+
+
+def test_check_binary_conversion_ok(tmp_path: Path) -> None:
+    """Test that simple packages pass binary conversion checks."""
+    from whl2conda.api.converter import MetadataFromWheel
+
+    converter = Wheel2CondaConverter(tmp_path / "fake.whl", tmp_path)
+    converter.logger = logging.getLogger(__name__)
+
+    wheel_md = MetadataFromWheel(
+        md={},
+        package_name="markupsafe",
+        version="3.0.3",
+        wheel_build_number="",
+        license=None,
+        dependencies=[],
+        wheel_info_dir=Path("."),
+        is_pure_python=False,
+        python_tag="cp312",
+        abi_tag="cp312",
+        platform_tag="macosx_11_0_arm64",
+    )
+
+    # Should not raise
+    converter._check_binary_conversion(wheel_md)
+
+
+def test_reject_py2_only_wheel(
+    test_case: ConverterTestCaseFactory,
+    simple_wheel: Path,
+    tmp_path: Path,
+) -> None:
+    """Test that py2-only wheels are rejected."""
+    good_wheel = WheelFile(simple_wheel)
+    extract_dir = tmp_path / "extract"
+    good_wheel.extractall(str(extract_dir))
+    extract_info_dir = next(extract_dir.glob("*.dist-info"))
+
+    WHEEL_file = extract_info_dir / "WHEEL"
+    WHEEL_msg = Wheel2CondaConverter.read_metadata_file(WHEEL_file)
+
+    # Replace tag with py2-only
+    WHEEL_msg.replace_header("Tag", "py2-none-any")
+    WHEEL_file.write_text(WHEEL_msg.as_string(), encoding="utf8")
+
+    py2_wheel = tmp_path / "py2-only" / simple_wheel.name
+    py2_wheel.parent.mkdir(parents=True)
+    with WheelFile(str(py2_wheel), "w") as wf:
+        wf.write_files(str(extract_dir))
+
+    with pytest.raises(Wheel2CondaError, match="no Python 3 compatible tag"):
+        test_case(py2_wheel).build()
+
+
+def test_add_binary_dependencies() -> None:
+    """Test _add_binary_dependencies adds python pin and OS constraint."""
+
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+
+    target = CondaTargetInfo(
+        subdir="osx-arm64",
+        arch="arm64",
+        platform="osx",
+        build_string="py312_0",
+        is_noarch=False,
+        site_packages_prefix="lib/python3.12/site-packages",
+        python_version="3.12",
+    )
+
+    deps = ["numpy >=1.20", "python >=3.8"]
+    result = converter._add_binary_dependencies(deps, target, "macosx_11_0_arm64")
+
+    # Should have tight python pin instead of loose spec
+    assert any("python >=3.12" in d for d in result)
+    assert not any(d == "python >=3.8" for d in result)
+    # Should have OS constraint
+    assert any("__osx" in d for d in result)
+
+
+def test_add_binary_dependencies_no_python_pin() -> None:
+    """Test _add_binary_dependencies with unknown python version."""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+
+    target = CondaTargetInfo(
+        subdir="linux-64",
+        arch="x86_64",
+        platform="linux",
+        build_string="py3_0",
+        is_noarch=False,
+        site_packages_prefix="lib/python3.12/site-packages",
+        python_version="",
+    )
+
+    deps = ["numpy >=1.20"]
+    result = converter._add_binary_dependencies(deps, target, "linux_x86_64")
+    # No python pin added, original deps preserved
+    assert "numpy >=1.20" in result
+
+
+def test_compute_conda_deps_with_marker_env() -> None:
+    """Test _compute_conda_dependencies with marker_env for binary conversion."""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+
+    linux_env = CondaTargetInfo(
+        subdir="linux-64",
+        arch="x86_64",
+        platform="linux",
+        build_string="py312_0",
+        is_noarch=False,
+        site_packages_prefix="lib/python3.12/site-packages",
+        python_version="3.12",
+    ).marker_environment()
+
+    deps = [
+        RequiresDistEntry.parse("numpy >=1.20"),
+        RequiresDistEntry.parse('pyobjc; sys_platform == "darwin"'),
+        RequiresDistEntry.parse('pywin32; os_name == "nt"'),
+        RequiresDistEntry.parse('readline; sys_platform == "linux"'),
+    ]
+
+    result = converter._compute_conda_dependencies(deps, marker_env=linux_env)
+    dep_names = [d.split()[0] for d in result]
+    assert "numpy" in dep_names
+    assert "readline" in dep_names
+    # Platform-specific deps should be filtered out
+    assert "pyobjc" not in dep_names
+    assert "pywin32" not in dep_names
