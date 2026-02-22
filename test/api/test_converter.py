@@ -819,31 +819,6 @@ def test_check_binary_conversion_local_version(tmp_path: Path) -> None:
         converter._check_binary_conversion(wheel_md)
 
 
-def test_check_binary_conversion_blocklist(tmp_path: Path) -> None:
-    """Test that known-problematic packages are blocked."""
-    from whl2conda.api.converter import MetadataFromWheel
-
-    converter = Wheel2CondaConverter(tmp_path / "fake.whl", tmp_path)
-    converter.logger = logging.getLogger(__name__)
-
-    for pkg_name in ["torch", "tensorflow", "nvidia-cudnn", "triton"]:
-        wheel_md = MetadataFromWheel(
-            md={},
-            package_name=pkg_name,
-            version="1.0.0",
-            wheel_build_number="",
-            license=None,
-            dependencies=[],
-            wheel_info_dir=Path("."),
-            is_pure_python=False,
-            python_tag="cp312",
-            abi_tag="cp312",
-            platform_tag="manylinux_2_17_x86_64",
-        )
-        with pytest.raises(Wheel2CondaError, match="known to bundle"):
-            converter._check_binary_conversion(wheel_md)
-
-
 def test_marker_evaluation_for_binary() -> None:
     """Test that platform markers are evaluated for binary conversions."""
     from whl2conda.api.converter import _evaluate_marker

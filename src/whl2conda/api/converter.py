@@ -35,7 +35,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, ClassVar, NamedTuple
+from typing import Any, NamedTuple
 
 # third party
 from conda_package_handling.api import create as create_conda_pkg
@@ -984,19 +984,6 @@ class Wheel2CondaConverter:
 
     # Known package prefixes that are unlikely to work as binary conversions
     # due to bundled GPU libraries, complex runtime dependencies, etc.
-    _BINARY_CONVERSION_BLOCKLIST: ClassVar[frozenset[str]] = frozenset({
-        "torch",
-        "torchvision",
-        "torchaudio",
-        "tensorflow",
-        "tensorrt",
-        "nvidia-",
-        "cupy",
-        "jaxlib",
-        "triton",
-        "onnxruntime",
-    })
-
     def _check_binary_conversion(self, wheel_md: MetadataFromWheel) -> None:
         """Check for conditions that make binary conversion unlikely to succeed.
 
@@ -1014,17 +1001,6 @@ class Wheel2CondaConverter:
                 f"Such wheels bundle variant-specific libraries that are unlikely "
                 f"to work correctly as conda packages. Use conda-forge packages instead."
             )
-
-        # Check against blocklist of known-problematic packages
-        pkg_name = normalize_pypi_name(wheel_md.package_name)
-        for blocked in self._BINARY_CONVERSION_BLOCKLIST:
-            if pkg_name == blocked or pkg_name.startswith(blocked):
-                raise Wheel2CondaError(
-                    f"Package '{wheel_md.package_name}' is known to bundle "
-                    f"complex runtime libraries (GPU, CUDA, etc.) that are unlikely "
-                    f"to work correctly when converted from a wheel. "
-                    f"Use conda-forge packages instead."
-                )
 
     def _copy_wheel_files(self, wheel_dir: Path, conda_dir: Path) -> None:
         """

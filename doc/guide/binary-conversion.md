@@ -95,17 +95,6 @@ runtime dependencies are available as conda packages. Examples include:
 
 ## Known limitations
 
-### Blocklisted packages
-
-Certain packages are known to bundle complex runtime libraries that are
-unlikely to work correctly when converted from a wheel. **whl2conda** will
-refuse to convert these and recommend using conda-forge packages instead:
-
-- **PyTorch** ecosystem: `torch`, `torchvision`, `torchaudio`
-- **TensorFlow**: `tensorflow`
-- **NVIDIA CUDA libraries**: `nvidia-*` packages
-- **Other GPU/ML packages**: `cupy`, `jaxlib`, `triton`, `onnxruntime`, `tensorrt`
-
 ### Local version suffixes
 
 Wheels with local version suffixes (e.g. `torch-2.1.0+cu121`) indicate
