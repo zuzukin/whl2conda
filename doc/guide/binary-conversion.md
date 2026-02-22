@@ -116,7 +116,9 @@ The converted package includes these bundled copies as-is, which can lead to:
 
 Unlike conda-forge packages, converted wheels lack `run_exports` and detailed
 build metadata. Downstream packages that depend on the converted package will
-not automatically inherit correct library dependencies.
+not automatically inherit correct library dependencies. You may need to manually
+specify additional dependencies using the `--A`/`--add-dependency` flag 
+during conversion.
 
 ### `universal2` macOS wheels
 
