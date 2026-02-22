@@ -67,7 +67,7 @@ conda install -c conda-forge whl2conda
 Generate a conda package in same directory as wheel file:
 
 ```bash
-whl2conda build dist/mypackage-1.2.3-py3-none-any.whl
+whl2conda convert dist/mypackage-1.2.3-py3-none-any.whl
 ```
 
 Add default tool options to `pyproject.toml`
@@ -78,7 +78,7 @@ whl2conda config --generate-pyproject pyproject.toml
 Build both wheel and conda package for project:
 
 ```bash
-whl2conda build --build-wheel my-project-root
+whl2conda convert --build-wheel my-project-root
 ```
 
 Create python 3.10 test environment for generated conda package:
