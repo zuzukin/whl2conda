@@ -26,7 +26,6 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from textwrap import dedent
 
 from ..api.converter import CondaPackageFormat, DependencyRename, Wheel2CondaConverter
 
