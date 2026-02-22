@@ -267,17 +267,7 @@ class CondaTargetInfo:
             case _:
                 return {}
 
-        # Map conda arch to platform_machine values
-        machine_map = {
-            "x86_64": "x86_64",
-            "arm64": "arm64",
-            "aarch64": "aarch64",
-            "x86": "x86",
-            "ppc64le": "ppc64le",
-            "s390x": "s390x",
-            "armv7l": "armv7l",
-        }
-        platform_machine = machine_map.get(self.arch or "", "")
+        platform_machine = self.arch or ""
 
         return {
             "os_name": os_name,
@@ -338,15 +328,18 @@ _WHEEL_PLATFORM_MAP: list[tuple[re.Pattern, str, str, str]] = [
     (re.compile(r"macosx_.*_arm64"), "osx-arm64", "arm64", "osx"),
     (re.compile(r"macosx_.*_x86_64"), "osx-64", "x86_64", "osx"),
     (re.compile(r"macosx_.*_universal2"), "osx-arm64", "arm64", "osx"),
-    (re.compile(r"(?:many|musl)linux.*_x86_64"), "linux-64", "x86_64", "linux"),
-    (re.compile(r"(?:many|musl)linux.*_aarch64"), "linux-aarch64", "aarch64", "linux"),
-    (re.compile(r"(?:many|musl)linux.*_ppc64le"), "linux-ppc64le", "ppc64le", "linux"),
-    (re.compile(r"(?:many|musl)linux.*_s390x"), "linux-s390x", "s390x", "linux"),
-    (re.compile(r"(?:many|musl)linux.*_armv7l"), "linux-armv7l", "armv7l", "linux"),
     (re.compile(r"win_amd64"), "win-64", "x86_64", "win"),
     (re.compile(r"win32"), "win-32", "x86", "win"),
     (re.compile(r"win_arm64"), "win-arm64", "arm64", "win"),
 ]
+
+# Generalized pattern for linux wheels — captures the architecture suffix
+_LINUX_PLATFORM_RE = re.compile(r"(?:manylinux\d+|(?:many|musl)linux(?:_\d+)+)_(\w+)")
+
+# Architectures that use a shortened conda subdir name
+_LINUX_SUBDIR_ALIASES: dict[str, str] = {
+    "x86_64": "linux-64",
+}
 
 
 def _parse_platform_tag(platform_tag: str) -> tuple[str, str, str]:
@@ -361,6 +354,10 @@ def _parse_platform_tag(platform_tag: str) -> tuple[str, str, str]:
     for pattern, subdir, arch, platform in _WHEEL_PLATFORM_MAP:
         if pattern.fullmatch(platform_tag):
             return subdir, arch, platform
+    if m := _LINUX_PLATFORM_RE.fullmatch(platform_tag):
+        arch = m.group(1)
+        subdir = _LINUX_SUBDIR_ALIASES.get(arch, f"linux-{arch}")
+        return subdir, arch, "linux"
     raise Wheel2CondaError(f"Unsupported wheel platform tag: '{platform_tag}'")
 
 
