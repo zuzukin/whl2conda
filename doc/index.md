@@ -1,3 +1,8 @@
+<figure>
+    <img src="whl2conda.png">
+</figure>
+
+
 **Generate conda packages directly from pure python wheels**
 
 *whl2conda* is a command line utility for building and testing 
