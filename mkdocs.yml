@@ -5,7 +5,7 @@ docs_dir: doc
 site_dir: site
 site_author: Christopher Barber
 repo_name: GitHub
-copyright: Copyright &copy; 2023 Christopher Barber
+copyright: Copyright &copy; 2023-2026 Christopher Barber
 exclude_docs: |
   /internal/
 
