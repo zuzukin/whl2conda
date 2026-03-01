@@ -1,4 +1,9 @@
-# whl2conda 
+<div align="center">
+<image src="doc/whl2conda.png" alt="whl2conda logo">
+
+# whl2conda
+
+------
 
 [![pypi version](https://img.shields.io/pypi/v/whl2conda.svg)](https://pypi.org/project/whl2conda/)
 [![conda version](https://img.shields.io/conda/vn/conda-forge/whl2conda)](https://anaconda.org/conda-forge/whl2conda)
@@ -8,6 +13,8 @@
 [![CI](https://github.com/zuzukin/whl2conda/actions/workflows/python-package-conda.yml/badge.svg)](https://github.com/zuzukin/whl2conda/actions/workflows/python-package-conda.yml) [![codecov](https://codecov.io/gh/zuzukin/whl2conda/graph/badge.svg?token=097C3MBNIX)](https://codecov.io/gh/zuzukin/whl2conda)
 ![GitHub issues](https://img.shields.io/github/issues/analog-cbarber/whl2conda)  
 [![Pixi Badge](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/prefix-dev/pixi/main/assets/badge/v0.json)](https://pixi.sh)
+
+</div>
 
 **Generate conda packages directly from pure python wheels**
 

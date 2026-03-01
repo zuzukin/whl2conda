@@ -32,8 +32,8 @@ theme:
   hljs_languages:
     python
     json
-  logo: whl2conda.jpg
-  favicon: whl2conda.jpg
+  logo: whl2conda.png
+  favicon: whl2conda.png
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
