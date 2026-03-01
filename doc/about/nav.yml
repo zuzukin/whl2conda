@@ -1,4 +1,5 @@
 nav:
+  - Motivation: motivation.md
   - Getting help: support.md
   - Release notes: changelog.md
   - License: license.md

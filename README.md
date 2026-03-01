@@ -21,6 +21,9 @@
 *whl2conda* is a command line utility to build and test conda packages
 generated directly from pure python wheels.
 
+> **Background**: See [doc/about/motivation.md](doc/about/motivation.md) for the
+> story behind this project.
+
 * **Performance**: because it does not need to create conda environments
     in order to build, this is *much* faster than solutions involving *conda-build*.
 
