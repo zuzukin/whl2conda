@@ -53,6 +53,24 @@ platform-specific conda package that installs on any compatible Python:
     since conda 4.3 (2017) and works regardless of the package's platform
     subdir, as codified by CEP-20.
 
+### conda-forge style pins
+
+By default the python dependency is a plain floor (e.g. `python >=3.12`),
+which is solvable on any channel. conda-forge instead pins its abi3 packages
+with `cpython >=3.12` (which excludes PyPy, whose C API layer does not
+support the stable ABI) and `_python_abi3_support 1.*` (which additionally
+excludes free-threaded python builds). Pass `--for-conda-forge` (or its
+synonym `--for-cpython`) to add these pins:
+
+```bash
+whl2conda convert mypackage-1.0-cp312-abi3-macosx_11_0_arm64.whl \
+    --allow-impure --for-conda-forge
+```
+
+Since the `cpython` and `_python_abi3_support` packages only exist on the
+conda-forge channel, do not use this option for packages targeting channels
+without them (e.g. Anaconda's `defaults`).
+
 ## Downloading binary wheels
 
 You can download and convert binary wheels from PyPI in a single step using

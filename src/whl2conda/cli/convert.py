@@ -63,6 +63,7 @@ class ConvertArgs:
     dropped_deps: Sequence[str]
     dry_run: bool
     extra_deps: list[str]
+    for_conda_forge: bool
     from_index: tuple[str, str] | None
     from_pypi: str | None
     ignore_pyproject: bool
@@ -293,6 +294,20 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
             Generates tight Python version pins and OS constraints from wheel
             tags. Stable ABI (abi3) wheels are only pinned to a minimum python
             version. Use --python to override the generated python dependency.
+        """),
+    )
+
+    experimental_opts.add_argument(
+        "--for-conda-forge",
+        "--for-cpython",
+        dest="for_conda_forge",
+        action="store_true",
+        help=dedent("""
+            When converting a stable ABI (abi3) wheel, also add the CEP-20
+            python pins used by conda-forge: 'cpython' (excludes PyPy) and
+            '_python_abi3_support' (excludes free-threaded builds). These
+            packages only exist on the conda-forge channel, so do not use
+            this option for packages targeting channels without them.
         """),
     )
 
@@ -597,6 +612,7 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
         converter.interactive = interactive
         converter.build_number = parsed.build_number
         converter.allow_impure = parsed.allow_impure or bool(download_platform)
+        converter.for_conda_forge = parsed.for_conda_forge
         if parsed.allow_metadata_version:
             converter.SUPPORTED_METADATA_VERSIONS = (
                 *converter.SUPPORTED_METADATA_VERSIONS,

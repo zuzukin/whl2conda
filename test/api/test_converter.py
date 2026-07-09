@@ -1136,6 +1136,53 @@ def test_add_binary_dependencies_abi3() -> None:
     assert "python >=3.12" in result
 
 
+def test_add_binary_dependencies_abi3_conda_forge() -> None:
+    """Test conda-forge CEP-20 pins for abi3 wheels (#194)."""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+    converter.for_conda_forge = True
+
+    abi3_target = CondaTargetInfo(
+        subdir="osx-arm64",
+        arch="arm64",
+        platform="osx",
+        build_string="py312_abi3_0",
+        is_noarch=False,
+        site_packages_prefix="site-packages",
+        python_version="3.12",
+        is_abi3=True,
+    )
+
+    result = converter._add_binary_dependencies([], abi3_target, "macosx_11_0_arm64")
+    assert "python >=3.12" in result
+    assert "cpython >=3.12" in result
+    assert "_python_abi3_support 1.*" in result
+
+    # cpython pin mirrors an explicit python version override
+    converter.python_version = ">=3.13"
+    result = converter._add_binary_dependencies(
+        ["python >=3.13"], abi3_target, "macosx_11_0_arm64"
+    )
+    assert "cpython >=3.13" in result
+    assert "_python_abi3_support 1.*" in result
+
+    # no effect on non-abi3 binary wheels, whose python_abi pin already
+    # restricts the package to cpython
+    converter.python_version = ""
+    non_abi3_target = CondaTargetInfo(
+        subdir="linux-64",
+        arch="x86_64",
+        platform="linux",
+        build_string="py312_0",
+        is_noarch=False,
+        site_packages_prefix="lib/python3.12/site-packages",
+        python_version="3.12",
+    )
+    result = converter._add_binary_dependencies([], non_abi3_target, "linux_x86_64")
+    assert not any(d.startswith("cpython") for d in result)
+    assert not any(d.startswith("_python_abi3_support") for d in result)
+
+
 def test_add_binary_dependencies_python_override() -> None:
     """Test that an explicit python version overrides binary pins (#183)."""
     converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
