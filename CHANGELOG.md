@@ -11,7 +11,7 @@
 * The `--python` option now overrides the automatically generated python
   version pin for binary (`--allow-impure`) conversions (#183)
 
-## [26.2.1] - *in progress*
+## [26.2.1] - 2026-7-9
 
 ### Bug fixes
 
@@ -22,6 +22,12 @@
 * Dependency rename patterns are now matched against both the name as written
   in the wheel metadata and its PEP 503 normalized form, so patterns
   containing `_` or `.` work again. (#184)
+
+### Development
+
+* Automated release workflow: pushing a version tag publishes to PyPI
+  (trusted publishing), creates the GitHub release, and deploys the
+  versioned documentation (#145)
 
 ## [26.2.0] - 2026-2-22
 
