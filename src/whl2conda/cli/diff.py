@@ -124,19 +124,20 @@ def diff_main(
         pkg1_dir = tmpdir / "pkg1"
         pkg2_dir = tmpdir / "pkg2"
 
-        _extract_packge(parsed.package1, pkg1_dir)
-        _extract_packge(parsed.package2, pkg2_dir)
+        _extract_package(parsed.package1, pkg1_dir)
+        _extract_package(parsed.package2, pkg2_dir)
 
         subprocess.run(
             [diff_tool, str(pkg1_dir), str(pkg2_dir), *diff_args], check=False
         )
 
 
-def _extract_packge(package: Path, dest_dir: Path) -> None:
+def _extract_package(package: Path, dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     cphapi.extract(str(package), dest_dir)
 
-    # normalize contents
+    # normalize contents - any of these may be missing, e.g. packages
+    # built by rattler-build do not contain info/files
     info_dir = dest_dir / "info"
     _normalize_json(info_dir / "about.json")
     _normalize_json(info_dir / "link.json")
@@ -155,17 +156,23 @@ def _extract_packge(package: Path, dest_dir: Path) -> None:
 
 
 def _normalize_json(file: Path) -> None:
+    if not file.is_file():
+        return
     jobj = json.loads(file.read_text("utf8"))
     file.write_text(json.dumps(jobj, indent=2, sort_keys=True))
 
 
 def _normalize_index(file: Path) -> None:
+    if not file.is_file():
+        return
     jobj = json.loads(file.read_text("utf8"))
     jobj["depends"] = sorted(jobj["depends"])
     file.write_text(json.dumps(jobj, indent=2, sort_keys=True))
 
 
 def _normalize_paths(file: Path) -> None:
+    if not file.is_file():
+        return
     jobj = json.loads(file.read_text("utf8"))
     paths = jobj["paths"]
     jobj["paths"] = sorted(paths, key=lambda entry: entry["_path"])
@@ -177,6 +184,8 @@ def _normalize_paths(file: Path) -> None:
 
 
 def _sort_lines(file: Path) -> None:
+    if not file.is_file():
+        return
     with open(file) as f:
         lines = f.readlines()
     with open(file, "w") as f:

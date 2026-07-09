@@ -11,6 +11,11 @@
 * The `--python` option now overrides the automatically generated python
   version pin for binary (`--allow-impure`) conversions (#183)
 
+### Bug fixes
+
+* `whl2conda diff` no longer fails on packages that do not contain an
+  `info/files` entry, e.g. packages built by rattler-build (#192)
+
 ## [26.2.1] - 2026-7-9
 
 ### Bug fixes
