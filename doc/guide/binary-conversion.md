@@ -22,6 +22,36 @@ This produces a conda package with:
 - **Python ABI constraint** (e.g. `python_abi 3.12.* *_cp312`)
 - **OS minimum version constraints** for macOS wheels (e.g. `__osx >=11.0`)
 
+You can override the automatically derived Python pin with the `--python`
+option, in which case no `python_abi` constraint is added:
+
+```bash
+whl2conda convert --allow-impure --python '>=3.12' some-wheel.whl
+```
+
+## Stable ABI (abi3) wheels
+
+Wheels built against the CPython stable ABI (with an `abi3` tag, e.g.
+`cp312-abi3-macosx_11_0_arm64`) work on the tagged Python version *and all
+later versions*. **whl2conda** recognizes the `abi3` tag and produces a single
+platform-specific conda package that installs on any compatible Python:
+
+- The Python dependency is only a floor (e.g. `python >=3.12`) derived from
+  the wheel's Python tag; no upper bound or `python_abi` constraint is added.
+  A tighter `Requires-Python` constraint from the wheel metadata is kept.
+- The package keeps its platform subdir (e.g. `osx-arm64`) but is marked
+  `noarch: python` and lays its files out under `site-packages/`, so the
+  installer relocates them into the environment's actual `site-packages`
+  directory regardless of Python version. This follows the conda ecosystem
+  convention for abi3 packages
+  ([CEP-20](https://conda.org/learn/ceps/cep-0020/)).
+- The build string is marked accordingly, e.g. `py312_abi3_0`.
+
+!!! note
+    Installing such packages requires a conda/mamba version recent enough to
+    apply noarch python handling to platform-specific packages (see CEP-20).
+    With older installers, the package installs but files are not relocated.
+
 ## Downloading binary wheels
 
 You can download and convert binary wheels from PyPI in a single step using

@@ -1,5 +1,16 @@
 # whl2conda changes
 
+## [26.7.0] - *in progress*
+
+### Features
+
+* Convert stable ABI (abi3) wheels into a single conda package usable on
+  all supported python versions, following the CEP-20 layout: the python
+  dependency is only a lower bound, and files are installed using the
+  noarch python machinery (#183)
+* The `--python` option now overrides the automatically generated python
+  version pin for binary (`--allow-impure`) conversions (#183)
+
 ## [26.2.1] - *in progress*
 
 ### Bug fixes
