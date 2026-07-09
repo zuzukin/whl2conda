@@ -13,6 +13,10 @@
 
 ### Bug fixes
 
+* The `timestamp` in the package's `index.json` is now written in
+  milliseconds since the epoch, matching conda-build and rattler-build.
+  It was previously written in seconds and was also incorrectly shifted
+  by the local timezone offset. (#193)
 * `whl2conda diff` no longer fails on packages that do not contain an
   `info/files` entry, e.g. packages built by rattler-build (#192)
 

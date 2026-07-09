@@ -24,6 +24,7 @@ import logging
 import os.path
 import re
 import shutil
+import time
 from collections.abc import Generator, Sequence
 from pathlib import Path
 from typing import Any
@@ -320,6 +321,10 @@ class PackageValidator:
         else:
             assert name == re.sub(r"[-_.]+", "-", wheel_md["name"]).lower()
         assert version == wheel_md["version"]
+
+        # timestamp is milliseconds since the epoch (#193)
+        now_ms = time.time() * 1000
+        assert now_ms - 3_600_000 < index["timestamp"] <= now_ms
 
         if self._is_binary:
             assert index["arch"] is not None
