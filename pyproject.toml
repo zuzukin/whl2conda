@@ -295,7 +295,7 @@ cmd = "rm -rf site doc/reference/cli/whl2conda*.md"
 description = "Remove generated documentation files"
 
 [tool.pixi.tasks.clean-build]
-cmd = "bash -c 'find . \\( -name \"*.whl\" -or -name \"*.conda\" -or -name \"*.tar.bz2\" \\) -exec rm {} \\; && find . \\( -name \"dist\" -or -name \"build\" -or -name \"*.egg-info\" \\) -exec rm -rf {} \\;'"
+cmd = "bash -c 'find . \\( -name .pixi -or -name .git \\) -prune -or \\( -name \"*.whl\" -or -name \"*.conda\" -or -name \"*.tar.bz2\" \\) -type f -exec rm {} \\; ; find . \\( -name .pixi -or -name .git \\) -prune -or \\( -name \"dist\" -or -name \"build\" -or -name \"*.egg-info\" \\) -prune -exec rm -rf {} \\;'"
 description = "Remove build artifacts and distribution files"
 
 [tool.pixi.tasks.clean]
