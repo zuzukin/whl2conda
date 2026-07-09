@@ -33,7 +33,7 @@ generated directly from pure python wheels.
     patterns as well.
 
 * **Multiple package formats**: can generate both V1 ('.tar.bz2') and V2 ('.conda')
-    conda package formats. Can also generate a unpacked directory tree for debugging
+    conda package formats. Can also generate an unpacked directory tree for debugging
     or additional user customization.
 
 * **Project configuration**: *whl2conda* project-specific options can be read from

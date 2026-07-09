@@ -46,15 +46,15 @@ is taken from mappings collected automatically from tools supporting the
 public [conda-forge] repository. *whl2conda* includes a static copy of
 this table collated when the *whl2conda* package was built, but also 
 supports the ability to maintain and update a locally cached copy dynamically. If
-there is package new to [conda-forge] that may have appeared since installing
+there is a package new to [conda-forge] that may have appeared since installing
 *whl2conda*, you can update your local cache using:
 
 ```bash
-$ whl2conda --update-std-renames
+$ whl2conda config --update-std-renames
 ```
 
 You can also configure whl2conda to automatically update the standard rename
-mappings prior to operations that require via a persistent user setting:
+mappings prior to operations that require them via a persistent user setting:
 
 ```bash
 $ whl2conda config --set auto-update-std-renames true
@@ -71,10 +71,10 @@ This file is simply a JSON dictionary mapping pypi names to conda names.
 
 If you want to generate a copy of this file in another location (e.g.
 for use by other development tools), you can add a path to the
-`---update-std-renames` option:
+`--update-std-renames` option:
 
 ```bash
-$ whl2conda --update-std-renames pypi-conda-renames.json
+$ whl2conda config --update-std-renames pypi-conda-renames.json
 ```
 
 ## Manual rules
@@ -84,13 +84,13 @@ issues for publicly available packages, but may not work for packages
 that come from alternative channels, which may be private to your
 organization.
 
-If you encounter these, you can add command line options to with
+If you encounter these, you can add command line options to
 `whl2conda convert` to rename packages and also to add or drop
 packages. You may also rename the package you are building.
 
 ### Adding extra packages
 
-You can add one or more extra package dependencies using the `-A` / `--add-depencency`
+You can add one or more extra package dependencies using the `-A` / `--add-dependency`
 option. This can be a conda package name and version spec, e.g.:
 
 ```bash
@@ -146,11 +146,11 @@ be replaced with the named capture group with given name.
 
 By default, the name of the generated conda package will be taken
 from the project name in the `pyproject.toml` if there is one,
-otherwise from the name in the wheel. This can be overriden
+otherwise from the name in the wheel. This can be overridden
 using the `--name` command line option:
 
 ```bash
-$ whl2conda convert acme-widgets-1.2.3-py3-None-any.whl --name acme-pywidgets
+$ whl2conda convert acme-widgets-1.2.3-py3-none-any.whl --name acme-pywidgets
 ```
 
 ## Specifying rules in pyproject.toml file
