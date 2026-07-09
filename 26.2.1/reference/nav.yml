@@ -1,0 +1,4 @@
+nav:
+  - Command line: cli
+  - API (<i>not stable!</i>): api
+  - Reference Material: links.md
