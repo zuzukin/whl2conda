@@ -9,9 +9,9 @@
 [![conda version](https://img.shields.io/conda/vn/conda-forge/whl2conda)](https://anaconda.org/conda-forge/whl2conda)
 [![documentation](https://img.shields.io/badge/docs-mkdocs%20material-blue.svg?style=flat)](https://zuzukin.github.io/whl2conda/)  
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/whl2conda)
-![GitHub](https://img.shields.io/github/license/analog-cbarber/whl2conda)  
+![GitHub](https://img.shields.io/github/license/zuzukin/whl2conda)  
 [![CI](https://github.com/zuzukin/whl2conda/actions/workflows/python-package-conda.yml/badge.svg)](https://github.com/zuzukin/whl2conda/actions/workflows/python-package-conda.yml) [![codecov](https://codecov.io/gh/zuzukin/whl2conda/graph/badge.svg?token=097C3MBNIX)](https://codecov.io/gh/zuzukin/whl2conda)
-![GitHub issues](https://img.shields.io/github/issues/analog-cbarber/whl2conda)  
+![GitHub issues](https://img.shields.io/github/issues/zuzukin/whl2conda)  
 [![Pixi Badge](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/prefix-dev/pixi/main/assets/badge/v0.json)](https://pixi.sh)
 
 </div>
