@@ -11,6 +11,13 @@
 * The `--python` option now overrides the automatically generated python
   version pin for binary (`--allow-impure`) conversions (#183)
 
+### Bug fixes
+
+* The `timestamp` in the package's `index.json` is now written in
+  milliseconds since the epoch, matching conda-build and rattler-build.
+  It was previously written in seconds and was also incorrectly shifted
+  by the local timezone offset. (#193)
+
 ## [26.2.1] - 2026-7-9
 
 ### Bug fixes
