@@ -171,7 +171,7 @@ class RequiresDistEntry:
         m = requires_dist_re.fullmatch(raw)
         if not m:
             raise SyntaxError(f"Cannot parse Requires-Dist entry: {raw!r}")
-        entry = RequiresDistEntry(name=normalize_pypi_name(m.group("name")))
+        entry = RequiresDistEntry(name=m.group("name"))
         if extra := m.group("extra"):
             entry.extras = tuple(re.split(r"\s*,\s*", extra))
         if version := m.group("version"):
@@ -464,14 +464,16 @@ class DependencyRename(NamedTuple):
     def rename(self, pypi_name: str) -> tuple[str, bool]:
         """Rename dependency package name
 
-        The name is normalized before matching per PEP 503.
+        The pattern is matched against the name as written and,
+        failing that, its PEP 503 normalized form. The original
+        name is returned unchanged if neither matches.
 
         Returns conda name and indicator of whether the
         pattern was applied.
         """
-        normalized = normalize_pypi_name(pypi_name)
-        if m := self.pattern.fullmatch(normalized):
-            return m.expand(self.replacement), True
+        for name in (pypi_name, normalize_pypi_name(pypi_name)):
+            if m := self.pattern.fullmatch(name):
+                return m.expand(self.replacement), True
         return pypi_name, False
 
 
@@ -910,7 +912,7 @@ class Wheel2CondaConverter:
 
             conda_name = pip_name = entry.name
             version = self.translate_version_spec(entry.version)
-            if saw_python := conda_name == "python":
+            if saw_python := normalize_pypi_name(conda_name) == "python":
                 if self.python_version and version != self.python_version:
                     self._info(
                         "Overriding python version '%s' with '%s'",
@@ -928,7 +930,9 @@ class Wheel2CondaConverter:
                 if renamed:
                     break
             if not renamed:
-                conda_name = self.std_renames.get(pip_name, pip_name)
+                conda_name = self.std_renames.get(
+                    normalize_pypi_name(pip_name), pip_name
+                )
 
             if conda_name:
                 conda_dep = f"{conda_name} {version}"

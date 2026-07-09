@@ -4,13 +4,13 @@ into noarch python conda packages.
 It has the following limitations and known issues, some of which 
 will be addressed in future releases.
 
-## Arbitrary equality clause in version specifiers don't have a conda equivalent
+## Arbitrary equality clause in version specifiers has no conda equivalent
 
 The *arbitrary equality* clause `===` is not supported by conda
 and there is no equivalent. This clause is also heavily discouraged 
 in dependencies and probably will not occur that often in practice.
 
-We handle this by simplying changinge `===` to `==` but
+We handle this by simply changing `===` to `==` but
 since this will often not work we also issue a warning.
 
 ## File permissions are not copied when run on Windows
@@ -19,7 +19,7 @@ Executable file permissions are copied from the wheel when conversion
 is run on MacOS or Linux but not Windows. When converting packages that
 contain scripts with execute permissions (intended for use on Linux/MacOS),
 make sure to avoid Windows when doing the conversion
-(see issue [issue 135](https://github.com/zuzukin/whl2conda/issues/135))
+(see [issue 135](https://github.com/zuzukin/whl2conda/issues/135))
 
 ## Cannot convert from sdist
 

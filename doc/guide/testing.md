@@ -1,9 +1,9 @@
 ## Installing into a test environment
 
 You will probably want to test your generated conda packages before deploying
-it. Currently, `conda install` only supports installing conda package files
+them. Currently, `conda install` only supports installing conda package files
 without their dependencies, so `whl2conda` provides an `install` subcommand
-to install one or more package files into a test environment along with its dependencies:
+to install one or more package files into a test environment along with their dependencies:
 
 ```bash
 $ whl2conda install mypackage-1.2.3-py_0.conda -n test-env
@@ -38,9 +38,9 @@ If this is a problem, you can instead use mamba.*
 
 ## Installing into conda-bld
 
-Once you are done testing, you may either upload your package to a
-conda channel using the approriate tool (e.g. `anaconda upload` or
-`curl`). Or you may want to install into your local conda-bld
+Once you are done testing, you may upload your package to a
+conda channel using the appropriate tool (e.g. `anaconda upload` or
+`curl`), or you may install into your local conda-bld
 directory to support `conda install --use-local`. You can do
 this using:
 
@@ -70,7 +70,7 @@ $ whl2conda diff \
 Note that some differences are expected in the `info/` directory,
 specifically:
 
-* packages generated with whl2conda will not have copy of the recipe
+* packages generated with whl2conda will not have a copy of the recipe
    or test directory
 * the about.json file may differ
 * the timestamp will be different in the `index.json` file

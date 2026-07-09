@@ -1,5 +1,17 @@
 # whl2conda changes
 
+## [26.2.1] - *in progress*
+
+### Bug fixes
+
+* Dependency names that do not match any rename rule are again passed through
+  with their original spelling, instead of being rewritten to their PEP 503
+  normalized form. This restores pre-26.2.0 behavior for packages whose conda
+  name contains `_`, `.` or uppercase characters. (#184)
+* Dependency rename patterns are now matched against both the name as written
+  in the wheel metadata and its PEP 503 normalized form, so patterns
+  containing `_` or `.` work again. (#184)
+
 ## [26.2.0] - 2026-2-22
 
 ### Features

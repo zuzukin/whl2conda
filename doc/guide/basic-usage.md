@@ -18,10 +18,10 @@ $ whl2conda convert mypackage-1.2.3-py3-none-any.whl --out-dir conda-dist
 ```
 
 This will automatically convert pypi package dependencies to their corresponding
-conda package, renaming them as needed. Standard pypi/conda name mappings are
+conda packages, renaming them as needed. Standard pypi/conda name mappings are
 taken from conda-forge. This will do the right thing for most packages, but
 you may also need to provide your own dependency rules to modify the dependencies.
-This is described in the section on [Dependency Modification](renaming.md)
+This is described in the section on [Dependency Modification](renaming.md).
 
 ## Downloading wheels
 
@@ -45,7 +45,7 @@ $ whl2conda convert --from-pypi 'some-package ==1.2.3'
 
 The `--from-index` option expects either the full URL of the pypi index to
 download from or an alias, which may either be taken from a repository entry
-in your [~/.pypirc][pypirc] file or from an entry in the users persistent
+in your [~/.pypirc][pypirc] file or from an entry in the user's persistent
 whl2conda configuration. For instance, you could register a new index using
 a command like:
 
@@ -70,14 +70,14 @@ $ whl2conda convert my-project/
 ```
 
 When run this way, there must be a `pyproject.toml` or `setup.py` file 
-in the specified directory. If there isa `pyproject.toml` file, *whl2conda* will
+in the specified directory. If there is a `pyproject.toml` file, *whl2conda* will
 read any project-specific options from the `[tool.whl2conda]` section
 (see [Configuring pyproject.toml](pyproject.md) for details) and will
 then look for a wheel in the `dist/` subdirectory of the project.
 
 If there is only one `.whl` file in the `dist/` directory, that will
-be used. Otherwise, if the there is an interactive terminal and the 
-`--batch` option  has not been specified, *whl2conda* will prompt
+be used. Otherwise, if there is an interactive terminal and the 
+`--batch` option has not been specified, *whl2conda* will prompt
 the user to choose a wheel or to build one using [pip wheel][pip-wheel].
 
 You can use the `--build-wheel` option to force the wheel to be built
@@ -100,7 +100,7 @@ Reading mypackage-1.2.3-py3-none-any.whl
 Writing mypackage-1.2.3-py_0.tar.bz2
 ```
 
-You can change the default output format through a persistent user setting, .e.g:
+You can change the default output format through a persistent user setting, e.g.:
 
 ```bash
 $ whl2conda config --set conda-format V1

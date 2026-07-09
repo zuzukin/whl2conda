@@ -155,18 +155,16 @@ def test_requires_dist_entry() -> None:
     with pytest.raises(SyntaxError):
         RequiresDistEntry.parse("=123 : bad")
 
-    # Test PEP 503 name normalization (#134)
+    # Original name spelling is preserved at parse time; normalization
+    # only happens when matching rename rules (#134)
     entry_underscore = RequiresDistEntry.parse("Foo_Bar >=1.0")
-    assert entry_underscore.name == "foo-bar"
+    assert entry_underscore.name == "Foo_Bar"
 
     entry_dot = RequiresDistEntry.parse("foo.bar.baz >=2.0")
-    assert entry_dot.name == "foo-bar-baz"
-
-    entry_mixed = RequiresDistEntry.parse("Foo_.Bar >=3.0")
-    assert entry_mixed.name == "foo-bar"
+    assert entry_dot.name == "foo.bar.baz"
 
     entry_upper = RequiresDistEntry.parse("MyPackage")
-    assert entry_upper.name == "mypackage"
+    assert entry_upper.name == "MyPackage"
 
 
 def test_normalize_pypi_name() -> None:
@@ -207,11 +205,20 @@ def test_dependency_rename() -> None:
     r = DependencyRename.from_strings("(?P<name>.*)", r"${name}-foo")
     assert r.rename("stuff") == ("stuff-foo", True)
 
-    # Test normalization in rename (#134)
+    # Normalized-form patterns match any PEP 503 spelling (#134)
     r = DependencyRename.from_strings("foo-bar", "conda-foo-bar")
     assert r.rename("foo_bar") == ("conda-foo-bar", True)
     assert r.rename("Foo.Bar") == ("conda-foo-bar", True)
     assert r.rename("foo-bar") == ("conda-foo-bar", True)
+
+    # Patterns are also matched against the name as written
+    r = DependencyRename.from_strings("foo_bar", "conda-foo-bar")
+    assert r.rename("foo_bar") == ("conda-foo-bar", True)
+    assert r.rename("foo-bar") == ("foo-bar", False)
+
+    # Unmatched names pass through with original spelling
+    r = DependencyRename.from_strings("other", "something-else")
+    assert r.rename("Foo_Bar") == ("Foo_Bar", False)
 
     # error cases
 
@@ -1068,3 +1075,31 @@ def test_compute_conda_deps_with_marker_env() -> None:
     # Platform-specific deps should be filtered out
     assert "pyobjc" not in dep_names
     assert "pywin32" not in dep_names
+
+
+def test_compute_conda_deps_name_normalization() -> None:
+    """Names are normalized for rename matching but not for output (#134)."""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+    converter.std_renames = {"foo-bar": "foo-bar-conda"}
+
+    # std rename lookup uses the normalized name
+    result = converter._compute_conda_dependencies([
+        RequiresDistEntry.parse("Foo_Bar >=1.0")
+    ])
+    assert result == ["foo-bar-conda >=1.0"]
+
+    # names matching no rename rule pass through with original spelling
+    result = converter._compute_conda_dependencies([
+        RequiresDistEntry.parse("Acme.Internal_Pkg >=2.0")
+    ])
+    assert result == ["Acme.Internal_Pkg >=2.0"]
+
+    # explicit rename rules match the normalized form
+    converter.dependency_rename = [
+        DependencyRename.from_strings("acme-internal-pkg", "acme_internal")
+    ]
+    result = converter._compute_conda_dependencies([
+        RequiresDistEntry.parse("Acme.Internal_Pkg >=2.0")
+    ])
+    assert result == ["acme_internal >=2.0"]
