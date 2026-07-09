@@ -48,9 +48,10 @@ platform-specific conda package that installs on any compatible Python:
 - The build string is marked accordingly, e.g. `py312_abi3_0`.
 
 !!! note
-    Installing such packages requires a conda/mamba version recent enough to
-    apply noarch python handling to platform-specific packages (see CEP-20).
-    With older installers, the package installs but files are not relocated.
+    This package layout is supported by all current conda install tools —
+    the `noarch: python` install machinery it relies on has been present
+    since conda 4.3 (2017) and works regardless of the package's platform
+    subdir, as codified by CEP-20.
 
 ## Downloading binary wheels
 
