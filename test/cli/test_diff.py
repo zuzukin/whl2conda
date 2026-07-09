@@ -22,6 +22,7 @@ import argparse
 import re
 from pathlib import Path
 
+import conda_package_handling.api as cphapi
 import pytest
 
 from whl2conda.cli import main
@@ -120,3 +121,40 @@ def test_diff(
     assert not list(tmp_path.glob("**/*"))
 
     # TODO test file normalization has happened
+
+
+def test_diff_missing_info_files(
+    tmp_path: Path,
+    simple_conda_package: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    diff tolerates packages with missing info files (#192)
+
+    In particular, packages built by rattler-build do not contain
+    an info/files entry.
+    """
+    # repackage the test package without most of its info files
+    extract_dir = tmp_path / "extracted"
+    cphapi.extract(str(simple_conda_package), str(extract_dir))
+    for name in ["files", "about.json", "link.json", "index.json", "paths.json"]:
+        (extract_dir / "info" / name).unlink()
+    cphapi.create(
+        str(extract_dir), None, simple_conda_package.name, out_folder=str(tmp_path)
+    )
+    stripped_package = tmp_path / simple_conda_package.name
+    assert stripped_package.is_file()
+
+    diff_ran = False
+
+    def _fake_diff(cmd: list[str], **_kwargs) -> None:
+        nonlocal diff_ran
+        diff_ran = True
+        for d in cmd[1:3]:
+            assert (Path(d) / "info").is_dir()
+
+    monkeypatch.setattr("subprocess.run", _fake_diff)
+    monkeypatch.chdir(tmp_path)
+
+    main(["diff", str(simple_conda_package), str(stripped_package), "-T", "diff"])
+    assert diff_ran
