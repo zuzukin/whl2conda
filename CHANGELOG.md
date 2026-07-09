@@ -1,6 +1,6 @@
 # whl2conda changes
 
-## [26.2.1] - *in progress*
+## [26.2.1] - 2026-7-9
 
 ### Bug fixes
 
