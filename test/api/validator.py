@@ -58,6 +58,7 @@ class PackageValidator:
     _expected_python_version: str = ""
     _allow_impure: bool = False
     _is_binary: bool = False
+    _is_abi3: bool = False
     _site_packages_prefix: str = "site-packages"
 
     def __init__(self, tmp_dir: Path) -> None:
@@ -100,6 +101,10 @@ class PackageValidator:
         wheel_file = dist_info_dir / "WHEEL"
         wheel_msg = Wheel2CondaConverter.read_metadata_file(wheel_file)
         self._is_binary = wheel_msg.get("Root-Is-Purelib", "").lower() != "true"
+        wheel_tags = wheel_msg.get_all("Tag") or []
+        self._is_abi3 = self._is_binary and any(
+            tag.split("-")[1] == "abi3" for tag in wheel_tags if tag.count("-") >= 2
+        )
 
         # Determine site-packages prefix from package contents
         if self._is_binary:
@@ -320,8 +325,14 @@ class PackageValidator:
             assert index["arch"] is not None
             assert index["platform"] is not None
             assert index["subdir"] != "noarch"
-            assert "noarch" not in index
-            assert re.match(r"py\d+_\d+", index["build"])
+            if self._is_abi3:
+                # abi3 packages keep platform subdir but use the noarch
+                # python install machinery (CEP-20)
+                assert index["noarch"] == "python"
+                assert re.match(r"py\d+_abi3_\d+", index["build"])
+            else:
+                assert "noarch" not in index
+                assert re.match(r"py\d+_\d+", index["build"])
         else:
             assert index["arch"] is None
             assert index['build'] == 'py_0'
@@ -397,15 +408,25 @@ class PackageValidator:
 
     def _validate_binary_dependencies(self, output_depends: set[str]) -> None:
         """Validate dependencies for binary packages."""
-        # Must have a tight python pin
         python_deps = [d for d in output_depends if d.startswith("python >=")]
+        abi_deps = [d for d in output_depends if d.startswith("python_abi ")]
+
+        if self._is_abi3:
+            # abi3 packages only get a minimum python version, no upper
+            # bound and no python_abi pin
+            assert python_deps, f"abi3 package missing python floor: {output_depends}"
+            for dep in python_deps:
+                assert ",<" not in dep, f"abi3 python pin has upper bound: {dep}"
+            assert not abi_deps, f"abi3 package has python_abi pin: {abi_deps}"
+            return
+
+        # Must have a tight python pin
         assert python_deps, f"Binary package missing tight python pin: {output_depends}"
         # The tight pin should have <X.Y+1.0a0 format
         for dep in python_deps:
             assert ",<" in dep, f"Python pin missing upper bound: {dep}"
 
         # Must have python_abi constraint
-        abi_deps = [d for d in output_depends if d.startswith("python_abi ")]
         assert abi_deps, f"Binary package missing python_abi: {output_depends}"
 
     def _validate_link(self, info_dir: Path) -> None:
@@ -414,8 +435,9 @@ class PackageValidator:
         """
         link_file = info_dir / "link.json"
 
-        if self._is_binary:
-            # Binary packages should not have link.json (matches conda-forge)
+        if self._is_binary and not self._is_abi3:
+            # Binary packages should not have link.json (matches conda-forge),
+            # except abi3 packages which use noarch python install machinery
             assert not link_file.is_file(), "Binary packages should not have link.json"
             return
 

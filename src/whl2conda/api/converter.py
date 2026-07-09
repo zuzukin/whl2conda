@@ -244,6 +244,18 @@ class CondaTargetInfo:
     site_packages_prefix: str
     python_version: str = ""
     """Python version for binary packages (e.g. '3.13'). Empty for noarch."""
+    is_abi3: bool = False
+    """True for binary packages built against the CPython stable ABI."""
+
+    @property
+    def uses_noarch_python(self) -> bool:
+        """True if package uses the noarch python install machinery.
+
+        This applies both to noarch packages and to platform-specific
+        abi3 packages (see CEP-20), whose files are placed under
+        ``site-packages/`` and relocated by the installer.
+        """
+        return self.is_noarch or self.is_abi3
 
     def marker_environment(self) -> dict[str, str]:
         """Return PEP 508 marker environment for the target platform.
@@ -305,12 +317,21 @@ class CondaTargetInfo:
         # Platform-specific package
         subdir, arch, platform = _parse_platform_tag(wheel_md.platform_tag)
         python_version = _python_version_from_tag(wheel_md.python_tag)
-        build_string = f"py{''.join(python_version.split('.'))}_{build_number}"
+        is_abi3 = wheel_md.abi_tag == "abi3"
+        py_tag = f"py{''.join(python_version.split('.'))}"
 
-        if platform == "win":
-            site_packages_prefix = "Lib/site-packages"
+        if is_abi3:
+            # Stable ABI package (CEP-20): one build works for all python
+            # versions >= the build version. Files go under site-packages/
+            # and are relocated by the installer like noarch python.
+            build_string = f"{py_tag}_abi3_{build_number}"
+            site_packages_prefix = "site-packages"
         else:
-            site_packages_prefix = f"lib/python{python_version}/site-packages"
+            build_string = f"{py_tag}_{build_number}"
+            if platform == "win":
+                site_packages_prefix = "Lib/site-packages"
+            else:
+                site_packages_prefix = f"lib/python{python_version}/site-packages"
 
         return cls(
             subdir=subdir,
@@ -320,6 +341,7 @@ class CondaTargetInfo:
             is_noarch=False,
             site_packages_prefix=site_packages_prefix,
             python_version=python_version,
+            is_abi3=is_abi3,
         )
 
 
@@ -726,8 +748,9 @@ class Wheel2CondaConverter:
         wheel_md: MetadataFromWheel,
         conda_target: CondaTargetInfo,
     ) -> None:
-        # Binary packages don't use link.json (matches conda-forge convention)
-        if not conda_target.is_noarch:
+        # Binary packages don't use link.json (matches conda-forge convention),
+        # except abi3 packages, which use the noarch python install machinery
+        if not conda_target.uses_noarch_python:
             return
 
         # info/link.json
@@ -783,7 +806,9 @@ class Wheel2CondaConverter:
             "timestamp": int(time.time() + time.timezone),  # UTC timestamp
             "version": wheel_md.version,
         }
-        if conda_target.is_noarch:
+        if conda_target.uses_noarch_python:
+            # Set for abi3 packages too, which keep their platform subdir
+            # but use the noarch python install machinery (CEP-20)
             index_dict["noarch"] = "python"
 
         conda_index_file.write_text(
@@ -963,20 +988,37 @@ class Wheel2CondaConverter:
 
         Replaces any loose python version spec with a tight pin derived from
         the wheel's Python tag, and adds OS minimum version constraints.
+
+        For abi3 (stable ABI) wheels, only a minimum python version derived
+        from the wheel's Python tag is required, since the package works on
+        all later versions.
+
+        An explicit python version setting on the converter overrides the
+        automatically derived pin.
         """
-        python_pin = _python_pin_from_version(conda_target.python_version)
-        if python_pin:
+        result = list(conda_dependencies)
+        if self.python_version:
+            # User override was already applied in _compute_conda_dependencies
+            self._debug(
+                "Binary python pin overridden by user: python %s",
+                self.python_version,
+            )
+        elif conda_target.is_abi3:
+            # Stable ABI: works on all versions >= the build version, so
+            # only add a floor. Keep any Requires-Python constraint, which
+            # may be tighter.
+            floor = f"python >={conda_target.python_version}"
+            if floor not in result:
+                result.append(floor)
+            self._debug("Binary abi3 python floor: %s", floor)
+        elif python_pin := _python_pin_from_version(conda_target.python_version):
             # Remove any existing loose python dependency
-            result = [
-                dep for dep in conda_dependencies if not dep.startswith("python ")
-            ]
+            result = [dep for dep in result if not dep.startswith("python ")]
             result.extend(python_pin)
             self._debug(
                 "Binary python pin: %s",
                 ", ".join(python_pin),
             )
-        else:
-            result = list(conda_dependencies)
 
         if os_constraint := _os_constraint_from_platform_tag(platform_tag):
             result.append(os_constraint)
@@ -1019,6 +1061,9 @@ class Wheel2CondaConverter:
         - <wheel-dir>/* -> <conda-dir>/Lib/site-packages (Windows)
         - <wheel-dir>/*.data/scripts/* -> <conda-dir>/bin (Unix)
         - <wheel-dir>/*.data/scripts/* -> <conda-dir>/Scripts (Windows)
+
+        Platform-specific abi3 packages use the noarch layout, since they
+        are installed using the noarch python machinery (CEP-20).
         """
         assert self.conda_target is not None
         target = self.conda_target
@@ -1028,7 +1073,7 @@ class Wheel2CondaConverter:
         conda_info_dir = conda_dir.joinpath("info")
         conda_info_dir.mkdir()
 
-        if target.is_noarch:
+        if target.uses_noarch_python:
             scripts_dest = "python-scripts"
         elif target.platform == "win":
             scripts_dest = "Scripts"

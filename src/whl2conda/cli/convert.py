@@ -290,7 +290,9 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
         help=dedent("""
             Allow experimental conversion of non-pure python wheels
             containing binary extensions into platform-specific conda packages.
-            Generates tight Python version pins and OS constraints from wheel tags.
+            Generates tight Python version pins and OS constraints from wheel
+            tags. Stable ABI (abi3) wheels are only pinned to a minimum python
+            version. Use --python to override the generated python dependency.
         """),
     )
 

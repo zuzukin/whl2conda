@@ -839,6 +839,60 @@ def test_conda_target_info_binary() -> None:
     assert target_win.site_packages_prefix == "Lib/site-packages"
     assert target_win.python_version == "3.10"
 
+    assert not target.is_abi3
+    assert not target.uses_noarch_python
+    assert not target_win.is_abi3
+
+
+def test_conda_target_info_abi3() -> None:
+    """Test CondaTargetInfo for abi3 (stable ABI) packages (#183)."""
+    from whl2conda.api.converter import MetadataFromWheel
+
+    md = MetadataFromWheel(
+        md={},
+        package_name="test",
+        version="1.0",
+        wheel_build_number="",
+        license=None,
+        dependencies=[],
+        wheel_info_dir=Path("."),
+        is_pure_python=False,
+        python_tag="cp312",
+        abi_tag="abi3",
+        platform_tag="macosx_11_0_arm64",
+    )
+    target = CondaTargetInfo.from_wheel_metadata(md)
+    assert not target.is_noarch
+    assert target.is_abi3
+    assert target.uses_noarch_python
+    assert target.subdir == "osx-arm64"
+    assert target.arch == "arm64"
+    assert target.platform == "osx"
+    assert target.build_string == "py312_abi3_0"
+    # abi3 packages use the noarch python site-packages layout
+    assert target.site_packages_prefix == "site-packages"
+    assert target.python_version == "3.12"
+
+    # Windows abi3 target also uses noarch layout
+    md_win = MetadataFromWheel(
+        md={},
+        package_name="test",
+        version="1.0",
+        wheel_build_number="",
+        license=None,
+        dependencies=[],
+        wheel_info_dir=Path("."),
+        is_pure_python=False,
+        python_tag="cp310",
+        abi_tag="abi3",
+        platform_tag="win_amd64",
+    )
+    target_win = CondaTargetInfo.from_wheel_metadata(md_win, build_number=3)
+    assert target_win.is_abi3
+    assert target_win.subdir == "win-64"
+    assert target_win.build_string == "py310_abi3_3"
+    assert target_win.site_packages_prefix == "site-packages"
+
 
 def test_check_binary_conversion_local_version(tmp_path: Path) -> None:
     """Test that local version suffixes (e.g. +cu121) are rejected."""
@@ -1044,6 +1098,112 @@ def test_add_binary_dependencies_no_python_pin() -> None:
     result = converter._add_binary_dependencies(deps, target, "linux_x86_64")
     # No python pin added, original deps preserved
     assert "numpy >=1.20" in result
+
+
+def test_add_binary_dependencies_abi3() -> None:
+    """Test _add_binary_dependencies python floor for abi3 wheels (#183)."""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+
+    target = CondaTargetInfo(
+        subdir="osx-arm64",
+        arch="arm64",
+        platform="osx",
+        build_string="py312_abi3_0",
+        is_noarch=False,
+        site_packages_prefix="site-packages",
+        python_version="3.12",
+        is_abi3=True,
+    )
+
+    deps = ["numpy >=1.20", "python >=3.12"]
+    result = converter._add_binary_dependencies(deps, target, "macosx_11_0_arm64")
+
+    # Only a floor pin, no upper bound and no python_abi, no duplicates
+    assert result.count("python >=3.12") == 1
+    assert not any("," in d for d in result if d.startswith("python "))
+    assert not any(d.startswith("python_abi") for d in result)
+    assert any("__osx" in d for d in result)
+
+    # A tighter Requires-Python floor is preserved alongside the abi3 floor
+    deps = ["python >=3.13"]
+    result = converter._add_binary_dependencies(deps, target, "macosx_11_0_arm64")
+    assert "python >=3.13" in result
+    assert "python >=3.12" in result
+
+    # Floor is added even if the wheel had no python dependency
+    result = converter._add_binary_dependencies([], target, "macosx_11_0_arm64")
+    assert "python >=3.12" in result
+
+
+def test_add_binary_dependencies_python_override() -> None:
+    """Test that an explicit python version overrides binary pins (#183)."""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+    converter.python_version = ">=3.10"
+
+    target = CondaTargetInfo(
+        subdir="linux-64",
+        arch="x86_64",
+        platform="linux",
+        build_string="py312_0",
+        is_noarch=False,
+        site_packages_prefix="lib/python3.12/site-packages",
+        python_version="3.12",
+    )
+
+    # The override was already applied by _compute_conda_dependencies;
+    # no tight pin or python_abi should be added on top of it
+    deps = ["numpy >=1.20", "python >=3.10"]
+    result = converter._add_binary_dependencies(deps, target, "manylinux2014_x86_64")
+    assert [d for d in result if d.startswith("python")] == ["python >=3.10"]
+
+    # Same for abi3 targets: no additional floor is added
+    abi3_target = CondaTargetInfo(
+        subdir="linux-64",
+        arch="x86_64",
+        platform="linux",
+        build_string="py312_abi3_0",
+        is_noarch=False,
+        site_packages_prefix="site-packages",
+        python_version="3.12",
+        is_abi3=True,
+    )
+    result = converter._add_binary_dependencies(
+        ["python >=3.10"], abi3_target, "manylinux2014_x86_64"
+    )
+    assert [d for d in result if d.startswith("python")] == ["python >=3.10"]
+
+
+def test_convert_abi3_wheel(
+    test_case: ConverterTestCaseFactory,
+    simple_wheel: Path,
+    tmp_path: Path,
+) -> None:
+    """Test end-to-end conversion of an abi3 (stable ABI) wheel (#183)."""
+    good_wheel = WheelFile(simple_wheel)
+    extract_dir = tmp_path / "extract"
+    good_wheel.extractall(str(extract_dir))
+    extract_info_dir = next(extract_dir.glob("*.dist-info"))
+
+    WHEEL_file = extract_info_dir / "WHEEL"
+    WHEEL_msg = Wheel2CondaConverter.read_metadata_file(WHEEL_file)
+    WHEEL_msg.replace_header("Root-Is-Purelib", "False")
+    WHEEL_msg.replace_header("Tag", "cp312-abi3-macosx_11_0_arm64")
+    WHEEL_file.write_text(WHEEL_msg.as_string(), encoding="utf8")
+
+    abi3_wheel_name = simple_wheel.name.replace(
+        "py3-none-any", "cp312-abi3-macosx_11_0_arm64"
+    )
+    abi3_wheel = tmp_path / "abi3" / abi3_wheel_name
+    abi3_wheel.parent.mkdir(parents=True)
+    with WheelFile(str(abi3_wheel), "w") as wf:
+        wf.write_files(str(extract_dir))
+
+    case = test_case(abi3_wheel)
+    case.allow_impure = True
+    pkg_path = case.build()
+    assert "py312_abi3_0" in pkg_path.name
 
 
 def test_compute_conda_deps_with_marker_env() -> None:
