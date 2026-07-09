@@ -2,6 +2,27 @@
 
 This document describes the steps to create a new release of whl2conda.
 
+Releases are automated (#145): pushing a `vYY.M.patch` tag triggers the
+[release workflow](.github/workflows/release.yml), which builds the wheel,
+sdist, and conda package, publishes the wheel and sdist to PyPI, creates a
+GitHub release with notes taken from the changelog and the conda package
+attached, and deploys the versioned documentation to GitHub Pages.
+
+## One-time setup: PyPI trusted publisher
+
+The workflow authenticates to PyPI with [Trusted
+Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) — no API token
+secret is stored in the repository. This requires a one-time configuration in
+the [whl2conda project settings on PyPI](https://pypi.org/manage/project/whl2conda/settings/publishing/):
+
+- Owner: `zuzukin`, repository: `whl2conda`
+- Workflow name: `release.yml`
+- Environment name: `pypi`
+
+A matching `pypi` environment should also exist in the GitHub repository
+settings (Settings → Environments); it may optionally restrict deployments
+to `v*` tags.
+
 ## Versioning
 
 whl2conda uses calendar versioning (CalVer) in the format `YY.M.patch`:
@@ -56,90 +77,61 @@ pixi run typecheck
 
 Ensure all tests pass on the current branch. CI should also pass on all platforms.
 
-### 6. Build packages
-
-Clean any previous build artifacts and build fresh:
-
-```bash
-pixi run clean-build
-pixi run build
-```
-
-This builds both the wheel/sdist and the conda package.
-
-### 7. Verify packages
-
-Check that packages are well-formed:
-
-```bash
-pixi run check-upload
-```
-
-Optionally, test the conda package locally:
-
-```bash
-conda create -n test-whl2conda dist/*.conda
-conda activate test-whl2conda
-whl2conda --version
-whl2conda convert --help
-```
-
-### 8. Commit and tag
+### 6. Commit and merge to main
 
 ```bash
 git add src/whl2conda/VERSION CHANGELOG.md src/whl2conda/api/stdrename.json
 git commit -m "Release YY.M.patch"
-git tag vYY.M.patch
-```
-
-### 9. Push and verify CI
-
-```bash
 git push origin release/YY.M.patch
-git push origin vYY.M.patch
 ```
 
-Wait for CI to pass on the release branch.
+Create a PR from the release branch to `main`, wait for CI to pass, and merge it.
 
 ## Publish
 
-### 10. Upload to PyPI
+### 7. Push the release tag
+
+Tag the release commit on `main` and push the tag:
 
 ```bash
-pixi run upload
+git checkout main
+git pull
+git tag vYY.M.patch
+git push origin vYY.M.patch
 ```
 
-This runs `twine check` and then uploads the wheel and sdist to PyPI.
+This triggers the [release workflow](.github/workflows/release.yml), which:
 
-### 11. Create GitHub release
+1. Builds the wheel, sdist, and conda package, verifying that the tag
+   matches `src/whl2conda/VERSION`
+2. Publishes the wheel and sdist to PyPI
+3. Creates a GitHub release titled with the tag, using the matching
+   `CHANGELOG.md` section as notes, with the built packages attached
+4. Deploys the versioned documentation to gh-pages using mike
 
-Go to the [GitHub releases page](https://github.com/zuzukin/whl2conda/releases)
-and create a new release from the tag. Copy the relevant changelog entries into
-the release notes.
+Watch the workflow at the [actions page](https://github.com/zuzukin/whl2conda/actions)
+(or `gh run watch`), then verify:
 
-### 12. Deploy documentation
+- The new version appears on [PyPI](https://pypi.org/project/whl2conda/)
+- The [GitHub release](https://github.com/zuzukin/whl2conda/releases) looks right
+- The [documentation site](https://zuzukin.github.io/whl2conda/) shows the new version
 
-```bash
-pixi run doc-deploy
-pixi run doc-push
-```
-
-### 13. Merge to main
-
-Create a PR from the release branch to `main` and merge it.
+The build job can be exercised without releasing by running the workflow
+manually from the actions page (`workflow_dispatch`); publishing only happens
+on version tags.
 
 ## Post-release
 
-### 14. conda-forge update
+### 8. conda-forge update
 
 The [whl2conda-feedstock](https://github.com/conda-forge/whl2conda-feedstock)
 should automatically detect the new PyPI release and open a PR to update the
 conda-forge package. Review and merge that PR.
 
-### 15. Prepare for next development cycle
+### 9. Prepare for next development cycle
 
-After merging, update `src/whl2conda/VERSION` on `main` to the next expected
-version and add a new changelog section if not already present.
+Update `src/whl2conda/VERSION` on `main` to the next expected version and add
+a new changelog section if not already present.
 
 ## Pixi Tasks Reference
 

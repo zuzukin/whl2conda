@@ -1,0 +1,150 @@
+name: release
+
+# Automated release (#145): pushing a version tag (v*) builds the wheel,
+# sdist, and conda package, publishes the wheel and sdist to PyPI using
+# Trusted Publishing (OIDC), creates a GitHub release with notes from the
+# changelog and the conda package attached, and deploys the versioned
+# documentation to gh-pages with mike.
+#
+# workflow_dispatch runs only the build job, as a dry run.
+#
+# See RELEASING.md for the full release procedure.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: v0.48.2
+          cache: true
+
+      - name: Check tag matches VERSION file
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version="$(tr -d '[:space:]' < src/whl2conda/VERSION)"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match VERSION file ($version)"
+            exit 1
+          fi
+
+      - name: Install package
+        run: pixi run dev-install
+
+      - name: Build wheel, sdist and conda package
+        run: pixi run build
+
+      - name: Check packages
+        run: pixi run check-upload
+
+      - name: Upload PyPI distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: pypi-dist
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+
+      - name: Upload conda package
+        uses: actions/upload-artifact@v4
+        with:
+          name: conda-pkg
+          path: dist/*.conda
+
+  publish-pypi:
+    name: publish to PyPI
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # Uses Trusted Publishing (OIDC) — the publisher must be configured on
+    # PyPI for this repository, workflow release.yml, environment pypi.
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pypi-dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: create GitHub release
+    needs: [publish-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Extract changelog notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            $0 ~ "^## \\[" ver "\\]" { flag = 1; next }
+            /^## \[/ { flag = 0 }
+            flag
+          ' CHANGELOG.md > release-notes.md
+          if ! [ -s release-notes.md ]; then
+            echo "::warning::No changelog section found for $version"
+            echo "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md)" > release-notes.md
+          fi
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "whl2conda $GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            dist/*
+
+  docs:
+    name: deploy versioned docs
+    needs: [publish-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # mike pushes to the gh-pages branch
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # mike needs the gh-pages branch history
+
+      - name: Setup pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: v0.48.2
+          cache: true
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Install package
+        run: pixi run dev-install
+
+      - name: Build documentation
+        run: pixi run doc
+
+      - name: Deploy documentation to gh-pages
+        run: |
+          pixi run doc-deploy
+          pixi run doc-push

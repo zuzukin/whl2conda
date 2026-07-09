@@ -12,6 +12,12 @@
   in the wheel metadata and its PEP 503 normalized form, so patterns
   containing `_` or `.` work again. (#184)
 
+### Development
+
+* Automated release workflow: pushing a version tag publishes to PyPI
+  (trusted publishing), creates the GitHub release, and deploys the
+  versioned documentation (#145)
+
 ## [26.2.0] - 2026-2-22
 
 ### Features
