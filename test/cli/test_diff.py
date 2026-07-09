@@ -129,14 +129,16 @@ def test_diff_missing_info_files(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """
-    diff tolerates packages without an info/files entry (#192)
+    diff tolerates packages with missing info files (#192)
 
-    Packages built by rattler-build only contain info/paths.json.
+    In particular, packages built by rattler-build do not contain
+    an info/files entry.
     """
-    # repackage the test package without its info/files
+    # repackage the test package without most of its info files
     extract_dir = tmp_path / "extracted"
     cphapi.extract(str(simple_conda_package), str(extract_dir))
-    (extract_dir / "info" / "files").unlink()
+    for name in ["files", "about.json", "link.json", "index.json", "paths.json"]:
+        (extract_dir / "info" / name).unlink()
     cphapi.create(
         str(extract_dir), None, simple_conda_package.name, out_folder=str(tmp_path)
     )
@@ -149,7 +151,7 @@ def test_diff_missing_info_files(
         nonlocal diff_ran
         diff_ran = True
         for d in cmd[1:3]:
-            assert (Path(d) / "info" / "index.json").is_file()
+            assert (Path(d) / "info").is_dir()
 
     monkeypatch.setattr("subprocess.run", _fake_diff)
     monkeypatch.chdir(tmp_path)
