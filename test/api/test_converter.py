@@ -18,6 +18,7 @@ Unit tests for converter module
 from __future__ import annotations
 
 # standard
+import json
 import logging
 import platform
 import re
@@ -1251,6 +1252,143 @@ def test_convert_abi3_wheel(
     case.allow_impure = True
     pkg_path = case.build()
     assert "py312_abi3_0" in pkg_path.name
+
+
+# tags of a multi-platform ("fat") macosx wheel, in orjson's order (#201)
+FAT_WHEEL_TAGS = [
+    "cp313-cp313-macosx_10_15_x86_64",
+    "cp313-cp313-macosx_11_0_arm64",
+    "cp313-cp313-macosx_10_15_universal2",
+]
+
+
+def test_select_wheel_tag(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test platform tag selection for fat wheels (#201)."""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+
+    # single tag: chosen without further ado
+    assert (
+        converter._select_wheel_tag(["cp313-cp313-manylinux_2_17_x86_64"])
+        == "cp313-cp313-manylinux_2_17_x86_64"
+    )
+
+    # fat wheel: the current platform is preferred, with a warning
+    for native, expected in [
+        ("osx-arm64", "cp313-cp313-macosx_11_0_arm64"),
+        ("osx-64", "cp313-cp313-macosx_10_15_x86_64"),
+        # non-mac host: the universal2 rule selects osx-arm64, and the
+        # arch-specific arm64 tag is preferred within that subdir
+        ("linux-64", "cp313-cp313-macosx_11_0_arm64"),
+    ]:
+        monkeypatch.setattr(
+            "whl2conda.api.converter.native_conda_subdir", lambda sub=native: sub
+        )
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            assert converter._select_wheel_tag(FAT_WHEEL_TAGS) == expected
+        assert "multiple platforms" in caplog.text
+        assert "osx-arm64" in caplog.text and "osx-64" in caplog.text
+
+    # multiple tags for the same subdir: no warning, arch-specific preferred
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        assert (
+            converter._select_wheel_tag([
+                "cp39-abi3-macosx_10_15_universal2",
+                "cp39-abi3-macosx_11_0_arm64",
+            ])
+            == "cp39-abi3-macosx_11_0_arm64"
+        )
+        assert (
+            converter._select_wheel_tag([
+                "cp313-cp313-manylinux_2_17_x86_64",
+                "cp313-cp313-manylinux2014_x86_64",
+            ])
+            == "cp313-cp313-manylinux_2_17_x86_64"
+        )
+    assert not caplog.text
+
+
+def test_select_wheel_tag_override(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test explicit platform_tag override (#201)."""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+
+    converter.platform_tag = "macosx_10_15_x86_64"
+    with caplog.at_level(logging.WARNING):
+        assert (
+            converter._select_wheel_tag(FAT_WHEEL_TAGS)
+            == "cp313-cp313-macosx_10_15_x86_64"
+        )
+    assert not caplog.text
+
+    # case insensitive
+    converter.platform_tag = "MACOSX_10_15_UNIVERSAL2"
+    assert (
+        converter._select_wheel_tag(FAT_WHEEL_TAGS)
+        == "cp313-cp313-macosx_10_15_universal2"
+    )
+
+    converter.platform_tag = "win_amd64"
+    with pytest.raises(Wheel2CondaError, match=r"available:.*macosx_10_15_x86_64"):
+        converter._select_wheel_tag(FAT_WHEEL_TAGS)
+
+
+def test_convert_fat_wheel(
+    simple_wheel: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test end-to-end conversion of a fat macosx wheel (#201)."""
+    good_wheel = WheelFile(simple_wheel)
+    extract_dir = tmp_path / "extract"
+    good_wheel.extractall(str(extract_dir))
+    extract_info_dir = next(extract_dir.glob("*.dist-info"))
+
+    WHEEL_file = extract_info_dir / "WHEEL"
+    WHEEL_msg = Wheel2CondaConverter.read_metadata_file(WHEEL_file)
+    WHEEL_msg.replace_header("Root-Is-Purelib", "False")
+    del WHEEL_msg["Tag"]
+    for tag in FAT_WHEEL_TAGS:
+        WHEEL_msg["Tag"] = tag
+    WHEEL_file.write_text(WHEEL_msg.as_string(), encoding="utf8")
+
+    fat_wheel_name = simple_wheel.name.replace(
+        "py3-none-any",
+        "cp313-cp313-macosx_10_15_x86_64.macosx_11_0_arm64.macosx_10_15_universal2",
+    )
+    fat_wheel = tmp_path / "fat" / fat_wheel_name
+    fat_wheel.parent.mkdir(parents=True)
+    with WheelFile(str(fat_wheel), "w") as wf:
+        wf.write_files(str(extract_dir))
+
+    monkeypatch.setattr(
+        "whl2conda.api.converter.native_conda_subdir", lambda: "osx-arm64"
+    )
+
+    converter = Wheel2CondaConverter(fat_wheel, tmp_path / "out1")
+    converter.allow_impure = True
+    converter.convert()
+    assert converter.conda_target is not None
+    assert converter.conda_target.subdir == "osx-arm64"
+
+    # explicit override selects the other platform, with its __osx floor
+    converter = Wheel2CondaConverter(fat_wheel, tmp_path / "out2")
+    converter.allow_impure = True
+    converter.platform_tag = "macosx_10_15_x86_64"
+    converter.out_format = CondaPackageFormat.TREE
+    pkg_tree = converter.convert()
+    assert converter.conda_target is not None
+    assert converter.conda_target.subdir == "osx-64"
+    index = json.loads((pkg_tree / "info" / "index.json").read_text("utf8"))
+    assert index["subdir"] == "osx-64"
+    assert "__osx >=10.15" in index["depends"]
 
 
 def test_compute_conda_deps_with_marker_env() -> None:

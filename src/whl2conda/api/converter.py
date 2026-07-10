@@ -42,6 +42,7 @@ from conda_package_handling.api import create as create_conda_pkg
 
 # this project
 from ..__about__ import __version__
+from ..impl.conda_forge import native_conda_subdir
 from ..impl.prompt import bool_input
 from ..impl.pyproject import CondaPackageFormat
 from ..impl.wheel import unpack_wheel
@@ -548,6 +549,8 @@ class Wheel2CondaConverter:
     build_number: int | None = None
     allow_impure: bool = False
     for_conda_forge: bool = False
+    platform_tag: str = ""
+    """Wheel platform tag to convert for, when the wheel supports several."""
 
     wheel_md: MetadataFromWheel | None = None
     conda_target: CondaTargetInfo | None = None
@@ -1229,16 +1232,16 @@ class Wheel2CondaConverter:
             )
 
         # Pick the best py3-compatible tag
-        wheel_tag = ""
-        for tag in all_tags:
-            parts = tag.lower().split("-")
-            if parts[0].startswith("py3") or parts[0].startswith("cp3"):
-                wheel_tag = tag
-                break
-        if not wheel_tag:
+        py3_tags = [
+            tag
+            for tag in all_tags
+            if tag.lower().partition("-")[0].startswith(("py3", "cp3"))
+        ]
+        if not py3_tags:
             raise Wheel2CondaError(
                 f"Wheel {self.wheel_path} has no Python 3 compatible tag"
             )
+        wheel_tag = self._select_wheel_tag(py3_tags)
 
         if not self.allow_impure:
             if not is_pure_lib:
@@ -1256,6 +1259,84 @@ class Wheel2CondaConverter:
 
         python_tag, abi_tag, platform_tag = wheel_tags
         return is_pure_lib, wheel_build_number, python_tag, abi_tag, platform_tag
+
+    def _select_wheel_tag(self, tags: list[str]) -> str:
+        """Select the wheel tag to convert for.
+
+        Multi-platform ("fat") wheels carry one tag per supported
+        platform. If the `platform_tag` attribute is set, the matching
+        tag is used. Otherwise, the tag matching the current platform
+        is preferred, then a `universal2` tag (which is converted for
+        osx-arm64), and otherwise the wheel's first tag.
+
+        Args:
+            tags: the wheel's python-3 compatible tags, in wheel order
+
+        Returns:
+            The selected tag.
+
+        Raises:
+            Wheel2CondaError: if the `platform_tag` attribute does not
+                match any of the wheel's tags.
+        """
+
+        def tag_platform(tag: str) -> str:
+            return tag.lower().rpartition("-")[2]
+
+        if override := self.platform_tag.lower():
+            for tag in tags:
+                if tag_platform(tag) == override:
+                    return tag
+            platforms = sorted({tag_platform(tag) for tag in tags})
+            raise Wheel2CondaError(
+                f"Wheel {self.wheel_path} has no platform tag"
+                f" '{self.platform_tag}' - available: {', '.join(platforms)}"
+            )
+
+        if len(tags) == 1:
+            return tags[0]
+
+        def prefer_arch_specific(group: list[str]) -> str:
+            # a universal2 tag pairs with an arch-specific tag for the
+            # same subdir, whose __osx version floor is more accurate
+            for tag in group:
+                if not tag_platform(tag).endswith("universal2"):
+                    return tag
+            return group[0]
+
+        # group the tags by their conda subdir, keeping unsupported
+        # platform tags in their own groups
+        subdirs: dict[str, list[str]] = {}
+        for tag in tags:
+            try:
+                subdir, _arch, _platform = _parse_platform_tag(tag_platform(tag))
+            except Wheel2CondaError:
+                subdir = tag_platform(tag)
+            subdirs.setdefault(subdir, []).append(tag)
+
+        if len(subdirs) == 1:
+            return prefer_arch_specific(tags)
+
+        # A fat wheel spanning multiple conda subdirs: prefer the
+        # current platform, then a universal2 tag (osx-arm64).
+        chosen = ""
+        native = native_conda_subdir()
+        if native in subdirs:
+            chosen = native
+        else:
+            for subdir, group in subdirs.items():
+                if any(tag_platform(tag).endswith("universal2") for tag in group):
+                    chosen = subdir
+                    break
+        if not chosen:
+            chosen = next(iter(subdirs))
+        self._warn(
+            "Wheel supports multiple platforms (%s); converting for %s. "
+            "Use --platform-tag to override.",
+            ", ".join(sorted(subdirs)),
+            chosen,
+        )
+        return prefer_arch_specific(subdirs[chosen])
 
     def _parse_dist_metadata(
         self, wheel_info_dir: Path

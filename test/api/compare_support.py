@@ -105,12 +105,7 @@ COMPARISON_PACKAGES: tuple[ComparisonPackage, ...] = (
         notes="the wheel statically links OpenSSL",
     ),
     ComparisonPackage("bcrypt", "abi3"),
-    ComparisonPackage(
-        "orjson",
-        "rust",
-        xfail_reason="compound macosx platform tag maps to wrong subdir"
-        " (https://github.com/zuzukin/whl2conda/issues/201)",
-    ),
+    ComparisonPackage("orjson", "rust"),
     ComparisonPackage("rpds-py", "rust"),
     ComparisonPackage(
         "lxml",
