@@ -28,7 +28,7 @@ This could possibly be supported in the future (see [issue 78](https://github.co
 
 ## Cannot convert from eggs
 
-[Python egg files](https://packaging.python.org/en/latest/discussions/wheel-vs-egg/) 
+[Python egg files](https://packaging.python.org/en/latest/discussions/package-formats/) 
 are also not supported. Since this file format is deprecated and 
 [uploads to pypi are no longer allowed](https://blog.pypi.org/posts/2023-06-26-deprecate-egg-uploads/),
 we have no plans to support this format.

@@ -16,6 +16,7 @@ poetry.lock
 dist/
 htmlcov/
 site/
+.zensical/
 build/
 *.egg-info
 *.whl
