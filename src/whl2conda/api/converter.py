@@ -804,7 +804,7 @@ class Wheel2CondaConverter:
             "name": wheel_md.package_name,
             "platform": conda_target.platform,
             "subdir": conda_target.subdir,
-            "timestamp": int(time.time() + time.timezone),  # UTC timestamp
+            "timestamp": int(time.time() * 1000),  # milliseconds since epoch
             "version": wheel_md.version,
         }
         if conda_target.uses_noarch_python:

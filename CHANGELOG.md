@@ -19,6 +19,15 @@
 * Documentation is now generated with [Zensical](https://zensical.org)
   instead of the no-longer-maintained MkDocs/mkdocs-material (#173)
 
+### Bug fixes
+
+* The `timestamp` in the package's `index.json` is now written in
+  milliseconds since the epoch, matching conda-build and rattler-build.
+  It was previously written in seconds and was also incorrectly shifted
+  by the local timezone offset. (#193)
+* `whl2conda diff` no longer fails on packages that do not contain an
+  `info/files` entry, e.g. packages built by rattler-build (#192)
+
 ## [26.2.1] - 2026-7-9
 
 ### Bug fixes
