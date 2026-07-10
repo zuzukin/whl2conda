@@ -315,6 +315,29 @@ def test_file_content_difference(tmp_path: Path) -> None:
     assert find(result, DiffCategory.BINARY_CONTENT, Severity.EXPECTED)
 
 
+def test_file_content_line_endings(tmp_path: Path) -> None:
+    """Text files differing only in line endings are expected"""
+    pkg1 = make_pkg(
+        tmp_path / "pkg1",
+        files={
+            "site-packages/foo/a.py": "x = 1\ny = 2\n",
+            "site-packages/foo/b.py": "x = 1\n",
+        },
+    )
+    pkg2 = make_pkg(
+        tmp_path / "pkg2",
+        files={
+            "site-packages/foo/a.py": "x = 1\r\ny = 2\r\n",
+            "site-packages/foo/b.py": "x = 2\r\n",
+        },
+    )
+    result = compare(pkg1, pkg2)
+    line_endings = find(result, DiffCategory.FILE_CONTENT, Severity.EXPECTED)
+    assert [d.key for d in line_endings] == ["site-packages/foo/a.py"]
+    real = find(result, DiffCategory.FILE_CONTENT, Severity.ERROR)
+    assert [d.key for d in real] == ["site-packages/foo/b.py"]
+
+
 def test_file_missing_and_extra(tmp_path: Path) -> None:
     """One-sided payload files are errors, except benign categories"""
     pkg1 = make_pkg(

@@ -156,7 +156,9 @@ def test_compare_with_conda_forge(
         compare_report.add(entry, status="skipped", detail=str(ex))
         pytest.skip(str(ex))
     except urllib.error.URLError as ex:  # pragma: no cover - network
-        pytest.skip(f"network error querying {entry.pypi_name}: {ex}")
+        detail = f"network error querying {entry.pypi_name}: {ex}"
+        compare_report.add(entry, status="skipped", detail=detail)
+        pytest.skip(detail)
 
     try:
         wheel_file = _cached_download(
@@ -168,7 +170,9 @@ def test_compare_with_conda_forge(
                 common.conda_build, download_cache
             )
     except urllib.error.URLError as ex:  # pragma: no cover - network
-        pytest.skip(f"network error downloading {entry.pypi_name}: {ex}")
+        detail = f"network error downloading {entry.pypi_name}: {ex}"
+        compare_report.add(entry, status="skipped", detail=detail)
+        pytest.skip(detail)
 
     converter = Wheel2CondaConverter(wheel_file, out_dir=tmp_path)
     converter.allow_impure = True
