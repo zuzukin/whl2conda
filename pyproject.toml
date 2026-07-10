@@ -61,6 +61,7 @@ twine = ">=6.2"
 
 [tool.pixi.feature.test.dependencies]
 mypy = ">=1.8,<2.0"
+packaging = ">=23"
 pyright = ">=1.1,<2.0"
 pytest = ">=7.4,<8.0"
 pytest-cov = ">=4.1.0,<5.0"
@@ -145,6 +146,10 @@ cmd = "pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term --run-e
 description = "Run tests with coverage including external tests"
 inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
 outputs = ["coverage.json", ".coverage"]
+
+[tool.pixi.tasks.compare-conda-forge]
+cmd = "pytest -s test/api/test_compare_conda_forge.py --run-external --run-slow"
+description = "Compare binary wheel conversions against real conda-forge packages (network)"
 
 # Platform-specific tasks for external coverage that include conda in PATH
 [tool.pixi.tasks.external-coverage-win]

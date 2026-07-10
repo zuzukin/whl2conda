@@ -33,6 +33,8 @@ coverage.xml
 # Generated files
 doc/whl2conda-cli.md
 test/packages-with-renamed-dependencies.json
+compare-report.json
+compare-report.md
 
 # git merge turd files
 *.orig
