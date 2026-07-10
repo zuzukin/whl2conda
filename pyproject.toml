@@ -181,16 +181,21 @@ description = "Generate CLI documentation from help text"
 inputs = ["src/whl2conda/cli/**/*.py"]
 outputs = ["doc/reference/cli/whl2conda*.md"]
 
+# Always build with a clean cache (and clear it before serving): zensical
+# 0.0.50 caches page HTML before cross-references are resolved, so builds
+# reusing a stale .cache/ render literal [title][id] text instead of links
+# (https://github.com/zensical/zensical/issues/805, fix expected > 0.0.50).
+# Drop --clean / the rm when upgrading to a release containing the fix.
 [tool.pixi.tasks.doc]
 depends-on = ["build-cli-docs"]
-cmd = "zensical build"
+cmd = "zensical build --clean"
 description = "Build documentation with Zensical"
 inputs = ["zensical.toml", "doc/**/*.md", "src/whl2conda/api/**/*.py"]
 outputs = ["site/**/*"]
 
 [tool.pixi.tasks.doc-serve]
 depends-on = ["build-cli-docs"]
-cmd = "zensical serve"
+cmd = "rm -rf .cache && zensical serve"
 description = "Serve documentation locally for development"
 inputs = ["zensical.toml", "doc/**/*.md", "src/whl2conda/api/**/*.py"]
 
@@ -291,7 +296,7 @@ cmd = "rm -rf htmlcov .coverage coverage.json coverage.xml"
 description = "Remove coverage reports and data"
 
 [tool.pixi.tasks.clean-doc]
-cmd = "rm -rf site .zensical doc/reference/cli/whl2conda*.md"
+cmd = "rm -rf site .zensical .cache doc/reference/cli/whl2conda*.md"
 description = "Remove generated documentation files"
 
 [tool.pixi.tasks.clean-build]

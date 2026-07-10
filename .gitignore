@@ -17,6 +17,7 @@ dist/
 htmlcov/
 site/
 .zensical/
+.cache/
 build/
 *.egg-info
 *.whl
