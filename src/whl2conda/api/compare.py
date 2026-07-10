@@ -355,9 +355,9 @@ class _ExtractedPackage:
 
     @cached_property
     def all_files(self) -> list[str]:
-        """All non-info files, relative to the package root."""
+        """All non-info files, relative to the package root (posix style)."""
         return sorted(
-            str(f.relative_to(self.root))
+            f.relative_to(self.root).as_posix()
             for f in self.root.rglob("*")
             if f.is_file() and f.relative_to(self.root).parts[0] != "info"
         )
@@ -682,7 +682,9 @@ class _PackageComparer:
             if not info_dir.is_dir():
                 return set()
             return {
-                str(f.relative_to(pkg.root)) for f in info_dir.rglob("*") if f.is_file()
+                f.relative_to(pkg.root).as_posix()
+                for f in info_dir.rglob("*")
+                if f.is_file()
             }
 
         files1 = info_files(self.pkg1)
