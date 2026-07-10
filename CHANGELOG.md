@@ -27,6 +27,14 @@
 
 ### Changes
 
+* Binary wheel conversion (`--allow-impure`) is no longer labeled
+  experimental: conversions of representative C, C++, Cython, rust, and
+  abi3 extension packages are verified to be semantically equivalent to
+  the corresponding conda-forge packages on linux, macOS, and windows by
+  the new comparison suite. The converter now emits a targeted warning
+  when a wheel bundles vendored shared libraries (the main remaining
+  limitation) instead of a blanket experimental warning on every binary
+  conversion.
 * `whl2conda install` no longer checks the conda-libmamba-solver version
   or switches target environments to the classic solver. That workaround
   was only needed for conda-libmamba-solver older than 24.1.0, which fixed

@@ -50,9 +50,8 @@ in a future release. See [issue 36](https://github.com/zuzukin/whl2conda/issues/
 
 By default, only generic python conda packages with `noarch: python` will be generated.
 
-Experimental support for converting binary wheels is available using the
-`--allow-impure` flag. See the [Binary Conversion](binary-conversion.md) guide
-for details and limitations.
+Binary wheels can be converted using the `--allow-impure` flag. See the
+[Binary Conversion](binary-conversion.md) guide for details and limitations.
 
 ## Dependencies with environment markers
 

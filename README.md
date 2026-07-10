@@ -45,17 +45,22 @@ generated directly from pure python wheels.
 * **Hides pypi dependencies**: rewrites the original pip/pypi dependencies in the
     installed dist-info to avoid [compatibility issues](https://zuzukin.github.io/whl2conda/latest/guide/renaming.html#hide-pip).
 
-* **Experimental binary support**: can convert non-pure Python wheels containing
+* **Binary wheel support**: can convert non-pure Python wheels containing
     binary extensions (`.so`, `.pyd`) into platform-specific conda packages using
     the `--allow-impure` flag. Automatically generates tight Python version pins
-    and OS constraints from wheel platform tags.
+    and OS constraints from wheel platform tags, with special support for
+    stable ABI (abi3) and multi-platform (fat) wheels. Conversions of
+    representative C, C++, Cython, rust, and abi3 extension packages are
+    regularly verified to be equivalent to the corresponding conda-forge
+    packages on linux, macOS, and windows.
 
-    **Limitations**: Binary conversion works best for **simple C extension packages**
-    (e.g., markupsafe, wrapt, ujson) where the wheel is self-contained. It will
-    refuse to convert packages known to bundle complex runtime libraries (PyTorch,
-    TensorFlow, CUDA packages, etc.) or wheels with local version suffixes
-    (e.g., `+cu121`). For complex GPU/CUDA packages, use conda-forge
-    packages instead.
+    **Limitations**: Binary conversion is designed for **self-contained
+    extension packages** (e.g., markupsafe, cryptography, orjson). Wheels
+    that bundle vendored shared libraries (e.g., lxml, pillow) convert with
+    a warning but bypass conda's dependency management for those libraries,
+    and wheels with local version suffixes (e.g., `+cu121` variant builds)
+    are refused. For complex GPU/CUDA packages, use conda-forge packages
+    instead.
 
 
 ## Installation

@@ -108,7 +108,7 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
     input_opts = parser.add_argument_group("Input options")
     output_opts = parser.add_argument_group("Output options")
     override_opts = parser.add_argument_group("Override options")
-    experimental_opts = parser.add_argument_group("Experimental options")
+    binary_opts = parser.add_argument_group("Binary conversion options")
     info_opts = parser.add_argument_group("Help and debug options")
 
     input_opts.add_argument(
@@ -287,19 +287,19 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
         help="Set/override python dependency.",
     )
 
-    experimental_opts.add_argument(
+    binary_opts.add_argument(
         "--allow-impure",
         action="store_true",
         help=dedent("""
-            Allow experimental conversion of non-pure python wheels
-            containing binary extensions into platform-specific conda packages.
+            Allow conversion of non-pure python wheels containing
+            binary extensions into platform-specific conda packages.
             Generates tight Python version pins and OS constraints from wheel
             tags. Stable ABI (abi3) wheels are only pinned to a minimum python
             version. Use --python to override the generated python dependency.
         """),
     )
 
-    experimental_opts.add_argument(
+    binary_opts.add_argument(
         "--for-conda-forge",
         "--for-cpython",
         dest="for_conda_forge",
@@ -313,7 +313,7 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
         """),
     )
 
-    platform_opts = experimental_opts.add_mutually_exclusive_group()
+    platform_opts = binary_opts.add_mutually_exclusive_group()
     platform_opts.add_argument(
         "--platform-tag",
         metavar="<tag>",
@@ -335,7 +335,7 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
         """),
     )
 
-    experimental_opts.add_argument(
+    binary_opts.add_argument(
         "--download-platform",
         metavar="<tag>",
         help=dedent("""
@@ -345,7 +345,7 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
             Implies --allow-impure.
         """),
     )
-    experimental_opts.add_argument(
+    binary_opts.add_argument(
         "--download-python-version",
         metavar="<ver>",
         help=dedent("""
@@ -353,7 +353,7 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
             Used with --from-pypi or --from-index.
         """),
     )
-    experimental_opts.add_argument(
+    binary_opts.add_argument(
         "--download-abi",
         metavar="<tag>",
         help=dedent("""
