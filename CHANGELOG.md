@@ -34,6 +34,12 @@
 
 * Documentation is now generated with [Zensical](https://zensical.org)
   instead of the no-longer-maintained MkDocs/mkdocs-material (#173)
+* New external comparison test suite (`pixi run compare-conda-forge`)
+  converts a curated sample of binary PyPI packages and semantically
+  compares the results against the corresponding conda-forge packages,
+  building evidence toward removing the experimental label from binary
+  conversion. Supersedes the `research/compare_packages.py` prototype,
+  which has been removed.
 
 ### Bug fixes
 

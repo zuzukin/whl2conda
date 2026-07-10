@@ -142,6 +142,25 @@ runtime dependencies are available as conda packages. Examples include:
 - **pyyaml** — YAML parser with C library (libyaml)
 - **msgpack** — MessagePack serializer
 
+## Validation against conda-forge
+
+The whl2conda test suite includes an external comparison suite that
+converts a curated sample of representative binary PyPI packages
+(C extensions, Cython, stable-ABI and non-abi3 rust extensions, and
+packages with bundled libraries) and semantically compares each result
+against the real conda-forge package of the same version using
+`whl2conda diff`. Developers can run it with:
+
+```bash
+pixi run compare-conda-forge
+```
+
+This requires network access, downloads packages from PyPI and
+anaconda.org (cached across runs), and writes a summary report to
+`compare-report.md` / `compare-report.json`. The results of this suite
+are the evidence base for eventually removing the experimental label
+from binary conversion.
+
 ## Known limitations
 
 ### Local version suffixes
