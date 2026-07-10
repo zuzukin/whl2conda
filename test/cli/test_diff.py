@@ -19,6 +19,7 @@ Unit test for `whl2conda diff` subcommand
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from pathlib import Path
 
@@ -47,17 +48,12 @@ def test_diff_errors(
     with pytest.raises(SystemExit):
         main(["diff"])
     _, err = capsys.readouterr()
-    assert re.search(r"are required:.*package1.*package2.*--diff-tool", err)
+    assert re.search(r"are required:.*package1.*package2", err)
 
     with pytest.raises(SystemExit):
         main(["diff", str(simple_conda_package)])
     _, err = capsys.readouterr()
-    assert re.search(r"are required:.*package2.*--diff-tool", err)
-
-    with pytest.raises(SystemExit):
-        main(["diff", str(simple_conda_package), str(simple_conda_package)])
-    _, err = capsys.readouterr()
-    assert re.search(r"are required:.*--diff-tool", err)
+    assert re.search(r"are required:.*package2", err)
 
     with pytest.raises(SystemExit):
         main(["diff", str(simple_conda_package), "does-not-exist"])
@@ -158,3 +154,59 @@ def test_diff_missing_info_files(
 
     main(["diff", str(simple_conda_package), str(stripped_package), "-T", "diff"])
     assert diff_ran
+
+
+def test_diff_analysis(
+    capsys: pytest.CaptureFixture,
+    tmp_path: Path,
+    simple_conda_package: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Test semantic analysis mode (no -T)
+    """
+    monkeypatch.chdir(tmp_path)
+    pkg = str(simple_conda_package)
+
+    # self comparison: report with no errors, exit code 0
+    main(["diff", pkg, pkg])
+    out, err = capsys.readouterr()
+    assert not err
+    assert "0 errors, 0 notices" in out
+
+    # --json produces valid json
+    main(["diff", pkg, pkg, "--json"])
+    out, err = capsys.readouterr()
+    jobj = json.loads(out)
+    assert jobj["ok"] is True
+    assert jobj["differences"] == []
+
+    # mutated copy: unexpected difference reported, exit code 1
+    extract_dir = tmp_path / "mutated"
+    cphapi.extract(pkg, str(extract_dir))
+    index_file = extract_dir / "info" / "index.json"
+    index = json.loads(index_file.read_text("utf8"))
+    index["depends"].append("added-dep >=1")
+    index_file.write_text(json.dumps(index))
+    (extract_dir / "info" / "files").unlink()
+    cphapi.create(
+        str(extract_dir), None, simple_conda_package.name, out_folder=str(tmp_path)
+    )
+    mutated_pkg = str(tmp_path / simple_conda_package.name)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["diff", pkg, mutated_pkg])
+    assert exc_info.value.code == 1
+    out, err = capsys.readouterr()
+    assert "added-dep" in out
+    assert "1 errors" in out
+
+    # --ignore suppresses the error and restores exit code 0
+    main(["diff", pkg, mutated_pkg, "--ignore", "dep-missing"])
+    out, err = capsys.readouterr()
+    assert "0 errors" in out
+
+    # --all also reports expected differences (one-sided info/files)
+    main(["diff", pkg, mutated_pkg, "--ignore", "dep-missing", "--all"])
+    out, err = capsys.readouterr()
+    assert "info/files" in out

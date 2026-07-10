@@ -46,35 +46,48 @@ $ whl2conda install mypackage-1.2.3-py_0.conda --conda-bld
 ## Comparing packages
 
 You may wish to compare generated packages against those generated
-by conda-build in order both to understand what this tool is doing
-and to verify that nothing important is missing. You can do this
-using the `whl2conda diff` command with your favorite directory
-diff tool. This will unpack the packages into temporary directories,
-normalize the metadata files to minimize mismatches and run the
-specified diff tool with the given arguments.
-
-For instance,
+by conda-build or rattler-build (e.g. from conda-forge) in order both
+to understand what this tool is doing and to verify that nothing
+important is missing. You can do this with the `whl2conda diff`
+command:
 
 ```bash
 $ whl2conda diff \
    dist/mypackage-1.2.3-py_0.conda \
-   ~/miniforge3/conda-bld/noarch/mypackage-1.2.3-py_90.tar.bz2 \
-   kdiff3
+   ~/miniforge3/conda-bld/noarch/mypackage-1.2.3-py_0.tar.bz2
 ```
 
-Note that some differences are expected in the `info/` directory,
-specifically:
+By default, this semantically analyzes the differences between the two
+packages and prints a report of notable and unexpected differences —
+missing dependencies, missing or altered files, unrenamed pip
+dependencies, mismatched entry points, and so on — while suppressing
+differences that are *expected* when comparing a whl2conda-generated
+package against a recipe-built one, such as differing build strings and
+timestamps, run-export dependencies added by compilers, regenerated
+entry point scripts, differing binary module contents, and dist-info
+bookkeeping details. The command exits with a non-zero status if any
+unexpected differences are found, so it can be used in scripts and CI.
 
-* packages generated with whl2conda will not have a copy of the recipe
-   or test directory
-* the about.json file may differ
-* the timestamp will be different in the `index.json` file
-* the `paths.json` file should reflect any files that differ
+Useful options (see the
+[command reference](../reference/cli/whl2conda-diff.md) for the full list):
 
-There are also expected to be changes in the `site-packages/*dist-info/`
-for the package:
+* `--all` also shows the expected differences
+* `--strict` treats notable differences as errors
+* `--ignore <category>` suppresses a category of differences
+* `--run-export <name>` treats additional dependency names as benign
+  run-exports when only present in the reference package
+* `--json` emits the analysis as JSON
 
-* the `INSTALLER` file will contain `whl2conda` instead of `conda`
-* the `Requires-Dist` entries in `METADATA` will be modified to add
-    `; extra = 'original'`
+Alternatively, you can inspect the raw differences with your favorite
+directory diff tool using the `-T` option. This will unpack the
+packages into temporary directories, normalize the metadata files to
+minimize mismatches and run the specified diff tool with the given
+arguments:
+
+```bash
+$ whl2conda diff \
+   dist/mypackage-1.2.3-py_0.conda \
+   ~/miniforge3/conda-bld/noarch/mypackage-1.2.3-py_0.tar.bz2 \
+   -T kdiff3
+```
 
