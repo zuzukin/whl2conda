@@ -307,6 +307,12 @@ _SITE_PACKAGES_RE = re.compile(
 )
 _SCRIPTS_RE = re.compile(r"(?:bin|Scripts|python-scripts)/(?P<rel>.+)$")
 
+# ABI-specific part of an extension module file name, e.g.
+# foo.cpython-313-darwin.so / foo.abi3.so / foo.cp313-win_amd64.pyd
+_EXT_MODULE_TAG_RE = re.compile(
+    r"\.(cpython-\d+t?[\w-]*|abi3|cp\d+t?[\w-]*|pypy\d*[\w-]*)(?P<suffix>\.(so|pyd))$"
+)
+
 
 class _ExtractedPackage:
     """Provides access to the contents of an extracted conda package."""
@@ -372,6 +378,9 @@ class _ExtractedPackage:
                 key = f"scripts/{m.group('rel')}"
             else:
                 key = relpath
+            # strip the ABI-specific part of extension module names, so
+            # that e.g. an abi3 build pairs up with a per-version build
+            key = _EXT_MODULE_TAG_RE.sub(r"\g<suffix>", key)
             result[key] = relpath
         return result
 
@@ -775,6 +784,13 @@ class _PackageComparer:
                     Severity.EXPECTED,
                     key,
                     "script shipped as file in reference package",
+                )
+            elif key.startswith("etc/conda/test-files/"):
+                self._add(
+                    DiffCategory.INFO_EXTRA_FILE,
+                    Severity.EXPECTED,
+                    key,
+                    "recipe test data only in reference package",
                 )
             elif re.search(r"(^|/)(licenses?|share/doc)/", key, re.IGNORECASE):
                 self._add(

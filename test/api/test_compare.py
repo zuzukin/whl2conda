@@ -339,6 +339,47 @@ def test_file_missing_and_extra(tmp_path: Path) -> None:
     assert find(result, DiffCategory.FILE_MISSING, Severity.EXPECTED)  # license
 
 
+def test_extension_module_abi_tags(tmp_path: Path) -> None:
+    """Extension modules pair up across differing ABI tag file names"""
+    pkg1 = make_pkg(
+        tmp_path / "pkg1",
+        files={
+            "site-packages/foo/_native.abi3.so": b"\x7fELF-abi3",
+            "site-packages/foo/_other.cpython-313-darwin.so": b"\x7fELF-one",
+        },
+    )
+    pkg2 = make_pkg(
+        tmp_path / "pkg2",
+        files={
+            "lib/python3.13/site-packages/foo/_native.cpython-313-darwin.so": (
+                b"\x7fELF-cp313"
+            ),
+            "lib/python3.13/site-packages/foo/_other.cp313-win_amd64.pyd": (
+                b"\x7fELF-two"
+            ),
+        },
+    )
+    result = compare(pkg1, pkg2)
+    # _native pairs up as an expected binary difference; _other still
+    # differs in the real suffix (.so vs .pyd) so remains one-sided
+    binary = find(result, DiffCategory.BINARY_CONTENT, Severity.EXPECTED)
+    assert [d.key for d in binary] == ["site-packages/foo/_native.so"]
+    missing = find(result, DiffCategory.FILE_MISSING)
+    assert [d.key for d in missing] == ["site-packages/foo/_other.pyd"]
+
+
+def test_recipe_test_files_expected(tmp_path: Path) -> None:
+    """Recipe test data under etc/conda/test-files is expected"""
+    pkg1 = make_pkg(tmp_path / "pkg1")
+    pkg2 = make_pkg(
+        tmp_path / "pkg2",
+        files={"etc/conda/test-files/foo/1/tests/test_foo.py": "def test(): pass\n"},
+    )
+    result = compare(pkg1, pkg2)
+    assert result.ok
+    assert find(result, DiffCategory.INFO_EXTRA_FILE, Severity.EXPECTED)
+
+
 def test_entry_points(tmp_path: Path) -> None:
     """Entry points matched by name across delivery mechanisms"""
     pkg1 = make_pkg(
