@@ -287,40 +287,6 @@ def conda_env_install(parsed: InstallArgs, dependencies: list[str]):
             else:
                 subprocess.check_call(install_pkg_cmd)
 
-        check_libmamba_cmd = [
-            "conda",
-            "list",
-            "-n",
-            "base",
-            "conda-libmamba-solver",
-            "--json",
-        ]
-        if parsed.dry_run:
-            print("running ", check_libmamba_cmd)
-        else:
-            jsonstr = subprocess.check_output(check_libmamba_cmd, encoding="utf-8")
-            jobj = json.loads(jsonstr)
-            version_str = jobj and jobj[0].get("version")
-            version = tuple(int(s) for s in version_str.split("."))
-            if version < (24, 1, 0):
-                # Workaround for https://github.com/conda/conda/issues/13479
-                # If a package is installed directly from file, then set solver to classic
-                set_solver_cmd = [
-                    "conda",
-                    "run",
-                    *env_opts,
-                    "conda",
-                    "config",
-                    "--env",
-                    "--set",
-                    "solver",
-                    "classic",
-                ]
-                if parsed.dry_run:
-                    print("Running ", set_solver_cmd)
-                else:
-                    subprocess.check_call(set_solver_cmd)
-
 
 conda_depend_re = re.compile(r"\s*(?P<name>[\w\d.-]+)\s*(?P<version>.*)")
 

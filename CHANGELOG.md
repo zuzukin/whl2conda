@@ -14,6 +14,16 @@
   python pins used by conda-forge (`cpython` and `_python_abi3_support`)
   when converting stable ABI (abi3) wheels (#194)
 
+### Changes
+
+* `whl2conda install` no longer checks the conda-libmamba-solver version
+  or switches target environments to the classic solver. That workaround
+  was only needed for conda-libmamba-solver older than 24.1.0, which fixed
+  the underlying file-install issue
+  ([conda-libmamba-solver#418](https://github.com/conda/conda-libmamba-solver/issues/418)).
+  This also removes a crash when conda-libmamba-solver was not installed
+  in the base environment.
+
 ### Development
 
 * Documentation is now generated with [Zensical](https://zensical.org)
