@@ -31,11 +31,6 @@ them in a single install command, e.g.:
 $ whl2conda install mypackage-1.2.3-py_0.conda mycorepackage-1.2.3-py_0.conda ...
 ```
 
-**NOTE**: *in order to work around an [issue](https://github.com/conda/conda/issues/13479)
-with conda install when using the default libmamba solver, `whl2conda install` will
-configure the target environment to use the classic solver, which can result in slower installs.
-If this is a problem, you can instead use mamba.*
-
 ## Installing into conda-bld
 
 Once you are done testing, you may upload your package to a
