@@ -203,8 +203,17 @@ whl2conda convert orjson-3.11.9-*.whl --allow-impure \
     --platform-tag macosx_10_15_x86_64
 ```
 
-There is currently no way to produce packages for several architectures
-in a single conversion.
+Alternatively, `--all-platforms` generates one package per supported
+platform in a single conversion, writing each package into a
+`<subdir>/` subdirectory of the output directory (packages for
+different platforms cannot share a directory, since conda package
+file names do not include the platform):
+
+```bash
+whl2conda convert orjson-3.11.9-*.whl --allow-impure --all-platforms
+# -> out-dir/osx-64/orjson-3.11.9-py313_0.conda
+#    out-dir/osx-arm64/orjson-3.11.9-py313_0.conda
+```
 
 ### No pre-compiled `.pyc` files
 

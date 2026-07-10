@@ -572,6 +572,67 @@ class Wheel2CondaConverter:
         # TODO - option to ignore this
         self.std_renames = load_std_renames(update=update_std_renames)
 
+    def convert_all(self) -> list[Path]:
+        """
+        Convert wheel to a conda package for every platform it supports.
+
+        Produces one conda package per conda platform (subdir) supported
+        by the wheel, each written into a `<subdir>/` subdirectory of the
+        output directory - conda package file names do not include the
+        platform, so packages for multiple platforms cannot share a
+        directory. A pure python or single-platform wheel produces a
+        single package (under `noarch/` or its platform subdirectory).
+
+        Returns:
+            Paths of the converted conda packages.
+        """
+        packages: list[Path] = []
+        saved_out_dir = self.out_dir
+        saved_platform_tag = self.platform_tag
+        try:
+            for subdir, platform_tag in self._platform_groups().items():
+                self.out_dir = Path(saved_out_dir) / subdir
+                self.platform_tag = "" if platform_tag == "any" else platform_tag
+                packages.append(self.convert())
+        finally:
+            self.out_dir = saved_out_dir
+            self.platform_tag = saved_platform_tag
+        return packages
+
+    def _platform_groups(self) -> dict[str, str]:
+        """Preferred wheel platform tag per conda subdir of this wheel."""
+        with tempfile.TemporaryDirectory(prefix="whl2conda-") as temp_dirname:
+            extracted_wheel_dir = self._extract_wheel(Path(temp_dirname))
+            info_dir = next(extracted_wheel_dir.glob("*.dist-info"))
+            WHEEL_msg = self.read_metadata_file(info_dir / "WHEEL")
+        all_tags = WHEEL_msg.get_all("Tag") or ["py3-none-any"]
+
+        result: dict[str, str] = {}
+        for tag in all_tags:
+            if not tag.lower().partition("-")[0].startswith(("py3", "cp3")):
+                continue
+            platform_tag = tag.lower().rpartition("-")[2]
+            if platform_tag == "any":
+                subdir = "noarch"
+            else:
+                try:
+                    subdir, _arch, _platform = _parse_platform_tag(platform_tag)
+                except Wheel2CondaError:
+                    subdir = platform_tag
+            existing = result.get(subdir)
+            # prefer an arch-specific tag over universal2 (see
+            # _select_wheel_tag), otherwise keep the wheel's first tag
+            if existing is None or (
+                existing.endswith("universal2")
+                and not platform_tag.endswith("universal2")
+            ):
+                result[subdir] = platform_tag
+        if not result:
+            raise Wheel2CondaError(
+                f"Wheel {self.wheel_path} has no Python 3 compatible tag"
+            )
+        return result
+
     def convert(self) -> Path:
         """
         Convert wheel to conda package

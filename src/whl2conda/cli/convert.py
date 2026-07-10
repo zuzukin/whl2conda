@@ -52,6 +52,7 @@ class ConvertArgs:
     Parsed arguments
     """
 
+    all_platforms: bool
     allow_impure: bool
     allow_metadata_version: str
     build_number: int | None
@@ -325,6 +326,17 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
     )
 
     experimental_opts.add_argument(
+        "--all-platforms",
+        action="store_true",
+        help=dedent("""
+            Generate a conda package for every platform supported by
+            the wheel, each written into a <subdir>/ subdirectory of
+            the output directory (e.g. osx-arm64/). May not be
+            combined with --platform-tag.
+        """),
+    )
+
+    experimental_opts.add_argument(
         "--download-platform",
         metavar="<tag>",
         help=dedent("""
@@ -448,6 +460,9 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
                 "--download-platform, --download-python-version, and --download-abi "
                 "require --from-pypi or --from-index"
             )
+
+    if parsed.all_platforms and parsed.platform_tag:
+        parser.error("--all-platforms cannot be combined with --platform-tag")
 
     wheel_or_root = parsed.wheel_or_root
     saw_positional_root = False
@@ -635,7 +650,10 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
 
         converter.dependency_rename.extend(renames)
 
-        _conda_package = converter.convert()
+        if parsed.all_platforms:
+            converter.convert_all()
+        else:
+            converter.convert()
 
 
 def do_build_wheel(

@@ -21,6 +21,9 @@
   available programmatically as `whl2conda.api.compare`.
 * New `--platform-tag` option selects the wheel platform tag to convert
   for when converting a multi-platform ("fat") binary wheel (#201)
+* New `--all-platforms` option generates a conda package for every
+  platform supported by the wheel, each written into a `<subdir>/`
+  subdirectory of the output directory (#204)
 
 ### Changes
 
