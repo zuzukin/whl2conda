@@ -608,8 +608,9 @@ class Wheel2CondaConverter:
             self._copy_wheel_files(extracted_wheel_dir, conda_dir)
 
             # collect relative paths before constructing info/ directory
+            # (posix style - conda package paths always use forward slashes)
             rel_files = [
-                str(f.relative_to(conda_dir))
+                f.relative_to(conda_dir).as_posix()
                 for f in conda_dir.glob("**/*")
                 if f.is_file()
             ]

@@ -13,6 +13,12 @@
 * New `--for-conda-forge` option (synonym: `--for-cpython`) adds the CEP-20
   python pins used by conda-forge (`cpython` and `_python_abi3_support`)
   when converting stable ABI (abi3) wheels (#194)
+* `whl2conda diff` now semantically analyzes the differences between two
+  conda packages by default, reporting notable and unexpected differences
+  while suppressing differences expected between whl2conda-generated and
+  recipe-built packages. The `-T`/`--diff-tool` option is now optional and
+  selects the previous raw diff behavior. The analysis engine is also
+  available programmatically as `whl2conda.api.compare`.
 
 ### Changes
 
@@ -37,6 +43,9 @@
   by the local timezone offset. (#193)
 * `whl2conda diff` no longer fails on packages that do not contain an
   `info/files` entry, e.g. packages built by rattler-build (#192)
+* Packages converted on Windows no longer contain backslash path
+  separators in `info/paths.json` and `info/files`, which violated
+  the conda package format (#203)
 
 ## [26.2.1] - 2026-7-9
 
