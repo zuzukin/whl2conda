@@ -636,7 +636,7 @@ def test_to_json_fallback_value(tmp_path: Path) -> None:
         left=Path("some/path"),
     )
     jobj = ComparisonResult(tmp_path, tmp_path, [diff]).to_json()
-    assert jobj["differences"][0]["left"] == "some/path"
+    assert jobj["differences"][0]["left"] == str(Path("some/path"))
 
 
 def test_default_renames(
