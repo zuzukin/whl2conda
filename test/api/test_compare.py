@@ -52,6 +52,7 @@ def make_pkg(
     build: str = "py_0",
     build_number: int = 0,
     license: str = "MIT",  # pylint: disable=redefined-builtin
+    timestamp: int = 1234567890000,
     about: dict | None = None,
     extra_info_files: Sequence[str] = (),
     paths_override: Sequence[str] | None = None,
@@ -69,7 +70,7 @@ def make_pkg(
         "build": build,
         "build_number": build_number,
         "license": license,
-        "timestamp": 1234567890000,
+        "timestamp": timestamp,
     }
     if noarch:
         index["noarch"] = noarch
@@ -490,6 +491,178 @@ def test_to_json(tmp_path: Path) -> None:
     assert "dep-missing" in categories
     severities = {d["severity"] for d in jobj["differences"]}
     assert severities <= {"EXPECTED", "NOTICE", "ERROR"}
+
+
+def test_about_and_timestamp(tmp_path: Path) -> None:
+    """One-sided about fields and timestamp differences are expected"""
+    pkg1 = make_pkg(
+        tmp_path / "pkg1",
+        timestamp=1,
+        about={"summary": "test", "home": "https://example.com"},
+    )
+    pkg2 = make_pkg(tmp_path / "pkg2", timestamp=2, about={"summary": "TEST  "})
+    result = compare(pkg1, pkg2)
+    assert result.ok
+    # one-sided home field is expected; summary equal modulo case/whitespace
+    assert find(result, DiffCategory.ABOUT_FIELD, Severity.EXPECTED)
+    assert not find(result, DiffCategory.ABOUT_FIELD, Severity.NOTICE)
+    assert find(result, DiffCategory.TIMESTAMP, Severity.EXPECTED)
+
+
+def test_paths_json_unlisted_file(tmp_path: Path) -> None:
+    """File not listed in own paths.json is an error; missing paths.json ok"""
+    pkg1 = make_pkg(
+        tmp_path / "pkg1", files={"site-packages/foo.py": ""}, paths_override=[]
+    )
+    pkg2 = make_pkg(tmp_path / "pkg2", files={"site-packages/foo.py": ""})
+    (pkg2 / "info" / "paths.json").unlink()
+    result = compare(pkg1, pkg2)
+    unlisted = [
+        d
+        for d in find(result, DiffCategory.FILE_EXTRA, Severity.ERROR)
+        if d.key.startswith("paths.json:")
+    ]
+    assert len(unlisted) == 1
+    assert "foo.py" in unlisted[0].key
+
+
+SIMPLE_METADATA = "Metadata-Version: 2.1\nName: foo\nVersion: 1.0\n"
+
+
+def test_pkg1_only_benign_files(tmp_path: Path) -> None:
+    """pycache and dist-info files only in package1 are expected"""
+    pkg1 = make_pkg(
+        tmp_path / "pkg1",
+        files={
+            "site-packages/foo/__pycache__/x.cpython-312.pyc": b"\x00",
+            "site-packages/foo-1.0.dist-info/METADATA": SIMPLE_METADATA,
+            "site-packages/foo-1.0.dist-info/INSTALLER": "whl2conda",
+        },
+    )
+    pkg2 = make_pkg(
+        tmp_path / "pkg2",
+        files={"site-packages/foo-1.0.dist-info/METADATA": SIMPLE_METADATA},
+    )
+    result = compare(pkg1, pkg2)
+    assert result.ok
+    assert find(result, DiffCategory.PYCACHE, Severity.EXPECTED)
+    assert find(result, DiffCategory.DIST_INFO_OTHER, Severity.EXPECTED)
+
+
+def test_dist_info_one_sided(tmp_path: Path) -> None:
+    """dist-info directory present on only one side is notable"""
+    pkg1 = make_pkg(
+        tmp_path / "pkg1",
+        files={"site-packages/foo-1.0.dist-info/METADATA": SIMPLE_METADATA},
+    )
+    pkg2 = make_pkg(tmp_path / "pkg2")
+    result = compare(pkg1, pkg2)
+    notices = find(result, DiffCategory.DIST_INFO_OTHER, Severity.NOTICE)
+    assert len(notices) == 1
+    assert "package1" in notices[0].description
+
+
+def test_dist_info_name_version_and_bad_requirement(tmp_path: Path) -> None:
+    """METADATA name/version mismatch and unparsable requirements"""
+    metadata1 = SIMPLE_METADATA + "Requires-Dist: ???unparsable\n"
+    metadata2 = "Metadata-Version: 2.1\nName: bar\nVersion: 2.0\n"
+    pkg1 = make_pkg(
+        tmp_path / "pkg1",
+        files={"site-packages/foo-1.0.dist-info/METADATA": metadata1},
+    )
+    pkg2 = make_pkg(
+        tmp_path / "pkg2",
+        files={"site-packages/bar-2.0.dist-info/METADATA": metadata2},
+    )
+    result = compare(pkg1, pkg2)
+    errors = find(result, DiffCategory.DIST_INFO_METADATA, Severity.ERROR)
+    assert {d.key for d in errors} == {
+        "dist-info:METADATA:Name",
+        "dist-info:METADATA:Version",
+    }
+    requirements = find(result, DiffCategory.DIST_INFO_METADATA, Severity.NOTICE)
+    assert len(requirements) == 1
+    assert "???unparsable" in requirements[0].left
+
+    # missing METADATA file in one dist-info: no METADATA comparison
+    pkg3 = make_pkg(
+        tmp_path / "pkg3",
+        files={"site-packages/foo-1.0.dist-info/INSTALLER": "conda"},
+    )
+    result = compare(pkg1, pkg3)
+    assert not find(result, DiffCategory.DIST_INFO_METADATA)
+
+
+def test_report_and_json_details(tmp_path: Path) -> None:
+    """Report includes values; to_json handles list values"""
+    pkg1 = make_pkg(tmp_path / "pkg1", depends=["python >=3.10", "numpy >=1.20"])
+    pkg2 = make_pkg(tmp_path / "pkg2", depends=["python >=3.10", "numpy >=1.24"])
+    result = compare(pkg1, pkg2)
+    report = result.report()
+    assert "package1: numpy >=1.20" in report
+    assert "package2: numpy >=1.24" in report
+
+    # list-valued left/right fields serialize to sorted string lists
+    metadata1 = SIMPLE_METADATA + "Requires-Dist: numpy>=1.20\n"
+    metadata2 = SIMPLE_METADATA + "Requires-Dist: numpy>=1.24\n"
+    pkg3 = make_pkg(
+        tmp_path / "pkg3",
+        files={"site-packages/foo-1.0.dist-info/METADATA": metadata1},
+    )
+    pkg4 = make_pkg(
+        tmp_path / "pkg4",
+        files={"site-packages/foo-1.0.dist-info/METADATA": metadata2},
+    )
+    jobj = compare(pkg3, pkg4).to_json()
+    md_diffs = [d for d in jobj["differences"] if d["category"] == "dist-info-metadata"]
+    assert md_diffs and md_diffs[0]["left"] == ["numpy >=1.20"]
+
+
+def test_about_field_notice(tmp_path: Path) -> None:
+    """Genuinely differing about fields are notable"""
+    pkg1 = make_pkg(tmp_path / "pkg1", about={"summary": "one thing"})
+    pkg2 = make_pkg(tmp_path / "pkg2", about={"summary": "another thing"})
+    result = compare(pkg1, pkg2)
+    assert find(result, DiffCategory.ABOUT_FIELD, Severity.NOTICE)
+
+
+def test_to_json_fallback_value(tmp_path: Path) -> None:
+    """Non-primitive difference values serialize via str"""
+    diff = Difference(
+        DiffCategory.FILE_CONTENT,
+        Severity.ERROR,
+        "site-packages/foo.py",
+        "test",
+        left=Path("some/path"),
+    )
+    jobj = ComparisonResult(tmp_path, tmp_path, [diff]).to_json()
+    assert jobj["differences"][0]["left"] == "some/path"
+
+
+def test_default_renames(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Rename table defaults to the standard table (metadata keys dropped)"""
+    monkeypatch.setattr(
+        "whl2conda.api.compare.load_std_renames",
+        lambda: {"foo-bar": "foo_bar", "$date": "whenever"},
+    )
+    pkg1 = make_pkg(tmp_path / "pkg1", depends=["python >=3.10", "foo-bar >=1"])
+    pkg2 = make_pkg(tmp_path / "pkg2", depends=["python >=3.10", "foo_bar >=1"])
+    result = compare_conda_packages(pkg1, pkg2, options=CompareOptions())
+    assert find(result, DiffCategory.DEP_UNRENAMED, Severity.ERROR)
+
+
+def test_bare_package_dir(tmp_path: Path) -> None:
+    """Comparison tolerates a package directory without an info dir"""
+    pkg1 = make_pkg(tmp_path / "pkg1")
+    pkg2 = tmp_path / "pkg2"
+    (pkg2 / "site-packages").mkdir(parents=True)
+    (pkg2 / "site-packages" / "foo.py").write_text("")
+    result = compare(pkg1, pkg2)
+    assert not result.ok  # missing name/version/file
+    assert find(result, DiffCategory.PACKAGE_NAME, Severity.ERROR)
 
 
 def test_compare_package_files(
