@@ -69,9 +69,12 @@ types-pyyaml = ">=6.0"
 
 [tool.pixi.feature.docs.dependencies]
 black = ">=23.12"
-# Pinned exactly: zensical releases frequently and occasionally introduces
+# Tightly bounded: zensical releases frequently and occasionally introduces
 # regressions; bump deliberately after verifying `pixi run doc-strict`.
-zensical = "==0.0.50"
+# The range admits 0.0.51 to pick up the cross-reference cache fix
+# (zensical/zensical#805); once a release with that fix is verified, the
+# --clean workaround on the doc tasks below can be removed.
+zensical = ">=0.0.50,<0.0.52"
 mkdocstrings-python = ">=2.0.2"
 linkchecker = ">=10.4"
 pip = ">=23.2.1"
