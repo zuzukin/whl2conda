@@ -35,8 +35,6 @@ jobs:
       with:
         pixi-version: v0.69.0
         cache: true
-        auth-host: prefix.dev
-        auth-token: ${{ secrets.GITHUB_TOKEN }}
     - name: Override Python version in pixi
       run: |
         pixi add python=${{ matrix.python-version }}
