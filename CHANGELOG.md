@@ -10,6 +10,9 @@
   noarch python machinery (#183)
 * The `--python` option now overrides the automatically generated python
   version pin for binary (`--allow-impure`) conversions (#183)
+* New `--for-conda-forge` option (synonym: `--for-cpython`) adds the CEP-20
+  python pins used by conda-forge (`cpython` and `_python_abi3_support`)
+  when converting stable ABI (abi3) wheels (#194)
 
 ### Bug fixes
 

@@ -86,6 +86,7 @@ class CliTestCase:
     expected_download_index: str = ""
     expected_dry_run: bool = False
     expected_extra_dependencies: Sequence[str] = ()
+    expected_for_conda_forge: bool = False
     expected_interactive: bool = True
     expected_keep_pip: bool = False
     expected_out_dir: str = ""
@@ -129,6 +130,7 @@ class CliTestCase:
         expected_extra_dependencies: Sequence[str] = (),
         expected_download_index: str = "",
         expected_download_spec: str = "",
+        expected_for_conda_forge: bool = False,
         expected_interactive: bool = True,
         expected_keep_pip: bool = False,
         expected_out_dir: str = "",
@@ -156,6 +158,7 @@ class CliTestCase:
         self.expected_download_index = expected_download_index
         self.expected_download_spec = expected_download_spec
         self.expected_extra_dependencies = list(expected_extra_dependencies)
+        self.expected_for_conda_forge = expected_for_conda_forge
         self.expected_interactive = expected_interactive
         self.expected_keep_pip = expected_keep_pip
         self.expected_out_dir = expected_out_dir
@@ -335,6 +338,7 @@ class CliTestCase:
         assert converter.out_format is self.expected_out_fmt
         assert converter.overwrite is self.expected_overwrite
         assert converter.keep_pip_dependencies is self.expected_keep_pip
+        assert converter.for_conda_forge is self.expected_for_conda_forge
         assert converter.extra_dependencies == list(self.expected_extra_dependencies)
         assert converter.dependency_rename == list(self.expected_dependency_renames)
         assert converter.python_version == self.expected_python_version
@@ -395,6 +399,7 @@ class CliTestCaseFactory:
         expected_overwrite: bool = False,
         expected_keep_pip: bool = False,
         expected_extra_dependencies: Sequence[str] = (),
+        expected_for_conda_forge: bool = False,
         expected_interactive: bool = True,
         expected_project_root: str = "",
         expected_python_version: str = "",
@@ -422,6 +427,7 @@ class CliTestCaseFactory:
             expected_overwrite=expected_overwrite,
             expected_keep_pip=expected_keep_pip,
             expected_extra_dependencies=expected_extra_dependencies,
+            expected_for_conda_forge=expected_for_conda_forge,
             expected_interactive=expected_interactive,
             expected_project_root=expected_project_root,
             expected_python_version=expected_python_version,
@@ -956,6 +962,17 @@ def test_python_override(
     test_case(
         [str(simple_wheel), "--python", ">=3.10"], expected_python_version=">=3.10"
     ).run()
+
+
+def test_for_conda_forge(
+    test_case: CliTestCaseFactory,
+    simple_wheel: Path,
+) -> None:
+    """Test --for-conda-forge option and its --for-cpython synonym (#194)"""
+    test_case(
+        [str(simple_wheel), "--for-conda-forge"], expected_for_conda_forge=True
+    ).run()
+    test_case([str(simple_wheel), "--for-cpython"], expected_for_conda_forge=True).run()
 
 
 def test_allow_metadata_version(

@@ -547,6 +547,7 @@ class Wheel2CondaConverter:
     interactive: bool = False
     build_number: int | None = None
     allow_impure: bool = False
+    for_conda_forge: bool = False
 
     wheel_md: MetadataFromWheel | None = None
     conda_target: CondaTargetInfo | None = None
@@ -991,23 +992,28 @@ class Wheel2CondaConverter:
 
         For abi3 (stable ABI) wheels, only a minimum python version derived
         from the wheel's Python tag is required, since the package works on
-        all later versions.
+        all later versions. If `for_conda_forge` is set, the CEP-20 pins
+        used by conda-forge (`cpython` and `_python_abi3_support`) are also
+        added for abi3 wheels.
 
         An explicit python version setting on the converter overrides the
         automatically derived pin.
         """
         result = list(conda_dependencies)
+        abi3_python_spec = ""
         if self.python_version:
             # User override was already applied in _compute_conda_dependencies
             self._debug(
                 "Binary python pin overridden by user: python %s",
                 self.python_version,
             )
+            abi3_python_spec = self.python_version
         elif conda_target.is_abi3:
             # Stable ABI: works on all versions >= the build version, so
             # only add a floor. Keep any Requires-Python constraint, which
             # may be tighter.
-            floor = f"python >={conda_target.python_version}"
+            abi3_python_spec = f">={conda_target.python_version}"
+            floor = f"python {abi3_python_spec}"
             if floor not in result:
                 result.append(floor)
             self._debug("Binary abi3 python floor: %s", floor)
@@ -1018,6 +1024,18 @@ class Wheel2CondaConverter:
             self._debug(
                 "Binary python pin: %s",
                 ", ".join(python_pin),
+            )
+
+        if conda_target.is_abi3 and self.for_conda_forge:
+            # CEP-20 pins used by conda-forge: `cpython` excludes PyPy, and
+            # `_python_abi3_support` additionally excludes free-threaded
+            # builds, neither of which support the stable ABI. These
+            # packages only exist on the conda-forge channel.
+            cpython_pin = f"cpython {abi3_python_spec}".rstrip()
+            result.append(cpython_pin)
+            result.append("_python_abi3_support 1.*")
+            self._debug(
+                "conda-forge abi3 pins: %s, _python_abi3_support 1.*", cpython_pin
             )
 
         if os_constraint := _os_constraint_from_platform_tag(platform_tag):
