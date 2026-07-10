@@ -1,0 +1,47 @@
+# Runs the conda-forge comparison suite: converts a curated sample of
+# binary PyPI packages and semantically compares the results against the
+# corresponding conda-forge packages (see doc/guide/binary-conversion.md).
+#
+# Runs monthly and on demand. It also runs on pull requests that modify
+# this workflow file, so changes are validated by an actual run.
+name: compare-conda-forge
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 06:12 UTC on the 2nd of every month
+    - cron: "12 6 2 * *"
+  pull_request:
+    paths:
+      - ".github/workflows/compare-conda-forge.yml"
+
+jobs:
+  compare:
+    name: compare (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: v0.69.0
+          cache: true
+      - name: Install dependencies
+        run: pixi run dev-install
+      - name: Run comparison suite
+        run: pixi run compare-conda-forge
+      - name: Upload comparison report
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compare-report-${{ matrix.os }}
+          path: |
+            compare-report.md
+            compare-report.json
