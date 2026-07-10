@@ -827,6 +827,18 @@ class _PackageComparer:
                     key,
                     "binary file contents differ (different build toolchains)",
                 )
+                continue
+            # windows recipe builds often write text files with CRLF
+            # line endings; only the line endings differing is benign
+            content1 = (self.pkg1.root / payload1[key]).read_bytes()
+            content2 = (self.pkg2.root / payload2[key]).read_bytes()
+            if content1.replace(b"\r\n", b"\n") == content2.replace(b"\r\n", b"\n"):
+                self._add(
+                    DiffCategory.FILE_CONTENT,
+                    Severity.EXPECTED,
+                    key,
+                    "file contents differ only in line endings",
+                )
             else:
                 self._add(
                     DiffCategory.FILE_CONTENT,
