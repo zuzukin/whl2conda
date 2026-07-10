@@ -1,9 +1,5 @@
 # Binary Wheel Conversion
 
-!!! warning "Experimental"
-    Binary wheel conversion is an experimental feature. The generated conda
-    packages may not work correctly for all packages. Use with caution.
-
 ## Overview
 
 By default, **whl2conda** converts pure Python wheels (`py3-none-any`) into
@@ -132,15 +128,19 @@ are still skipped, since noarch packages are platform-independent.
 
 ## What works well
 
-Binary conversion is best suited for **simple C/C++ extension packages** where
-the wheel is self-contained — all compiled code is bundled in the wheel and
-runtime dependencies are available as conda packages. Examples include:
+Binary conversion is suited for **self-contained extension packages**,
+where all compiled code (including any statically linked libraries) is
+bundled in the wheel and the package's runtime dependencies are
+available as conda packages. The comparison suite described below
+verifies — on linux, macOS, and windows — that converted packages for
+all of the following kinds of wheels are semantically equivalent to
+the corresponding conda-forge packages:
 
-- **markupsafe** — simple C speedups
-- **wrapt** — C extension for decorators
-- **ujson** — fast JSON parser
-- **pyyaml** — YAML parser with C library (libyaml)
-- **msgpack** — MessagePack serializer
+- **C/C++ extensions** — e.g. markupsafe, wrapt, ujson, psutil
+- **Cython extensions** — e.g. pyyaml, msgpack (including statically
+  linked C libraries such as libyaml)
+- **Rust extensions** — e.g. orjson, rpds-py
+- **Stable ABI (abi3) extensions** — e.g. cryptography, bcrypt
 
 ## Validation against conda-forge
 
@@ -149,7 +149,7 @@ converts a curated sample of representative binary PyPI packages
 (C extensions, Cython, stable-ABI and non-abi3 rust extensions, and
 packages with bundled libraries) and semantically compares each result
 against the real conda-forge package of the same version using
-`whl2conda diff`. Developers can run it with:
+`whl2conda diff`. It runs monthly in CI and developers can run it with:
 
 ```bash
 pixi run compare-conda-forge
@@ -157,36 +157,64 @@ pixi run compare-conda-forge
 
 This requires network access, downloads packages from PyPI and
 anaconda.org (cached across runs), and writes a summary report to
-`compare-report.md` / `compare-report.json`. The results of this suite
-are the evidence base for eventually removing the experimental label
-from binary conversion.
+`compare-report.md` / `compare-report.json`.
+
+To vet your own conversion, compare it against a reference package
+built from a recipe (if one exists) using
+[`whl2conda diff`](testing.md#comparing-packages), and install and
+test it with [`whl2conda install`](testing.md).
 
 ## Known limitations
+
+The converter detects and refuses the known-bad cases it can identify:
+wheels that are not pure python (without `--allow-impure`), unsupported
+wheel platform tags, and local version suffixes (below). It warns about
+wheels that bundle shared libraries. The remaining limitations listed
+here are inherent to wheel conversion and are the user's responsibility
+to evaluate.
 
 ### Local version suffixes
 
 Wheels with local version suffixes (e.g. `torch-2.1.0+cu121`) indicate
-custom build variants such as CUDA-specific builds. These are blocked because
-they bundle variant-specific libraries that require careful dependency
-management not possible through simple wheel conversion.
+custom build variants such as CUDA-specific builds. These are **blocked
+with an error** because they bundle variant-specific libraries that
+require careful dependency management not possible through simple wheel
+conversion.
 
 ### Bundled shared libraries
 
-Binary wheels may bundle shared libraries (`.so`, `.dylib`, `.dll`) that
-overlap with or conflict with libraries provided by other conda packages.
-The converted package includes these bundled copies as-is, which can lead to:
+Binary wheels repaired by tools like auditwheel, delocate, or
+delvewheel bundle copies of the shared libraries they link against
+(in `<package>.libs/` or `.dylibs/` directories). The converter
+**warns** when it detects such vendored libraries. The converted
+package includes these bundled copies as-is — unlike an equivalent
+conda-forge package, which would declare shared library dependencies
+instead — which can lead to:
 
 - **Version conflicts** with conda-installed libraries
 - **Missing transitive dependencies** not declared in the wheel metadata
 - **ABI incompatibilities** when mixed with conda-forge packages
+
+This usually *works* (the same copies are used from PyPI installs), but
+duplicates libraries in the environment and bypasses conda's dependency
+management for them.
 
 ### No `run_exports` or build metadata
 
 Unlike conda-forge packages, converted wheels lack `run_exports` and detailed
 build metadata. Downstream packages that depend on the converted package will
 not automatically inherit correct library dependencies. You may need to manually
-specify additional dependencies using the `-A`/`--add-dependency` flag 
-during conversion.
+specify additional dependencies using the `-A`/`--add-dependency` flag
+during conversion. *Not detected by the converter.*
+
+### Dependencies must exist on the target channel
+
+Dependency names are renamed using the standard pypi-to-conda rename
+table (plus any project-specific renames), but the converter does not
+verify that the resulting conda packages actually exist on the channel
+you will install from. A missing or incorrectly named dependency only
+surfaces when the package is installed. *Not detected by the converter* —
+test with [`whl2conda install`](testing.md).
 
 ### Multi-platform (fat) macOS wheels
 

@@ -691,12 +691,8 @@ class Wheel2CondaConverter:
 
             # Add binary-specific dependencies
             if not conda_target.is_noarch:
-                self._warn(
-                    "Experimental: converting non-pure wheel '%s'. "
-                    "Converted package may include bundled libraries that "
-                    "differ from conda-forge shared library packages.",
-                    self.wheel_path.name,
-                )
+                self._info("Converting non-pure wheel '%s'", self.wheel_path.name)
+                self._warn_vendored_libraries(rel_files)
                 conda_dependencies = self._add_binary_dependencies(
                     conda_dependencies, conda_target, wheel_md.platform_tag
                 )
@@ -1111,6 +1107,32 @@ class Wheel2CondaConverter:
 
     # Known package prefixes that are unlikely to work as binary conversions
     # due to bundled GPU libraries, complex runtime dependencies, etc.
+    # directories used by wheel repair tools (auditwheel, delocate,
+    # delvewheel) to vendor shared libraries into the wheel
+    _VENDORED_LIB_DIR_RE = re.compile(r"(?:^|/)(?P<dir>[^/]+\.libs|\.dylibs)/")
+
+    def _warn_vendored_libraries(self, rel_files: Sequence[str]) -> None:
+        """Warn if the wheel vendors shared libraries.
+
+        Wheels repaired by auditwheel/delocate/delvewheel bundle copies
+        of the shared libraries they link against. The converted conda
+        package will use those bundled copies, unlike an equivalent
+        conda-forge package, which would declare shared library
+        dependencies instead.
+        """
+        vendored = sorted({
+            m.group("dir")
+            for relpath in rel_files
+            if (m := self._VENDORED_LIB_DIR_RE.search(relpath))
+        })
+        if vendored:
+            self._warn(
+                "Wheel bundles shared libraries (%s). The converted package "
+                "will use these bundled copies, which may conflict with or "
+                "duplicate libraries provided by conda packages.",
+                ", ".join(vendored),
+            )
+
     def _check_binary_conversion(self, wheel_md: MetadataFromWheel) -> None:
         """Check for conditions that make binary conversion unlikely to succeed.
 

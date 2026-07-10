@@ -1474,6 +1474,54 @@ def test_convert_all_platforms(
     assert index["subdir"] == "noarch"
 
 
+def test_vendored_library_warning(
+    simple_wheel: Path,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test warning for wheels bundling vendored shared libraries."""
+    # rebuild the simple wheel with an auditwheel-style .libs directory
+    good_wheel = WheelFile(simple_wheel)
+    extract_dir = tmp_path / "extract"
+    good_wheel.extractall(str(extract_dir))
+    extract_info_dir = next(extract_dir.glob("*.dist-info"))
+
+    WHEEL_file = extract_info_dir / "WHEEL"
+    WHEEL_msg = Wheel2CondaConverter.read_metadata_file(WHEEL_file)
+    WHEEL_msg.replace_header("Root-Is-Purelib", "False")
+    WHEEL_msg.replace_header("Tag", "cp312-cp312-manylinux_2_17_x86_64")
+    WHEEL_file.write_text(WHEEL_msg.as_string(), encoding="utf8")
+
+    libs_dir = extract_dir / "simple.libs"
+    libs_dir.mkdir()
+    (libs_dir / "libfoo-1234abcd.so.1").write_bytes(b"\x7fELF-fake")
+
+    wheel_name = simple_wheel.name.replace(
+        "py3-none-any", "cp312-cp312-manylinux_2_17_x86_64"
+    )
+    vendored_wheel = tmp_path / "vendored" / wheel_name
+    vendored_wheel.parent.mkdir(parents=True)
+    with WheelFile(str(vendored_wheel), "w") as wf:
+        wf.write_files(str(extract_dir))
+
+    converter = Wheel2CondaConverter(vendored_wheel, tmp_path / "out")
+    converter.allow_impure = True
+    with caplog.at_level(logging.WARNING):
+        converter.convert()
+    assert "bundles shared libraries" in caplog.text
+    assert "simple.libs" in caplog.text
+
+    # no warning for a binary wheel without vendored libraries
+    caplog.clear()
+    fat_wheel = _build_fat_wheel(simple_wheel, tmp_path / "plain")
+    converter = Wheel2CondaConverter(fat_wheel, tmp_path / "out2")
+    converter.allow_impure = True
+    converter.platform_tag = "macosx_11_0_arm64"
+    with caplog.at_level(logging.WARNING):
+        converter.convert()
+    assert "bundles shared libraries" not in caplog.text
+
+
 def test_platform_groups(
     simple_wheel: Path,
     tmp_path: Path,
