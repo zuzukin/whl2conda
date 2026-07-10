@@ -69,7 +69,9 @@ types-pyyaml = ">=6.0"
 
 [tool.pixi.feature.docs.dependencies]
 black = ">=23.12"
-zensical = "*"
+# Pinned exactly: zensical releases frequently and occasionally introduces
+# regressions; bump deliberately after verifying `pixi run doc-strict`.
+zensical = "==0.0.50"
 mkdocstrings-python = ">=2.0.2"
 linkchecker = ">=10.4"
 pip = ">=23.2.1"
