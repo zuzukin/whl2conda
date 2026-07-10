@@ -94,6 +94,7 @@ class CliTestCase:
     expected_overwrite: bool = False
     expected_package_name: str = ""
     expected_parser_error: str = ""
+    expected_platform_tag: str = ""
     """Relative path from projects dir"""
     expected_project_root: str = ""
     expected_python_version: str = ""
@@ -138,6 +139,7 @@ class CliTestCase:
         expected_overwrite: bool = False,
         expected_package_name: str = "",
         expected_parser_error: str = "",
+        expected_platform_tag: str = "",
         expected_project_root: str = "",
         expected_python_version: str = "",
         expected_wheel_path: str = "",
@@ -166,6 +168,7 @@ class CliTestCase:
         self.expected_overwrite = expected_overwrite
         self.expected_package_name = expected_package_name
         self.expected_parser_error = expected_parser_error
+        self.expected_platform_tag = expected_platform_tag
         self.expected_project_root = expected_project_root
         self.expected_prompts = []
         self.expected_python_version = expected_python_version
@@ -339,6 +342,7 @@ class CliTestCase:
         assert converter.overwrite is self.expected_overwrite
         assert converter.keep_pip_dependencies is self.expected_keep_pip
         assert converter.for_conda_forge is self.expected_for_conda_forge
+        assert converter.platform_tag == self.expected_platform_tag
         assert converter.extra_dependencies == list(self.expected_extra_dependencies)
         assert converter.dependency_rename == list(self.expected_dependency_renames)
         assert converter.python_version == self.expected_python_version
@@ -394,6 +398,7 @@ class CliTestCaseFactory:
         expected_dry_run: bool = False,
         expected_package_name: str = "",
         expected_parser_error: str = "",
+        expected_platform_tag: str = "",
         expected_out_dir: str = "",
         expected_out_fmt: CondaPackageFormat = CondaPackageFormat.V2,
         expected_overwrite: bool = False,
@@ -422,6 +427,7 @@ class CliTestCaseFactory:
             expected_dry_run=expected_dry_run,
             expected_package_name=expected_package_name,
             expected_parser_error=expected_parser_error,
+            expected_platform_tag=expected_platform_tag,
             expected_out_dir=expected_out_dir,
             expected_out_fmt=expected_out_fmt,
             expected_overwrite=expected_overwrite,
@@ -961,6 +967,17 @@ def test_python_override(
     """Test --python option"""
     test_case(
         [str(simple_wheel), "--python", ">=3.10"], expected_python_version=">=3.10"
+    ).run()
+
+
+def test_platform_tag(
+    test_case: CliTestCaseFactory,
+    simple_wheel: Path,
+) -> None:
+    """Test --platform-tag option (#201)"""
+    test_case(
+        [str(simple_wheel), "--platform-tag", "macosx_10_15_x86_64"],
+        expected_platform_tag="macosx_10_15_x86_64",
     ).run()
 
 

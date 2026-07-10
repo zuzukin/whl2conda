@@ -19,6 +19,8 @@
   recipe-built packages. The `-T`/`--diff-tool` option is now optional and
   selects the previous raw diff behavior. The analysis engine is also
   available programmatically as `whl2conda.api.compare`.
+* New `--platform-tag` option selects the wheel platform tag to convert
+  for when converting a multi-platform ("fat") binary wheel (#201)
 
 ### Changes
 

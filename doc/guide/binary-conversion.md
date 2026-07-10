@@ -188,11 +188,23 @@ not automatically inherit correct library dependencies. You may need to manually
 specify additional dependencies using the `-A`/`--add-dependency` flag 
 during conversion.
 
-### `universal2` macOS wheels
+### Multi-platform (fat) macOS wheels
 
-macOS `universal2` wheels (containing both x86_64 and arm64 code) are mapped
-to `osx-arm64` only. There is currently no way to produce separate packages
-for both architectures from a single universal2 wheel.
+macOS wheels may support several platforms at once: `universal2` wheels
+contain both x86_64 and arm64 code, and some wheels are tagged for
+`x86_64`, `arm64`, *and* `universal2` simultaneously. Conversion produces
+a single conda package for one platform: the platform matching the
+current system is preferred; otherwise a `universal2` wheel is converted
+for `osx-arm64`. Use the `--platform-tag` option to select the target
+platform explicitly:
+
+```bash
+whl2conda convert orjson-3.11.9-*.whl --allow-impure \
+    --platform-tag macosx_10_15_x86_64
+```
+
+There is currently no way to produce packages for several architectures
+in a single conversion.
 
 ### No pre-compiled `.pyc` files
 

@@ -73,6 +73,7 @@ class ConvertArgs:
     out_dir: Path | None
     out_format: str
     overwrite: bool
+    platform_tag: str
     project_root: Path | None
     python: str
     quiet: int
@@ -308,6 +309,18 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
             '_python_abi3_support' (excludes free-threaded builds). These
             packages only exist on the conda-forge channel, so do not use
             this option for packages targeting channels without them.
+        """),
+    )
+
+    experimental_opts.add_argument(
+        "--platform-tag",
+        metavar="<tag>",
+        default="",
+        help=dedent("""
+            Wheel platform tag to convert for, when converting a
+            multi-platform ("fat") binary wheel that supports several
+            (e.g. 'macosx_10_15_x86_64'). By default, the platform
+            matching the current system is preferred.
         """),
     )
 
@@ -613,6 +626,7 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
         converter.build_number = parsed.build_number
         converter.allow_impure = parsed.allow_impure or bool(download_platform)
         converter.for_conda_forge = parsed.for_conda_forge
+        converter.platform_tag = parsed.platform_tag
         if parsed.allow_metadata_version:
             converter.SUPPORTED_METADATA_VERSIONS = (
                 *converter.SUPPORTED_METADATA_VERSIONS,
