@@ -498,8 +498,8 @@ def test_compare_package_files(
 ) -> None:
     """Real package files are extracted and compared"""
     result = compare(simple_conda_package, simple_conda_package)
-    assert result.ok
-    assert not result.differences
+    assert result.ok, result.report(min_severity=Severity.EXPECTED)
+    assert not result.differences, result.report(min_severity=Severity.EXPECTED)
 
     # mutated extracted copy triggers findings
     import conda_package_handling.api as cphapi
