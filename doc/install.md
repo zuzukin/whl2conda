@@ -1,18 +1,29 @@
 
-## Using pip
+=== "pip"
 
-```bash
-pip install whl2conda
-```
+    ```bash
+    pip install whl2conda
+    ```
 
-## Using conda
+=== "conda"
 
-```bash
-conda install -c conda-forge whl2conda
-```
+    ```bash
+    conda install -c conda-forge whl2conda
+    ```
 
-*whl2conda* does not have a direct runtime dependency on conda, so it
-is safe to install in environments other than `base`.
+=== "mamba"
+
+    ```bash
+    mamba install -c conda-forge whl2conda
+    ```
+
+=== "pixi"
+
+    ```bash
+    pixi workspace channel add conda-forge
+    pixi add whl2conda
+    ```
+
 
 ## Prerequisites
 

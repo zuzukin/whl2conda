@@ -1,3 +1,7 @@
+---
+title: Home
+---
+
 <figure>
     <img src="whl2conda.png">
 </figure>

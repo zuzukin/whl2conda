@@ -14,6 +14,11 @@
   python pins used by conda-forge (`cpython` and `_python_abi3_support`)
   when converting stable ABI (abi3) wheels (#194)
 
+### Development
+
+* Documentation is now generated with [Zensical](https://zensical.org)
+  instead of the no-longer-maintained MkDocs/mkdocs-material (#173)
+
 ### Bug fixes
 
 * The `timestamp` in the package's `index.json` is now written in

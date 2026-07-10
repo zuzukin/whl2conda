@@ -1,0 +1,164 @@
+# Zensical documentation site configuration (#173).
+# Build:   pixi run doc         (output in site/)
+# Preview: pixi run doc-serve   (http://localhost:8000)
+# See https://zensical.org/docs/ for the full reference.
+
+[project]
+site_name = "whl2conda"
+site_description = "Generate conda packages directly from pure python wheels"
+site_author = "Christopher Barber"
+site_url = "https://zuzukin.github.io/whl2conda/"
+repo_url = "https://github.com/zuzukin/whl2conda"
+repo_name = "zuzukin/whl2conda"
+docs_dir = "doc"
+copyright = """
+Copyright &copy; 2023-2026 Christopher Barber
+"""
+
+nav = [
+  { "Home" = "index.md" },
+  { "User Guide" = [
+    { "Basic Usage" = "guide/basic-usage.md" },
+    { "Dependency Modification" = "guide/renaming.md" },
+    { "Configuring pyproject.toml" = "guide/pyproject.md" },
+    { "Binary Conversion" = "guide/binary-conversion.md" },
+    { "Installing and Testing" = "guide/testing.md" },
+    { "Limitations" = "guide/limitations.md" },
+  ] },
+  { "Installation" = "install.md" },
+  { "Reference" = [
+    { "Command line" = [
+      { "whl2conda" = "reference/cli/whl2conda.md" },
+      { "whl2conda build" = "reference/cli/whl2conda-build.md" },
+      { "whl2conda config" = "reference/cli/whl2conda-config.md" },
+      { "whl2conda convert" = "reference/cli/whl2conda-convert.md" },
+      { "whl2conda diff" = "reference/cli/whl2conda-diff.md" },
+      { "whl2conda install" = "reference/cli/whl2conda-install.md" },
+    ] },
+    { "API (not stable!)" = [
+      { "converter" = "reference/api/converter.md" },
+      { "settings" = "reference/api/settings.md" },
+      { "stdrename" = "reference/api/stdrename.md" },
+    ] },
+    { "Reference Material" = "reference/links.md" },
+  ] },
+  { "About" = [
+    { "Motivation" = "about/motivation.md" },
+    { "Getting help" = "about/support.md" },
+    { "Release notes" = "about/changelog.md" },
+    { "License" = "about/license.md" },
+  ] },
+]
+
+[project.theme]
+language = "en"
+logo = "whl2conda.png"
+favicon = "whl2conda.png"
+features = [
+  "content.code.copy",
+  "navigation.expand",
+  "navigation.footer",
+  "navigation.tabs",
+  "navigation.top",
+  "search.highlight",
+  "search.suggest",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "white"
+accent = "orange"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "white"
+accent = "orange"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[project.extra]
+generator = false
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/zuzukin/whl2conda"
+
+# Versioned docs via mike (the squidfunk/mike fork in the docs env, which
+# builds with zensical). The doc-deploy task deploys the release version and
+# updates the `latest` alias; `alias = true` surfaces the alias in the
+# version selector.
+[project.extra.version]
+provider = "mike"
+alias = true
+
+# Build with offline support (.html-style links rather than directory
+# URLs), matching the previous mkdocs-material configuration. This also
+# makes the local `doc-strict` link check meaningful, since every internal
+# link resolves to a file in site/.
+[project.plugins.offline]
+enabled = true
+
+# API reference generated from the package docstrings, using the python_xref
+# handler (mkdocstrings-python-xref) so docstrings can use relative
+# cross-references.
+[project.plugins.mkdocstrings]
+default_handler = "python_xref"
+
+[project.plugins.mkdocstrings.handlers.python_xref]
+inventories = ["https://docs.python.org/3/objects.inv"]
+paths = ["src"]
+
+[project.plugins.mkdocstrings.handlers.python_xref.options]
+docstring_style = "google"
+docstring_section_style = "spacy"
+filters = ["!^_", "^__.*__$", "!(has_empty_body)"]
+heading_level = 2
+relative_crossrefs = true
+separate_signature = true
+show_category_heading = true
+show_if_no_docstring = false
+show_signature_annotations = true
+show_source = true
+show_submodules = false
+
+# Recommended Markdown extension baseline (mirrors the Zensical default
+# template).
+[project.markdown_extensions.abbr]
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.def_list]
+[project.markdown_extensions.footnotes]
+[project.markdown_extensions.md_in_html]
+[project.markdown_extensions.toc]
+permalink = true
+[project.markdown_extensions.pymdownx.betterem]
+[project.markdown_extensions.pymdownx.caret]
+# Lets the About pages embed the repo-root CHANGELOG.md / LICENSE.md via
+# `--8<--`.
+[project.markdown_extensions.pymdownx.snippets]
+base_path = ["."]
+check_paths = true
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.emoji]
+emoji_generator = "zensical.extensions.emoji.to_svg"
+emoji_index = "zensical.extensions.emoji.twemoji"
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+[project.markdown_extensions.pymdownx.inlinehilite]
+[project.markdown_extensions.pymdownx.keys]
+[project.markdown_extensions.pymdownx.magiclink]
+[project.markdown_extensions.pymdownx.mark]
+[project.markdown_extensions.pymdownx.smartsymbols]
+[project.markdown_extensions.pymdownx.superfences]
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+combine_header_slug = true
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
+[project.markdown_extensions.pymdownx.tilde]
