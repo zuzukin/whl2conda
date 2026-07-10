@@ -1000,7 +1000,7 @@ def test_all_platforms(
 
     test_case(
         [str(simple_wheel), "--all-platforms", "--platform-tag", "win_amd64"],
-        expected_parser_error="cannot be combined with --platform-tag",
+        expected_parser_error="not allowed with argument --all-platforms",
     ).run()
 
 

@@ -313,7 +313,8 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
         """),
     )
 
-    experimental_opts.add_argument(
+    platform_opts = experimental_opts.add_mutually_exclusive_group()
+    platform_opts.add_argument(
         "--platform-tag",
         metavar="<tag>",
         default="",
@@ -324,15 +325,13 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
             matching the current system is preferred.
         """),
     )
-
-    experimental_opts.add_argument(
+    platform_opts.add_argument(
         "--all-platforms",
         action="store_true",
         help=dedent("""
             Generate a conda package for every platform supported by
             the wheel, each written into a <subdir>/ subdirectory of
-            the output directory (e.g. osx-arm64/). May not be
-            combined with --platform-tag.
+            the output directory (e.g. osx-arm64/).
         """),
     )
 
@@ -460,9 +459,6 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
                 "--download-platform, --download-python-version, and --download-abi "
                 "require --from-pypi or --from-index"
             )
-
-    if parsed.all_platforms and parsed.platform_tag:
-        parser.error("--all-platforms cannot be combined with --platform-tag")
 
     wheel_or_root = parsed.wheel_or_root
     saw_positional_root = False
