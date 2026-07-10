@@ -21,7 +21,6 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from pathlib import Path
-from textwrap import dedent
 from typing import Any
 
 import pytest
@@ -218,26 +217,7 @@ def test_env_install_whitebox(
     prefix = tmp_path.joinpath("prefix")
 
     call_args: list[list[str]] = []
-    fake_call_results: list[Any] = [
-        None,
-        None,
-        dedent(
-            """
-            [
-              {
-                "base_url": "https://conda.anaconda.org/conda-forge",
-                "build_number": 0,
-                "build_string": "pyhd8ed1ab_0",
-                "channel": "conda-forge",
-                "dist_name": "conda-libmamba-solver-24.1.0-pyhd8ed1ab_0",
-                "name": "conda-libmamba-solver",
-                "platform": "noarch",
-                "version": "24.1.0"
-              }
-            ]
-            """
-        ),
-    ]
+    fake_call_results: list[Any] = [None, None]
 
     def fake_call(cmd: Sequence[str], encoding=None) -> Any:
         if encoding:
@@ -256,7 +236,7 @@ def test_env_install_whitebox(
 
     main([*cmd_start, "--prefix", str(prefix), "--yes"])
 
-    assert len(call_args) == 3
+    assert len(call_args) == 2
     call1 = call_args[0]
     assert call1[0] == "conda"
     assert call1[1] == "install"
@@ -274,7 +254,7 @@ def test_env_install_whitebox(
     call_args.clear()
 
     main([*cmd_start, "--name", "test-env", "--create", "--mamba"])
-    assert len(call_args) == 3
+    assert len(call_args) == 2
     call1 = call_args[0]
     call2 = call_args[1]
     assert call1[:2] == ["mamba", "create"]
@@ -304,33 +284,6 @@ def test_env_install_whitebox(
 
     out, err = capsys.readouterr()
     assert "Running" in out
-
-    # Test for presence of conda solver workaround for conda-libmamba-solver < 24.1
-    call_args.clear()
-    fake_call_results[2] = dedent(
-        """
-        [
-          {
-            "base_url": "https://conda.anaconda.org/conda-forge",
-            "build_number": 0,
-            "build_string": "pyhd8ed1ab_0",
-            "channel": "conda-forge",
-            "dist_name": "conda-libmamba-solver-23.12.0-pyhd8ed1ab_0",
-            "name": "conda-libmamba-solver",
-            "platform": "noarch",
-            "version": "23.12.0"
-          }
-        ]
-        """
-    )
-
-    main([*cmd_start, "--name", "test-env", "--create", "--mamba"])
-    assert len(call_args) == 4
-    call4 = call_args[3]
-    assert call4[:4] == ["conda", "run", "--name", "test-env"]
-    assert call4[4:6] == ["conda", "config"]
-    assert "--set solver classic" in " ".join(call4)
-    assert "--env" in call4
 
 
 def test_prune_dependencies() -> None:
