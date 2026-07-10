@@ -52,6 +52,7 @@ class ConvertArgs:
     Parsed arguments
     """
 
+    all_platforms: bool
     allow_impure: bool
     allow_metadata_version: str
     build_number: int | None
@@ -312,7 +313,8 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
         """),
     )
 
-    experimental_opts.add_argument(
+    platform_opts = experimental_opts.add_mutually_exclusive_group()
+    platform_opts.add_argument(
         "--platform-tag",
         metavar="<tag>",
         default="",
@@ -321,6 +323,15 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
             multi-platform ("fat") binary wheel that supports several
             (e.g. 'macosx_10_15_x86_64'). By default, the platform
             matching the current system is preferred.
+        """),
+    )
+    platform_opts.add_argument(
+        "--all-platforms",
+        action="store_true",
+        help=dedent("""
+            Generate a conda package for every platform supported by
+            the wheel, each written into a <subdir>/ subdirectory of
+            the output directory (e.g. osx-arm64/).
         """),
     )
 
@@ -635,7 +646,10 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
 
         converter.dependency_rename.extend(renames)
 
-        _conda_package = converter.convert()
+        if parsed.all_platforms:
+            converter.convert_all()
+        else:
+            converter.convert()
 
 
 def do_build_wheel(

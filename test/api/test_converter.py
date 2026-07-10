@@ -1372,33 +1372,48 @@ def test_select_wheel_tag_override(
         converter._select_wheel_tag(FAT_WHEEL_TAGS)
 
 
+def _rebuild_wheel_tags(
+    simple_wheel: Path,
+    work_dir: Path,
+    tags: list[str],
+    label: str,
+    *,
+    purelib: bool = False,
+) -> Path:
+    """Rebuild the simple wheel with the given WHEEL tags."""
+    good_wheel = WheelFile(simple_wheel)
+    extract_dir = work_dir / f"extract-{label}"
+    good_wheel.extractall(str(extract_dir))
+    extract_info_dir = next(extract_dir.glob("*.dist-info"))
+
+    WHEEL_file = extract_info_dir / "WHEEL"
+    WHEEL_msg = Wheel2CondaConverter.read_metadata_file(WHEEL_file)
+    WHEEL_msg.replace_header("Root-Is-Purelib", str(purelib))
+    del WHEEL_msg["Tag"]
+    for tag in tags:
+        WHEEL_msg["Tag"] = tag
+    WHEEL_file.write_text(WHEEL_msg.as_string(), encoding="utf8")
+
+    wheel_name = simple_wheel.name.replace("py3-none-any", tags[0])
+    wheel = work_dir / label / wheel_name
+    wheel.parent.mkdir(parents=True)
+    with WheelFile(str(wheel), "w") as wf:
+        wf.write_files(str(extract_dir))
+    return wheel
+
+
+def _build_fat_wheel(simple_wheel: Path, work_dir: Path) -> Path:
+    """Rebuild the simple wheel as a fat macosx binary wheel."""
+    return _rebuild_wheel_tags(simple_wheel, work_dir, FAT_WHEEL_TAGS, "fat")
+
+
 def test_convert_fat_wheel(
     simple_wheel: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test end-to-end conversion of a fat macosx wheel (#201)."""
-    good_wheel = WheelFile(simple_wheel)
-    extract_dir = tmp_path / "extract"
-    good_wheel.extractall(str(extract_dir))
-    extract_info_dir = next(extract_dir.glob("*.dist-info"))
-
-    WHEEL_file = extract_info_dir / "WHEEL"
-    WHEEL_msg = Wheel2CondaConverter.read_metadata_file(WHEEL_file)
-    WHEEL_msg.replace_header("Root-Is-Purelib", "False")
-    del WHEEL_msg["Tag"]
-    for tag in FAT_WHEEL_TAGS:
-        WHEEL_msg["Tag"] = tag
-    WHEEL_file.write_text(WHEEL_msg.as_string(), encoding="utf8")
-
-    fat_wheel_name = simple_wheel.name.replace(
-        "py3-none-any",
-        "cp313-cp313-macosx_10_15_x86_64.macosx_11_0_arm64.macosx_10_15_universal2",
-    )
-    fat_wheel = tmp_path / "fat" / fat_wheel_name
-    fat_wheel.parent.mkdir(parents=True)
-    with WheelFile(str(fat_wheel), "w") as wf:
-        wf.write_files(str(extract_dir))
+    fat_wheel = _build_fat_wheel(simple_wheel, tmp_path)
 
     monkeypatch.setattr(
         "whl2conda.api.converter.native_conda_subdir", lambda: "osx-arm64"
@@ -1421,6 +1436,80 @@ def test_convert_fat_wheel(
     index = json.loads((pkg_tree / "info" / "index.json").read_text("utf8"))
     assert index["subdir"] == "osx-64"
     assert "__osx >=10.15" in index["depends"]
+
+
+def test_convert_all_platforms(
+    simple_wheel: Path,
+    tmp_path: Path,
+) -> None:
+    """Test conversion of a fat wheel for all platforms (#204)."""
+    fat_wheel = _build_fat_wheel(simple_wheel, tmp_path)
+
+    converter = Wheel2CondaConverter(fat_wheel, tmp_path / "all")
+    converter.allow_impure = True
+    converter.out_format = CondaPackageFormat.TREE
+    packages = converter.convert_all()
+
+    assert [pkg.parent.name for pkg in packages] == ["osx-64", "osx-arm64"]
+    for pkg, subdir, osx_constraint in [
+        (packages[0], "osx-64", "__osx >=10.15"),
+        (packages[1], "osx-arm64", "__osx >=11.0"),
+    ]:
+        assert pkg.parent.parent == tmp_path / "all"
+        index = json.loads((pkg / "info" / "index.json").read_text("utf8"))
+        assert index["subdir"] == subdir
+        assert osx_constraint in index["depends"]
+
+    # converter settings are restored afterwards
+    assert converter.out_dir == tmp_path / "all"
+    assert converter.platform_tag == ""
+
+    # pure python wheel: a single package under noarch/
+    converter = Wheel2CondaConverter(simple_wheel, tmp_path / "pure")
+    converter.out_format = CondaPackageFormat.TREE
+    packages = converter.convert_all()
+    assert len(packages) == 1
+    assert packages[0].parent == tmp_path / "pure" / "noarch"
+    index = json.loads((packages[0] / "info" / "index.json").read_text("utf8"))
+    assert index["subdir"] == "noarch"
+
+
+def test_platform_groups(
+    simple_wheel: Path,
+    tmp_path: Path,
+) -> None:
+    """Test _platform_groups tag handling (#204)."""
+    # non-python-3 tags are skipped; pure wheels map to noarch
+    wheel = _rebuild_wheel_tags(
+        simple_wheel,
+        tmp_path,
+        ["py2-none-any", "py3-none-any"],
+        "mixed",
+        purelib=True,
+    )
+    converter = Wheel2CondaConverter(wheel, tmp_path)
+    assert converter._platform_groups() == {"noarch": "any"}
+
+    # unsupported platform tags are kept in their own group
+    wheel = _rebuild_wheel_tags(
+        simple_wheel,
+        tmp_path,
+        ["cp313-cp313-freebsd_14_x86_64", "cp313-cp313-macosx_11_0_arm64"],
+        "exotic",
+    )
+    converter = Wheel2CondaConverter(wheel, tmp_path)
+    assert converter._platform_groups() == {
+        "freebsd_14_x86_64": "freebsd_14_x86_64",
+        "osx-arm64": "macosx_11_0_arm64",
+    }
+
+    # no python 3 compatible tag at all
+    wheel = _rebuild_wheel_tags(
+        simple_wheel, tmp_path, ["py2-none-any"], "py2", purelib=True
+    )
+    converter = Wheel2CondaConverter(wheel, tmp_path)
+    with pytest.raises(Wheel2CondaError, match="no Python 3 compatible tag"):
+        converter._platform_groups()
 
 
 def test_compute_conda_deps_with_marker_env() -> None:

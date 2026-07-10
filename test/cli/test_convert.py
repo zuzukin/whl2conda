@@ -981,6 +981,29 @@ def test_platform_tag(
     ).run()
 
 
+def test_all_platforms(
+    test_case: CliTestCaseFactory,
+    simple_wheel: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test --all-platforms option (#204)"""
+    convert_all_called = False
+
+    def fake_convert_all(converter: Wheel2CondaConverter) -> list[Path]:
+        nonlocal convert_all_called
+        convert_all_called = True
+        return [converter.convert()]
+
+    monkeypatch.setattr(Wheel2CondaConverter, "convert_all", fake_convert_all)
+    test_case([str(simple_wheel), "--all-platforms"]).run()
+    assert convert_all_called
+
+    test_case(
+        [str(simple_wheel), "--all-platforms", "--platform-tag", "win_amd64"],
+        expected_parser_error="not allowed with argument --all-platforms",
+    ).run()
+
+
 def test_for_conda_forge(
     test_case: CliTestCaseFactory,
     simple_wheel: Path,
