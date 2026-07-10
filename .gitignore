@@ -35,3 +35,6 @@ test/packages-with-renamed-dependencies.json
 
 # git merge turd files
 *.orig
+
+# Claude Code per-user local settings
+.claude/settings.local.json
