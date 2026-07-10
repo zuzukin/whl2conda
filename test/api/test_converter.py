@@ -1310,7 +1310,39 @@ def test_select_wheel_tag(
             ])
             == "cp313-cp313-manylinux_2_17_x86_64"
         )
+        # a group with only universal2 tags falls back to the first
+        assert (
+            converter._select_wheel_tag([
+                "cp39-abi3-macosx_10_15_universal2",
+                "cp310-abi3-macosx_11_0_universal2",
+            ])
+            == "cp39-abi3-macosx_10_15_universal2"
+        )
     assert not caplog.text
+
+    # unsupported platform tags group separately; supported host tag wins
+    monkeypatch.setattr(
+        "whl2conda.api.converter.native_conda_subdir", lambda: "osx-arm64"
+    )
+    assert (
+        converter._select_wheel_tag([
+            "cp313-cp313-freebsd_14_x86_64",
+            "cp313-cp313-macosx_11_0_arm64",
+        ])
+        == "cp313-cp313-macosx_11_0_arm64"
+    )
+
+    # no host match and no universal2 component: first tag wins
+    monkeypatch.setattr(
+        "whl2conda.api.converter.native_conda_subdir", lambda: "linux-64"
+    )
+    assert (
+        converter._select_wheel_tag([
+            "cp313-cp313-macosx_10_15_x86_64",
+            "cp313-cp313-macosx_11_0_arm64",
+        ])
+        == "cp313-cp313-macosx_10_15_x86_64"
+    )
 
 
 def test_select_wheel_tag_override(
