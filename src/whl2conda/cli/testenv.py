@@ -152,9 +152,11 @@ def run_package_tests(
             str(env_prefix),
             "--yes",
             "--extra",
-            # NOTE: the remaining arguments pass through to conda create
-            *chain.from_iterable(("-c", channel) for channel in channels),
+            # NOTE: the remaining arguments pass through to conda create;
+            # channels must come after the package specs, since conda's
+            # parser does not accept specs following a -c option
             *spec.requires,
+            *chain.from_iterable(("-c", channel) for channel in channels),
         ]
         install_main(install_cmd)
 

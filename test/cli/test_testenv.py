@@ -172,9 +172,9 @@ def test_run_package_tests(fake_runner: FakeRunner, tmp_path: Path) -> None:
             str(prefix),
             "--yes",
             "--extra",
+            "pytest >=7",
             "-c",
             "my-channel",
-            "pytest >=7",
         ]
     ]
 
