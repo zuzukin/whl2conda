@@ -3,6 +3,7 @@
 
 * [conda file format](https://docs.conda.io/projects/conda/en/latest/user-guide/concepts/packages.html)
 * [package spec](https://docs.conda.io/projects/conda-build/en/stable/resources/package-spec.html)
+* [CEP-20](https://conda.org/learn/ceps/cep-0020/) - support for abi3 python packages
 * [conda-package-handling tool (cph)](https://conda.github.io/conda-package-handling/)
 * [conda-build](https://docs.conda.io/projects/conda-build/)
 
