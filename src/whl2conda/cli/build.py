@@ -37,6 +37,7 @@ from ..api.converter import Wheel2CondaConverter
 # this project
 from .common import add_markdown_help, dedent, existing_dir, get_conda_bld_path
 from .install import install_main
+from .testenv import PackageTestSpec, run_package_tests
 
 __all__ = ["build_main"]
 
@@ -119,7 +120,7 @@ class CondaBuild:
             wheel = self._build_wheel()
             pkg = self._build_package(wheel)
             if not self.args.no_test:
-                self._test_package(pkg)
+                self._run_package_tests(pkg)
             self._install_package(pkg)
         finally:
             self._cleanup()
@@ -203,49 +204,23 @@ class CondaBuild:
         converter = Wheel2CondaConverter(wheel, self.work_dir)
         return converter.convert()
 
-    def _test_package(self, pkg: Path) -> None:
-        test_section = self.recipe.get("test", {})
-        if not test_section:
+    def _run_package_tests(self, pkg: Path) -> None:
+        spec = PackageTestSpec.from_meta_yaml(self.recipe.get("test") or {})
+        if not spec:
             return
-        test_prefix = self.work_dir / "test-env"
-        try:
-            install_cmd = [
-                str(pkg),
-                "--create",
-                "-p",
-                str(test_prefix),
-                "--yes",
-                "--extra",
-            ]
-            if channels := self.args.channels:
-                for channel in channels:
-                    install_cmd.extend(["-c", channel])
-            if test_dependencies := test_section.get("requires", []):
-                install_cmd.extend(test_dependencies)
-
-            install_main(install_cmd)
-
-            # TODO - use test.source_files
-
-            if import_names := test_section.get("imports", []):
-                for import_name in import_names:
-                    subprocess.check_call([
-                        "conda",
-                        "run",
-                        "-p",
-                        str(test_prefix),
-                        "python",
-                        "-c",
-                        f"import {import_name}",
-                    ])
-
-            if commands := test_section.get("commands", []):
-                for command in commands:
-                    subprocess.check_call(
-                        f"conda run -p {test_prefix!s} {command}", shell=True
-                    )
-        finally:
-            shutil.rmtree(test_prefix, ignore_errors=True)
+        # conda-build's render copies the source tree into work/, from
+        # which test source_files are resolved; fall back to the recipe dir
+        source_root = self.work_dir / "work"
+        if not source_root.is_dir():
+            source_root = self.args.recipe_path
+        run_package_tests(
+            pkg,
+            spec,
+            env_prefix=self.work_dir / "test-env",
+            work_dir=self.work_dir / "test_tmp",
+            source_root=source_root,
+            channels=self.args.channels,
+        )
 
     def _install_package(self, pkg: Path) -> None:
         install_main(["--conda-bld", str(pkg)])
