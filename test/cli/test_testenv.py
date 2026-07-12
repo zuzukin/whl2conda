@@ -37,9 +37,9 @@ from whl2conda.cli.testenv import (
 def test_spec_bool() -> None:
     """Spec is falsy when there is nothing to run"""
     assert not PackageTestSpec()
-    assert not PackageTestSpec(requires=["pytest"], source_files=["test"])
-    assert PackageTestSpec(imports=["foo"])
-    assert PackageTestSpec(commands=["pytest"])
+    assert not PackageTestSpec(requires=("pytest",), source_files=("test",))
+    assert PackageTestSpec(imports=("foo",))
+    assert PackageTestSpec(commands=("pytest",))
     assert PackageTestSpec(pip_check=True)
 
 
@@ -51,10 +51,10 @@ def test_spec_from_meta_yaml() -> None:
         "commands": ["pytest test"],
         "source_files": ["test"],
     })
-    assert spec.requires == ["pytest >=7"]
-    assert spec.imports == ["foo", "foo.bar"]
-    assert spec.commands == ["pytest test"]
-    assert spec.source_files == ["test"]
+    assert spec.requires == ("pytest >=7",)
+    assert spec.imports == ("foo", "foo.bar")
+    assert spec.commands == ("pytest test",)
+    assert spec.source_files == ("test",)
     assert not spec.pip_check
 
     empty = PackageTestSpec.from_meta_yaml({})
@@ -75,33 +75,35 @@ def test_spec_from_v1_tests(caplog: pytest.LogCaptureFixture) -> None:
             "files": {"source": ["test/"]},
         },
     ])
-    assert spec.imports == ["foo"]
+    assert spec.imports == ("foo",)
     assert not spec.pip_check
-    assert spec.commands == ["pytest test", "foo --version"]
-    assert spec.requires == ["pytest >=7"]
-    assert spec.source_files == ["test/"]
+    assert spec.commands == ("pytest test", "foo --version")
+    assert spec.requires == ("pytest >=7",)
+    assert spec.source_files == ("test/",)
 
     # pip_check defaults to true in the v1 format and implies pip
     spec = PackageTestSpec.from_v1_tests([{"python": {"imports": ["foo"]}}])
     assert spec.pip_check
-    assert spec.requires == ["pip"]
+    assert spec.requires == ("pip",)
 
     # single-string script and bare files list
     spec = PackageTestSpec.from_v1_tests([
         {"script": "pytest", "files": ["conftest.py"]}
     ])
-    assert spec.commands == ["pytest"]
-    assert spec.source_files == ["conftest.py"]
+    assert spec.commands == ("pytest",)
+    assert spec.source_files == ("conftest.py",)
 
     # unsupported elements are warned about and skipped
     with caplog.at_level("WARNING"):
         spec = PackageTestSpec.from_v1_tests([
             {"package_contents": {"site_packages": ["foo"]}},
             {"downstream": "bar"},
+            {"script": []},
         ])
     assert not spec
     assert "package_contents" in caplog.text
     assert "downstream" in caplog.text
+    assert "script" in caplog.text
 
 
 #
@@ -148,10 +150,10 @@ def test_run_package_tests(fake_runner: FakeRunner, tmp_path: Path) -> None:
     (source_root / "conftest.py").write_text("")
 
     spec = PackageTestSpec(
-        requires=["pytest >=7"],
-        imports=["foo", "foo.bar"],
-        commands=["pytest test"],
-        source_files=["test", "conftest.py"],
+        requires=("pytest >=7",),
+        imports=("foo", "foo.bar"),
+        commands=("pytest test",),
+        source_files=("test", "conftest.py"),
         pip_check=True,
     )
     run_package_tests(
@@ -202,12 +204,33 @@ def test_test_package_keep_env(fake_runner: FakeRunner, tmp_path: Path) -> None:
     prefix.mkdir()
     run_package_tests(
         tmp_path / "foo.conda",
-        PackageTestSpec(imports=["foo"]),
+        PackageTestSpec(imports=("foo",)),
         env_prefix=prefix,
         work_dir=tmp_path / "work",
         keep_env=True,
     )
     assert prefix.is_dir()
+
+
+def test_test_package_mamba(fake_runner: FakeRunner, tmp_path: Path) -> None:
+    """use_mamba uses mamba for both env creation and test commands"""
+    prefix = tmp_path / "env"
+    prefix.mkdir()
+    run_package_tests(
+        tmp_path / "foo.conda",
+        PackageTestSpec(imports=("foo",), commands=("foo --version",), pip_check=True),
+        env_prefix=prefix,
+        work_dir=tmp_path / "work",
+        use_mamba=True,
+    )
+    install_args = fake_runner.install_args[0]
+    assert "--mamba" in install_args
+    # --mamba precedes the pass-through args introduced by --extra
+    assert install_args.index("--mamba") < install_args.index("--extra")
+    commands = [cmd for cmd, _kwargs in fake_runner.calls]
+    assert commands[0][0] == "mamba"
+    assert commands[1][0] == "mamba"
+    assert commands[2].startswith("mamba run ")
 
 
 def test_test_package_failures(fake_runner: FakeRunner, tmp_path: Path) -> None:
@@ -219,7 +242,7 @@ def test_test_package_failures(fake_runner: FakeRunner, tmp_path: Path) -> None:
     with pytest.raises(PackageTestError, match="import of 'foo'"):
         run_package_tests(
             tmp_path / "foo.conda",
-            PackageTestSpec(imports=["foo"]),
+            PackageTestSpec(imports=("foo",)),
             env_prefix=prefix,
             work_dir=tmp_path / "work",
         )
@@ -231,7 +254,7 @@ def test_test_package_failures(fake_runner: FakeRunner, tmp_path: Path) -> None:
     with pytest.raises(PackageTestError, match="no-such-file"):
         run_package_tests(
             tmp_path / "foo.conda",
-            PackageTestSpec(imports=["foo"], source_files=["no-such-file*"]),
+            PackageTestSpec(imports=("foo",), source_files=("no-such-file*",)),
             env_prefix=prefix,
             work_dir=tmp_path / "work",
             source_root=tmp_path,
@@ -292,7 +315,7 @@ def test_build_test_adapter(
     assert len(calls) == 1
     call = calls[0]
     assert call["pkg"] == pkg
-    assert call["spec"].imports == ["foo"]
+    assert call["spec"].imports == ("foo",)
     assert call["channels"] == ["chan"]
     assert call["keep_env"] is True
     # no conda-build work dir: source files resolve from the recipe dir
