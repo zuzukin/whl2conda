@@ -131,6 +131,41 @@ def test_pypi_orix(test_case: ConverterTestCaseFactory) -> None:
 
 
 @pytest.mark.external
+def test_resolve_extras_live(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """
+    Test --resolve-extras against the real pypi.org JSON API.
+
+    Uses a pinned uvicorn version so that the extra's dependencies
+    are immutable. This exercises the fetch_pypi_metadata network
+    path, which is mocked in the unit tests.
+    """
+    import logging
+
+    from whl2conda.api.converter import RequiresDistEntry, Wheel2CondaConverter
+
+    converter = Wheel2CondaConverter(tmp_path / "fake.whl", tmp_path)
+    converter.logger = logging.getLogger(__name__)
+    converter.resolve_extras = True
+
+    result = converter._compute_conda_dependencies([
+        RequiresDistEntry.parse("uvicorn[standard] ==0.30.0")
+    ])
+
+    names = {dep.split()[0] for dep in result}
+    # the base package is kept and the extra's unconditional
+    # dependencies are added from the pinned version's metadata
+    assert "uvicorn" in names
+    assert "httptools" in names
+    assert "watchfiles" in names
+    # platform-conditional extra dependencies are skipped for noarch
+    assert "uvloop" not in names
+    assert "Dropping extras" not in caplog.text
+
+
+@pytest.mark.external
 def test_pypi_markupsafe_binary(test_case: ConverterTestCaseFactory) -> None:
     """
     Test converting markupsafe binary wheel (simple C extension).
