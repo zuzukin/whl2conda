@@ -431,7 +431,7 @@ def test_build_test_only(
     assert len(fake.test_calls) == 1
     test_call = fake.test_calls[0]
     assert test_call["pkg"] == pkg
-    assert test_call["spec"].imports == ["simple"]
+    assert test_call["spec"].imports == ("simple",)
     assert test_call["source_root"] == recipe_dir
 
 
