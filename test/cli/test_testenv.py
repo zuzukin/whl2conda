@@ -416,3 +416,22 @@ def test_run_package_tests_python_version(
     # python spec comes after requires and before the channel options
     extra = install_args[install_args.index("--extra") + 1 :]
     assert extra == ["pytest", "python=3.12", "-c", "chan"]
+
+
+def test_spec_describe() -> None:
+    """describe() lists all specified test elements"""
+    spec = PackageTestSpec(
+        requires=("pytest >=7",),
+        imports=("foo",),
+        commands=("pytest test",),
+        source_files=("test", "conftest.py"),
+        pip_check=True,
+    )
+    text = spec.describe()
+    assert "requires:\n  pytest >=7" in text
+    assert "source files:\n  test\n  conftest.py" in text
+    assert "imports:\n  foo" in text
+    assert "pip check" in text
+    assert "commands:\n  pytest test" in text
+
+    assert PackageTestSpec().describe() == ""
