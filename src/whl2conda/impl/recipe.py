@@ -15,9 +15,9 @@
 Conda recipe reading and rendering for `whl2conda build`.
 
 Supports classic conda recipes (meta.yaml, rendered through conda-build)
-and, in the future, v1 recipes (recipe.yaml, rendered through
-rattler-build). Rendered recipes of both formats are normalized into a
-common [RenderedRecipe][(m).] structure containing just what
+and v1 recipes (recipe.yaml, rendered through rattler-build). Rendered
+recipes of both formats are normalized into a common
+[RenderedRecipe][(m).] structure containing just what
 `whl2conda build` needs.
 """
 
@@ -129,10 +129,10 @@ def render_recipe(
     """
     recipe_file, recipe_format = find_recipe_file(recipe_dir)
     if recipe_format is RecipeFormat.V1:
-        # implemented with #160
-        raise RecipeError(
-            f"v1 recipes are not yet supported by whl2conda build: {recipe_file}"
-        )
+        from .render_v1 import render_v1_yaml  # noqa: PLC0415
+
+        raw = render_v1_yaml(recipe_file)
+        return _normalize_v1(raw, recipe_dir)
 
     # local import so that recipe.py has no yaml dependency at import time
     from .render_meta import render_meta_yaml  # noqa: PLC0415
@@ -145,23 +145,65 @@ def _normalize_meta_yaml(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRe
     """Normalize a rendered meta.yaml document."""
     package = raw.get("package") or {}
     build = raw.get("build") or {}
-    script = build.get("script") or []
-    if isinstance(script, str):
-        script = [script]
-    try:
-        build_number = int(build.get("number") or 0)
-    except (TypeError, ValueError):
-        build_number = 0
     return RenderedRecipe(
         format=RecipeFormat.META_YAML,
         recipe_dir=recipe_dir,
         name=str(package.get("name") or ""),
         version=str(package.get("version") or ""),
-        build_number=build_number,
-        build_script=tuple(str(line) for line in script),
+        build_number=_build_number(build),
+        build_script=_script_lines(build.get("script")),
         noarch_python=build.get("noarch") == "python",
         raw=raw,
     )
+
+
+def _normalize_v1(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRecipe:
+    """Normalize a rendered v1 recipe.yaml document.
+
+    Raises:
+        RecipeError: if the recipe does not build a `noarch: python`
+            package.
+    """
+    package = raw.get("package") or {}
+    build = raw.get("build") or {}
+    if build.get("noarch") != "python":
+        raise RecipeError(
+            f"Cannot build from v1 recipe in {recipe_dir}: whl2conda build"
+            " only supports v1 recipes with `noarch: python`"
+            " (see https://github.com/zuzukin/whl2conda/issues/216)"
+        )
+    return RenderedRecipe(
+        format=RecipeFormat.V1,
+        recipe_dir=recipe_dir,
+        name=str(package.get("name") or ""),
+        version=str(package.get("version") or ""),
+        build_number=_build_number(build),
+        build_script=_script_lines(build.get("script")),
+        noarch_python=True,
+        raw=raw,
+    )
+
+
+def _build_number(build: Mapping[str, Any]) -> int:
+    try:
+        return int(build.get("number") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _script_lines(script: Any) -> tuple[str, ...]:
+    """Normalize a recipe build script into a tuple of lines.
+
+    Handles a single string, a list of lines, and the v1 object form
+    with a `content` key.
+    """
+    if isinstance(script, Mapping):
+        script = script.get("content") or []
+    if script is None:
+        script = []
+    elif isinstance(script, str):
+        script = [script]
+    return tuple(str(line) for line in script)
 
 
 #: Matches a `pip install .` or `pip wheel .` line, possibly prefixed

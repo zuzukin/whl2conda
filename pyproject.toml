@@ -71,6 +71,9 @@ packaging = ">=23"
 pyright = ">=1.1,<2.0"
 pytest = ">=7.4,<8.0"
 pytest-cov = ">=4.1.0,<5.0"
+# for whl2conda build v1 recipe rendering (external tests)
+py-rattler-build = ">=0.40"
+rattler-build = ">=0.40"
 ruff = ">=0.3.7"
 types-pyyaml = ">=6.0"
 

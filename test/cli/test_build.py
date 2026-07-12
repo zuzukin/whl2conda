@@ -42,6 +42,7 @@ from whl2conda.impl.recipe import RecipeError, RecipeFormat, RenderedRecipe
 
 RENDERED_RAW: dict[str, Any] = {
     "package": {"name": "simple", "version": "1.2.3"},
+    "source": [{"path": "."}],
     "build": {"noarch": "python", "number": 0, "script": "pip install ."},
     "test": {"imports": ["simple"]},
 }
@@ -56,6 +57,7 @@ class FakeBuild:
         self.test_calls: list[dict[str, Any]] = []
         self.install_calls: list[tuple[list[Path], str, dict[str, Any]]] = []
         self.rendered_raw: dict[str, Any] = dict(RENDERED_RAW)
+        self.rendered_format = RecipeFormat.META_YAML
         self.render_kwargs: dict[str, Any] = {}
 
         fake = self
@@ -68,7 +70,7 @@ class FakeBuild:
             if isinstance(script, str):
                 script = [script]
             return RenderedRecipe(
-                format=RecipeFormat.META_YAML,
+                format=fake.rendered_format,
                 recipe_dir=recipe_dir,
                 name=raw["package"]["name"],
                 version=raw["package"]["version"],
@@ -78,7 +80,9 @@ class FakeBuild:
                 raw=raw,
             )
 
-        def fake_build_wheel(builder: CondaBuild, dist_dir: Path) -> Path:
+        def fake_build_wheel(
+            builder: CondaBuild, dist_dir: Path, source_root: Path
+        ) -> Path:
             wheel = dist_dir / "simple-1.2.3-py3-none-any.whl"
             wheel.parent.mkdir(parents=True, exist_ok=True)
             wheel.write_bytes(b"")
@@ -266,8 +270,9 @@ def test_build_wheel_step(
     dist_dir = tmp_path / "dist"
     dist_dir.mkdir()
 
-    def fake_check_call(cmd, shell=False) -> None:
+    def fake_check_call(cmd, shell=False, cwd=None) -> None:
         assert shell is True
+        assert cwd == recipe_dir
         commands.append(cmd)
 
     monkeypatch.setattr("whl2conda.cli.build.subprocess.check_call", fake_check_call)
@@ -290,16 +295,46 @@ def test_build_wheel_step(
 
     # build script ran but produced no wheel
     with pytest.raises(RecipeError, match="did not produce a wheel"):
-        builder._build_wheel(dist_dir)
+        builder._build_wheel(dist_dir, recipe_dir)
     assert commands == [f"pip wheel . -w {dist_dir}"]
 
     wheel = dist_dir / "simple-1.2.3-py3-none-any.whl"
     wheel.write_bytes(b"")
-    assert builder._build_wheel(dist_dir) == wheel
+    assert builder._build_wheel(dist_dir, recipe_dir) == wheel
 
     # cleanup tolerates a work dir that was never created
     assert not builder.work_dir.exists()
     builder._cleanup()
+
+
+def test_build_v1_tests(fake_build: tuple[FakeBuild, Path]) -> None:
+    """v1 recipes use the v1 test specification"""
+    fake, recipe_dir = fake_build
+    fake.rendered_format = RecipeFormat.V1
+    fake.rendered_raw = {
+        "package": {"name": "simple", "version": "1.2.3"},
+        "source": [{"path": "."}],
+        "build": {"noarch": "python", "number": 0, "script": "pip install ."},
+        "tests": [
+            {"python": {"imports": ["simple"], "pip_check": False}},
+            {"script": "pytest test", "requirements": {"run": ["pytest"]}},
+        ],
+    }
+
+    main(["build", str(recipe_dir)])
+    assert len(fake.test_calls) == 1
+    spec = fake.test_calls[0]["spec"]
+    assert spec.imports == ("simple",)
+    assert spec.commands == ("pytest test",)
+    assert spec.requires == ("pytest",)
+    assert not spec.pip_check
+    assert fake.test_calls[0]["source_root"] == recipe_dir
+
+    # empty v1 tests: no test run
+    fake.test_calls.clear()
+    fake.rendered_raw = {**fake.rendered_raw, "tests": []}
+    main(["build", str(recipe_dir)])
+    assert not fake.test_calls
 
 
 def test_predict_package_path(tmp_path: Path) -> None:
@@ -562,3 +597,125 @@ def test_build_unsupported_options(
         main(args)
     _out, err = capsys.readouterr()
     assert f"{flags[0]} is not supported" in err
+
+
+#
+# End-to-end tests (external)
+#
+
+this_dir = Path(__file__).parent.absolute()
+root_dir = this_dir.parent.parent
+FIXTURE_PROJECT = root_dir / "test-projects" / "recipe"
+
+
+def _e2e_build(
+    recipe_dir: Path, tmp_path: Path, *extra_args: str, out_name: str = "out"
+) -> Path:
+    """Build fixture recipe into an output folder; returns package path."""
+    out_folder = tmp_path / out_name
+    main([
+        "build",
+        str(recipe_dir),
+        "--output-folder",
+        str(out_folder),
+        "--no-test",
+        *extra_args,
+    ])
+    pkg = out_folder / "noarch" / "hello-1.0.0-py_1.conda"
+    assert pkg.is_file()
+    return pkg
+
+
+@pytest.mark.external
+def test_build_e2e_meta(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """End-to-end build of the classic fixture recipe (no test env)"""
+    pytest.importorskip("conda_build", reason="requires conda-build")
+    recipe_dir = FIXTURE_PROJECT / "recipe-meta"
+
+    # --output prediction matches the built artifact
+    out_folder = tmp_path / "out"
+    main(["build", str(recipe_dir), "--output", "--output-folder", str(out_folder)])
+    out, _err = capsys.readouterr()
+    predicted = Path(out.strip())
+
+    pkg = _e2e_build(recipe_dir, tmp_path)
+    assert pkg == predicted
+
+    # --skip-existing skips the rebuild
+    with caplog.at_level("INFO"):
+        main([
+            "build",
+            str(recipe_dir),
+            "--skip-existing",
+            "--output-folder",
+            str(out_folder),
+        ])
+    assert "Skipping existing package" in caplog.text
+
+    # --check validates without building
+    main(["build", str(recipe_dir), "--check"])
+
+
+@pytest.mark.external
+def test_build_e2e_v1(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """End-to-end build of the v1 fixture recipe (no test env)"""
+    pytest.importorskip("rattler_build", reason="requires py-rattler-build")
+    recipe_dir = FIXTURE_PROJECT / "recipe-v1"
+
+    main([
+        "build",
+        str(recipe_dir),
+        "--output",
+        "--output-folder",
+        str(tmp_path / "out"),
+    ])
+    out, _err = capsys.readouterr()
+    predicted = Path(out.strip())
+
+    pkg = _e2e_build(recipe_dir, tmp_path)
+    assert pkg == predicted
+
+
+@pytest.mark.external
+@pytest.mark.slow
+@pytest.mark.parametrize("recipe_name", ["recipe-meta", "recipe-v1"])
+def test_build_e2e_with_tests(
+    tmp_path: Path,
+    recipe_name: str,
+) -> None:
+    """End-to-end build of fixture recipes including the package tests"""
+    if recipe_name == "recipe-meta":
+        pytest.importorskip("conda_build", reason="requires conda-build")
+    else:
+        pytest.importorskip("rattler_build", reason="requires py-rattler-build")
+    recipe_dir = FIXTURE_PROJECT / recipe_name
+
+    out_folder = tmp_path / "out"
+    main([
+        "build",
+        str(recipe_dir),
+        "--output-folder",
+        str(out_folder),
+        "-c",
+        "conda-forge",
+    ])
+    pkg = out_folder / "noarch" / "hello-1.0.0-py_1.conda"
+    assert pkg.is_file()
+
+    # -t/--test re-tests the built package
+    main([
+        "build",
+        str(recipe_dir),
+        "-t",
+        "--output-folder",
+        str(out_folder),
+        "-c",
+        "conda-forge",
+    ])

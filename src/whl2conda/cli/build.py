@@ -38,6 +38,7 @@ from ..api.converter import (
 # this project
 from ..impl.recipe import (
     RecipeError,
+    RecipeFormat,
     RenderedRecipe,
     render_recipe,
     rewrite_build_script,
@@ -80,6 +81,7 @@ def predict_package_path(
         raise RecipeError(
             f"Cannot predict package path for recipe in {rendered.recipe_dir}:"
             " it does not build a `noarch: python` package"
+            " (see https://github.com/zuzukin/whl2conda/issues/216)"
         )
     name = normalize_pypi_name(rendered.name)
     build_string = noarch_build_string(rendered.build_number)
@@ -239,21 +241,20 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         usage="%(prog)s <recipe-path> [options]",
         description=dedent("""
-            Build a conda package from a pure python wheel.
+            Build a conda package from an existing conda recipe.
 
             This command is a limited drop-in replacement for `conda build`
-            for recipes of pure python packages whose build script is a
-            `pip install .` or `pip wheel .` command: it builds the wheel
-            and converts it directly to a conda package without creating
-            a build environment.
+            (and rattler-build) for recipes of pure python packages whose
+            build script is a `pip install .` or `pip wheel .` command:
+            it builds the wheel and converts it directly to a conda
+            package without creating a build environment. Both classic
+            (meta.yaml) and v1 (recipe.yaml) recipes are supported;
+            v1 recipes must declare `noarch: python`.
 
             Most conda build options that do not apply to this build
             model are accepted and ignored with a warning; options whose
             omission would silently change the meaning of a build
             pipeline (e.g. package uploads) are rejected with an error.
-
-            This is an experimental feature and is still under active
-            change and development.
             """),
         formatter_class=argparse.RawTextHelpFormatter,
         prog=prog,
@@ -504,7 +505,7 @@ class CondaBuild:
             if self.args.check:
                 logger.info("whl2conda can build the recipe in %s", self.recipe_path)
                 return
-            wheel = self._build_wheel(dist_dir)
+            wheel = self._build_wheel(dist_dir, self._source_root(rendered))
             pkg = self._build_package(wheel, rendered)
             if not (self.args.no_test or self.args.build_only):
                 self._run_package_tests(pkg, rendered)
@@ -531,9 +532,31 @@ class CondaBuild:
         fmt = self.args.package_format or CondaPackageFormat.V2
         return predict_package_path(rendered, bld_path, fmt)
 
-    def _build_wheel(self, dist_dir: Path) -> Path:
+    def _source_root(self, rendered: RenderedRecipe) -> Path:
+        """Directory containing the project source for this recipe.
+
+        This is the source copy in conda-build's work directory when it
+        exists, otherwise the recipe's local `path:` source when it has
+        one, and otherwise the current directory.
+        """
+        for work_src in sorted(self.work_dir.glob("croot/*/work")):
+            # conda-build only populates the work dir when the recipe
+            # needs the source at render time
+            if any(work_src.iterdir()):
+                return work_src
+        sources = rendered.raw.get("source") or ()
+        if isinstance(sources, dict):
+            sources = (sources,)
+        for source in sources:
+            if isinstance(source, dict) and (path := source.get("path")):
+                source_root = (rendered.recipe_dir / str(path)).resolve()
+                if source_root.is_dir():
+                    return source_root
+        return Path.cwd()
+
+    def _build_wheel(self, dist_dir: Path, source_root: Path) -> Path:
         for line in self.build_script:
-            subprocess.check_call(line, shell=True)
+            subprocess.check_call(line, shell=True, cwd=source_root)
         try:
             return next(dist_dir.glob("*.whl"))
         except StopIteration:
@@ -558,21 +581,18 @@ class CondaBuild:
         return pkg
 
     def _run_package_tests(self, pkg: Path, rendered: RenderedRecipe) -> None:
-        spec = PackageTestSpec.from_meta_yaml(rendered.raw.get("test") or {})
+        if rendered.format is RecipeFormat.V1:
+            spec = PackageTestSpec.from_v1_tests(rendered.raw.get("tests") or ())
+        else:
+            spec = PackageTestSpec.from_meta_yaml(rendered.raw.get("test") or {})
         if not spec:
             return
-        # conda-build's render copies the source tree into its work dir,
-        # from which test source_files are resolved
-        source_root = self.recipe_path
-        for work_src in sorted(self.work_dir.glob("croot/*/work")):
-            source_root = work_src
-            break
         run_package_tests(
             pkg,
             spec,
             env_prefix=self.work_dir / "test-env",
             work_dir=self.work_dir / "test_tmp",
-            source_root=source_root,
+            source_root=self._source_root(rendered),
             channels=self.args.channels,
             keep_env=self.args.keep_test_env,
             use_mamba=self.args.use_mamba,

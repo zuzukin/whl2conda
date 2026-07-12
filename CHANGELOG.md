@@ -4,6 +4,18 @@
 
 ### Features
 
+* `whl2conda build` now supports v1 (`recipe.yaml`) recipes, as built
+  by rattler-build, in addition to classic (`meta.yaml`) recipes.
+  v1 recipes are rendered with the py-rattler-build python package
+  when it is importable and otherwise with the `rattler-build` command;
+  the recipe's `tests:` list is run against the generated package
+  (in a single shared test environment). v1 recipes must declare
+  `noarch: python`. (#160)
+* `whl2conda build` now runs the recipe build script in the recipe's
+  source directory (conda-build's source work directory when populated,
+  otherwise the recipe's local `path:` source), instead of the current
+  directory, so it no longer needs to be invoked from the project root.
+* New "Building from Recipes" user guide documentation page.
 * `whl2conda build` now supports most applicable `conda build` options:
   the build modes `--output` (print the predicted package path without
   building), `-t`/`--test` (test the already-built package),

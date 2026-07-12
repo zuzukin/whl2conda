@@ -17,6 +17,7 @@ Unit tests for whl2conda.cli.testenv
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -311,7 +312,10 @@ def test_build_test_adapter(
     builder = CondaBuild(make_args())
     builder.work_dir = tmp_path / "build-work"
     pkg = tmp_path / "foo-1.0-py_0.conda"
-    rendered = make_rendered({"test": {"imports": ["foo"], "source_files": ["test"]}})
+    rendered = make_rendered({
+        "source": [{"path": "."}],
+        "test": {"imports": ["foo"], "source_files": ["test"]},
+    })
 
     builder._run_package_tests(pkg, rendered)
     assert len(calls) == 1
@@ -321,16 +325,31 @@ def test_build_test_adapter(
     assert call["channels"] == ["chan"]
     assert call["keep_env"] is True
     assert call["use_mamba"] is True
-    # no conda-build work dir: source files resolve from the recipe dir
+    # no conda-build work dir: source files resolve from the path source
     assert call["source_root"] == tmp_path
     assert call["env_prefix"] == builder.work_dir / "test-env"
 
-    # conda-build work dir is preferred when present
+    # a populated conda-build work dir is preferred when present
     work_src = builder.work_dir / "croot" / "foo_123" / "work"
     work_src.mkdir(parents=True)
     builder._run_package_tests(pkg, rendered)
-    assert calls[1]["source_root"] == work_src
+    assert calls[1]["source_root"] == tmp_path  # empty work dir is ignored
+    (work_src / "pyproject.toml").write_text("")
+    builder._run_package_tests(pkg, rendered)
+    assert calls[2]["source_root"] == work_src
+
+    # no work dir and no local path source: falls back to the current dir
+    shutil.rmtree(builder.work_dir / "croot")
+    builder._run_package_tests(pkg, make_rendered({"test": {"imports": ["foo"]}}))
+    assert calls[3]["source_root"] == Path.cwd()
+
+    # single-dict source form (as rendered from meta.yaml)
+    builder._run_package_tests(
+        pkg,
+        make_rendered({"source": {"path": "."}, "test": {"imports": ["foo"]}}),
+    )
+    assert calls[4]["source_root"] == tmp_path
 
     # empty test section: runner is not invoked
     builder._run_package_tests(pkg, make_rendered({}))
-    assert len(calls) == 2
+    assert len(calls) == 5
