@@ -6,6 +6,10 @@
 * [CEP-20](https://conda.org/learn/ceps/cep-0020/) - support for abi3 python packages
 * [conda-package-handling tool (cph)](https://conda.github.io/conda-package-handling/)
 * [conda-build](https://docs.conda.io/projects/conda-build/)
+* [rattler-build](https://rattler.build/)
+* [py-rattler-build](https://pypi.org/project/py-rattler-build/) - python bindings for rattler-build
+* [CEP-13](https://github.com/conda/ceps/blob/main/cep-0013.md) - v1 recipe format
+* [CEP-14](https://github.com/conda/ceps/blob/main/cep-0014.md) - v1 recipe schema
 
 ## Wheels:
 
