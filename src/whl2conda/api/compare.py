@@ -177,7 +177,7 @@ class CompareOptions:
     renames: dict[str, str] | None = None
     """pypi to conda package rename map.
 
-    Defaults to the standard rename table from [load_std_renames][(m)..stdrename.].
+    Defaults to the standard rename table from [load_std_renames][whl2conda.api.stdrename.].
     """
 
 
