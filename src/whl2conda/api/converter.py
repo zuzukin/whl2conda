@@ -24,6 +24,8 @@ import dataclasses
 import email
 import email.message
 import email.policy
+import functools
+import importlib.resources
 import io
 import json
 import logging
@@ -31,6 +33,7 @@ import re
 import shutil
 import tempfile
 import time
+from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass
 from hashlib import sha256
@@ -43,6 +46,7 @@ from conda_package_handling.api import create as create_conda_pkg
 # this project
 from ..__about__ import __version__
 from ..impl.conda_forge import native_conda_subdir
+from ..impl.download import fetch_pypi_metadata
 from ..impl.prompt import bool_input
 from ..impl.pyproject import CondaPackageFormat
 from ..impl.wheel import unpack_wheel
@@ -453,6 +457,21 @@ def _evaluate_marker(marker: str, env: dict[str, str]) -> bool:
         return True
 
 
+def _strip_extra_marker(entry: RequiresDistEntry) -> RequiresDistEntry:
+    """Return copy of entry with the `extra == ...` marker clause removed."""
+    new_entry = dataclasses.replace(
+        entry, marker="", extra_marker_name="", generic=True
+    )
+    if not entry.generic:
+        marker = re.sub(r"\s*\band\b\s*extra\s*==\s*(['\"])[^'\"]*\1", "", entry.marker)
+        marker = re.sub(
+            r"extra\s*==\s*(['\"])[^'\"]*\1\s*\band\b\s*", "", marker
+        ).strip()
+        if marker:  # pragma: no branch
+            new_entry.set_marker(marker)
+    return new_entry
+
+
 class DependencyRename(NamedTuple):
     r"""
     Defines a pypi to conda package renaming rule.
@@ -460,6 +479,11 @@ class DependencyRename(NamedTuple):
     The pattern must fully match the input package.
     The replacement string may contain group references
     e.g. r'\1', r'\g<name>`.
+
+    For dependencies with extras, patterns are first matched against
+    the bracketed `name[extra,...]` form (as written in the wheel
+    metadata), so that a dependency with extras can be mapped to a
+    corresponding conda package, e.g. `dask\[complete\]` -> `dask`.
     """
 
     pattern: re.Pattern
@@ -507,6 +531,21 @@ class DependencyRename(NamedTuple):
         return pypi_name, False
 
 
+@functools.cache
+def load_known_extras() -> dict[str, dict[str, str]]:
+    """Table of known conda-forge packages corresponding to pypi extras.
+
+    Loaded from the bundled `known_extras.json` data file, keyed by
+    normalized pypi package name and then by normalized extra name.
+    Only extras with a dedicated conda-forge package that uses the same
+    version numbering as, and also depends on (or subsumes), the base
+    package belong in this table: the mapped package *replaces* the
+    bracketed dependency, carrying over its version spec.
+    """
+    resources = importlib.resources.files("whl2conda.api")
+    return json.loads(resources.joinpath("known_extras.json").read_text("utf8"))
+
+
 class Wheel2CondaConverter:
     """
     Converter supports generation of a conda package from a python wheel.
@@ -551,6 +590,10 @@ class Wheel2CondaConverter:
     keep_pip_dependencies: bool = False
     dependency_rename: list[DependencyRename]
     extra_dependencies: list[str]
+    use_known_extras: bool = False
+    """Replace known pypi extras with corresponding conda packages"""
+    resolve_extras: bool = False
+    """Resolve remaining extras from pypi metadata (best effort)"""
     python_version: str = ""
     interactive: bool = False
     build_number: int | None = None
@@ -576,6 +619,7 @@ class Wheel2CondaConverter:
         self.out_dir = out_dir
         self.dependency_rename = []
         self.extra_dependencies = []
+        self._pypi_metadata_cache: dict[tuple[str, str], dict[str, Any]] = {}
         # TODO - option to ignore this
         self.std_renames = load_std_renames(update=update_std_renames)
 
@@ -984,7 +1028,10 @@ class Wheel2CondaConverter:
 
         saw_python = False
 
-        for entry in dependencies:
+        queue = deque(dependencies)
+        resolved_extras: set[tuple[str, str]] = set()
+        while queue:
+            entry = queue.popleft()
             if entry.extra_marker_name:
                 self._debug("Skipping extra dependency: %s", entry)
                 continue
@@ -1015,17 +1062,101 @@ class Wheel2CondaConverter:
                     )
                     version = self.python_version
 
-            # TODO - do something with extras (#36)
-            #   download target pip package and its extra dependencies
             # check manual renames first
             renamed = False
-            for renamer in self.dependency_rename:
-                conda_name, renamed = renamer.rename(pip_name)
-                if renamed:
-                    break
+            dropped_extras = list(entry.extras)
+            extras_name = pip_name
+            if entry.extras:
+                # a rule matching the bracketed name[extra,...] form maps
+                # the dependency with its extras to a conda equivalent,
+                # e.g. 'dask[complete]' -> 'dask' (#217)
+                extras_name = f"{pip_name}[{','.join(entry.extras)}]"
+                for renamer in self.dependency_rename:
+                    conda_name, renamed = renamer.rename(extras_name)
+                    if renamed:
+                        dropped_extras = []
+                        break
+
+            # extras with known corresponding conda packages (#217)
+            known_extras: dict[str, str] = {}
+            if dropped_extras:
+                known = load_known_extras().get(normalize_pypi_name(pip_name), {})
+                known_extras = {
+                    extra: known[normalize_pypi_name(extra)]
+                    for extra in dropped_extras
+                    if normalize_pypi_name(extra) in known
+                }
+            if known_extras and self.use_known_extras:
+                dropped_extras = [
+                    extra for extra in dropped_extras if extra not in known_extras
+                ]
+                for mapped in dict.fromkeys(known_extras.values()):
+                    conda_dep = f"{mapped} {version}"
+                    self._info(
+                        "Replaced extras dependency: '%s' -> '%s'",
+                        entry,
+                        conda_dep,
+                    )
+                    conda_dependencies.append(conda_dep)
+                known_extras = {}
+                if not dropped_extras:
+                    # the mapped conda packages subsume the base package
+                    continue
+
+            # resolve remaining extras from pypi metadata (#36)
+            if dropped_extras and self.resolve_extras and not renamed:
+                remaining: list[str] = []
+                for extra in dropped_extras:
+                    key = (
+                        normalize_pypi_name(pip_name),
+                        normalize_pypi_name(extra),
+                    )
+                    if key in resolved_extras:
+                        continue  # already expanded (or cyclic)
+                    resolved_extras.add(key)
+                    expansion = self._resolve_extra(pip_name, entry.version, extra)
+                    if expansion is None:
+                        remaining.append(extra)
+                    else:
+                        queue.extend(expansion)
+                dropped_extras = remaining
+                known_extras = {}
+
+            if not renamed:
+                conda_name = pip_name
+                for renamer in self.dependency_rename:
+                    conda_name, renamed = renamer.rename(pip_name)
+                    if renamed:
+                        break
             if not renamed:
                 conda_name = self.std_renames.get(
                     normalize_pypi_name(pip_name), pip_name
+                )
+
+            if conda_name and dropped_extras:
+                # TODO - optionally resolve extras from pypi metadata (#36)
+                if known_extras:
+                    known_names = ", ".join(
+                        f"'{conda_pkg}' for [{extra}]"
+                        for extra, conda_pkg in known_extras.items()
+                    )
+                    hint = (
+                        f" Note: conda-forge provides {known_names}; use the"
+                        " --known-extras option to apply this automatically."
+                    )
+                else:
+                    hint = (
+                        " Add the extra's dependencies with --extra-dep, map"
+                        f" '{extras_name}' to a conda equivalent with a"
+                        " dependency rename rule, or use the --resolve-extras"
+                        " option to resolve them from pypi metadata."
+                    )
+                self._warn(
+                    "Dropping extras [%s] from dependency '%s': conda"
+                    " packages cannot express extras.%s",
+                    ",".join(dropped_extras),
+                    entry,
+                    hint,
                 )
 
             if conda_name:
@@ -1046,6 +1177,102 @@ class Wheel2CondaConverter:
             self._debug("Dependency added:  '%s'", dep)
             conda_dependencies.append(dep)
         return conda_dependencies
+
+    def _resolve_extra(
+        self,
+        package: str,
+        version_spec: str,
+        extra: str,
+    ) -> list[RequiresDistEntry] | None:
+        """Resolve an extra's dependencies from pypi metadata.
+
+        Reads the Requires-Dist metadata of the newest release of
+        `package` satisfying `version_spec` from pypi.org and returns
+        the entries belonging to the given extra, with the extra
+        marker clause removed. This is a best-effort approximation:
+        the extra's dependencies are taken from one specific version,
+        which is not necessarily the version a solver will install.
+
+        Returns:
+            The extra's dependency entries, or None if the metadata
+            could not be fetched or the extra is unknown.
+        """
+        try:
+            data = self._get_pypi_metadata(package, version_spec)
+            info = data.get("info") or {}
+            requires_dist = info.get("requires_dist") or []
+        except Exception as ex:  # pylint: disable=broad-exception-caught
+            self._warn("Cannot fetch pypi metadata for '%s': %s", package, ex)
+            return None
+
+        norm_extra = normalize_pypi_name(extra)
+        if norm_extra not in (
+            normalize_pypi_name(provided)
+            for provided in info.get("provides_extra") or ()
+        ):
+            self._warn(
+                "Package '%s' version %s does not provide extra '%s'",
+                package,
+                info.get("version"),
+                extra,
+            )
+            return None
+
+        entries = []
+        for raw in requires_dist:
+            try:
+                entry = RequiresDistEntry.parse(raw)
+            except SyntaxError:
+                continue
+            if normalize_pypi_name(entry.extra_marker_name) == norm_extra:
+                entries.append(_strip_extra_marker(entry))
+        self._info(
+            "Resolved '%s[%s]' using version %s metadata: %s",
+            package,
+            extra,
+            info.get("version"),
+            ", ".join(str(e) for e in entries) or "no dependencies",
+        )
+        return entries
+
+    def _get_pypi_metadata(self, package: str, version_spec: str) -> dict[str, Any]:
+        """Get pypi metadata for newest release matching the version spec."""
+        # standard
+        from packaging.specifiers import SpecifierSet  # noqa: PLC0415
+        from packaging.version import InvalidVersion, Version  # noqa: PLC0415
+
+        norm_name = normalize_pypi_name(package)
+        data = self._pypi_metadata(norm_name)
+        latest = (data.get("info") or {}).get("version") or ""
+        target = latest
+        if version_spec:
+            specifiers = SpecifierSet(version_spec)
+            candidates = []
+            for release in data.get("releases") or {}:
+                try:
+                    version = Version(release)
+                except InvalidVersion:
+                    continue
+                if not version.is_prerelease and version in specifiers:
+                    candidates.append(version)
+            if candidates:
+                target = str(max(candidates))
+        if target and target != latest:
+            data = self._pypi_metadata(norm_name, target)
+        return data
+
+    def _pypi_metadata(self, package: str, version: str = "") -> dict[str, Any]:
+        """Fetch pypi metadata, cached per package and version.
+
+        The cache is per converter instance rather than a global
+        functools cache so that repeated conversions cannot see
+        stale metadata and instances do not leak.
+        """
+        cache_key = (package, version)
+        if (cached := self._pypi_metadata_cache.get(cache_key)) is None:
+            cached = fetch_pypi_metadata(package, version)
+            self._pypi_metadata_cache[cache_key] = cached
+        return cached
 
     def _add_binary_dependencies(
         self,

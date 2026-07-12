@@ -70,6 +70,8 @@ class ConvertArgs:
     ignore_pyproject: bool
     interactive: bool
     keep_pip_deps: bool
+    known_extras: bool
+    resolve_extras: bool
     name: str
     out_dir: Path | None
     out_format: str
@@ -247,7 +249,7 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
         default=[],
         dest="dep_renames",
         help=dedent("""
-        Rename pip dependency for conda. May be specified muliple times.
+        Rename pip dependency for conda. May be specified multiple times.
         """),
     )
     override_opts.add_argument(
@@ -271,6 +273,27 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
         help=dedent("""
             Drop dependency with given name from conda dependency list.
             May be specified multiple times.
+            """),
+    )
+    override_opts.add_argument(
+        "--known-extras",
+        dest="known_extras",
+        action="store_true",
+        help=dedent("""
+            Replace dependencies with known extras by their corresponding
+            conda packages, e.g. `uvicorn[standard]` by `uvicorn-standard`.
+            """),
+    )
+    override_opts.add_argument(
+        "--resolve-extras",
+        dest="resolve_extras",
+        action="store_true",
+        help=dedent("""
+            Resolve dependency extras not otherwise handled by reading
+            package metadata from pypi.org (requires network access).
+            The extra's dependencies are taken from the newest release
+            satisfying the dependency's version spec, so this is a
+            best-effort approximation.
             """),
     )
     override_opts.add_argument(
@@ -630,6 +653,8 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
         converter.out_format = out_fmt
         converter.overwrite = parsed.overwrite
         converter.keep_pip_dependencies = parsed.keep_pip_deps
+        converter.use_known_extras = parsed.known_extras
+        converter.resolve_extras = parsed.resolve_extras
         converter.extra_dependencies.extend(pyproj_info.extra_dependencies)
         converter.extra_dependencies.extend(parsed.extra_deps)
         converter.python_version = parsed.python

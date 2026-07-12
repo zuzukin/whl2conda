@@ -142,6 +142,71 @@ be replaced with the named capture group with given name.
     $ whl2conda convert -R 'acme-(?P<part>.*)' 'acme.${part}'
     ```
 
+### <a name="extras">Dependencies with extras</a>
+
+Conda packages cannot express pip *extras*, so by default the
+extras are dropped with a warning from dependencies of the form
+`name[extra,...]` — only the base package dependency is kept.
+
+Rename rules are matched against the bracketed form of such
+dependencies (as written in the wheel metadata) before the bare
+name, so where a corresponding conda package exists — for example,
+on conda-forge the `dask` metapackage corresponds to
+`dask[complete]`, while plain `dask` corresponds to `dask-core` —
+you can map the dependency explicitly, which also suppresses the
+warning:
+
+```bash
+$ whl2conda convert -R 'dask\[complete\]' dask -R dask dask-core
+```
+
+Note that the square brackets are escaped because the pattern is
+a regular expression, in which unescaped brackets would denote a
+character class — this is independent of any shell quoting.
+Alternatively, the extra's dependencies can be added individually
+using `-A` / `--add-dependency`.
+
+*whl2conda* also knows about a number of common extras that have a
+dedicated corresponding package on [conda-forge], including:
+
+| pypi dependency | conda package |
+|---|---|
+| `black[jupyter]` | `black-jupyter` |
+| `dask[complete]` | `dask` |
+| `ibis-framework[<backend>]` | `ibis-<backend>` |
+| `psycopg[binary]`, `psycopg[c]` | `psycopg` |
+| `ray[default]`, `ray[serve]`, ... | `ray-default`, `ray-serve`, ... |
+| `uvicorn[standard]` | `uvicorn-standard` |
+
+When such a dependency is encountered, the warning will point out the
+corresponding conda package, and the `--known-extras` option will
+apply these replacements automatically:
+
+```bash
+$ whl2conda convert --known-extras ...
+```
+
+Extras not handled by any of the above can be resolved from
+[pypi.org] metadata using the `--resolve-extras` option, which
+requires network access:
+
+```bash
+$ whl2conda convert --resolve-extras ...
+```
+
+This reads the extra's dependencies from the newest release of the
+package that satisfies the dependency's version spec, converts them
+like regular dependencies, and recursively resolves any extras they
+use in turn.
+
+!!! warning
+
+    This is a best-effort approximation: the extra's dependencies
+    are taken from one specific version of the package, while the
+    conda solver may ultimately install a different version whose
+    extras differ. Review the resulting dependencies when using
+    this option.
+
 ### Renaming converted package
 
 By default, the name of the generated conda package will be taken
