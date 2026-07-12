@@ -258,6 +258,7 @@ def test_build_test_adapter(
             "recipe_path": [tmp_path],
             "build_only": False,
             "channels": ["chan"],
+            "check": False,
             "croot": None,
             "debug": False,
             "extra_deps": [],

@@ -4,6 +4,13 @@
 
 ### Features
 
+* `whl2conda build` now supports the render-only and test-only
+  `conda build` modes: `--output` prints the predicted package path
+  without building, `-t`/`--test` runs the recipe tests against the
+  already-built package, and `--skip-existing` skips the build when the
+  package already exists. The new whl2conda extension `--check` renders
+  the recipe and verifies whl2conda can build it, without building
+  anything. (#110)
 * `whl2conda build` now supports most applicable `conda build` options:
   `--output-folder`, `--package-format`, `--croot`, `--python`,
   `-b`/`--build-only`, `-q`/`--quiet`, `--debug`, and the whl2conda
@@ -19,6 +26,11 @@
   scratch space in conda-bld), checks the exit status of the render,
   uses conda-build in-process when it is importable, and reports
   build errors clearly. (#110)
+
+### Bug fixes
+
+* The build string of generated noarch packages now includes the build
+  number (e.g. `py_1`) instead of always being `py_0`. (#110)
 
 ### Development
 
