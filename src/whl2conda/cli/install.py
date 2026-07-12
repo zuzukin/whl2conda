@@ -227,15 +227,35 @@ def install_main(
 
 def conda_bld_install(parsed: InstallArgs, subdir: str):
     """Install package into conda-bld directory"""
-    conda_bld_path = get_conda_bld_path()
+    install_into_conda_bld(parsed.package_files, subdir, dry_run=parsed.dry_run)
+
+
+def install_into_conda_bld(
+    package_files: Sequence[Path],
+    subdir: str,
+    *,
+    dry_run: bool = False,
+    conda_bld_path: Path | None = None,
+) -> None:
+    """Copy package files into a conda-bld directory and reindex it.
+
+    Args:
+        package_files: conda package files to install
+        subdir: conda subdir of the packages, e.g. `noarch`
+        dry_run: only display the operations
+        conda_bld_path: conda-bld directory; defaults to the configured
+            croot/bld_path from the conda configuration.
+    """
+    if conda_bld_path is None:
+        conda_bld_path = get_conda_bld_path()
     subdir_path = conda_bld_path.joinpath(subdir)  # e.g. noarch/
 
-    for package_file in parsed.package_files:
+    for package_file in package_files:
         print(f"Installing {package_file} into {subdir_path}")
-        if not parsed.dry_run:
+        if not dry_run:
             subdir_path.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(package_file, subdir_path.joinpath(package_file.name))
-    if not parsed.dry_run:
+    if not dry_run:
         subprocess.check_call([
             "conda",
             "index",

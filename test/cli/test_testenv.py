@@ -268,6 +268,7 @@ def test_build_test_adapter(
 ) -> None:
     """CondaBuild._run_package_tests delegates to the shared runner"""
     from whl2conda.cli.build import BuildArgs, CondaBuild
+    from whl2conda.impl.recipe import RecipeFormat, RenderedRecipe
 
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
@@ -275,29 +276,60 @@ def test_build_test_adapter(
         lambda pkg, spec, **kwargs: calls.append({"pkg": pkg, "spec": spec, **kwargs}),
     )
 
-    args = BuildArgs(recipe_path=tmp_path, no_test=False, channels=["chan"])
-    builder = CondaBuild(args)
-    builder.work_dir = tmp_path / "build-work"
-    builder.recipe = {"test": {"imports": ["foo"], "source_files": ["test"]}}
-    pkg = tmp_path / "foo-1.0-py_0.conda"
+    def make_args(**overrides: Any) -> BuildArgs:
+        values: dict[str, Any] = {
+            "recipe_path": [tmp_path],
+            "build_only": False,
+            "channels": ["chan"],
+            "croot": None,
+            "debug": False,
+            "extra_deps": [],
+            "keep_test_env": True,
+            "no_test": False,
+            "output": False,
+            "output_folder": None,
+            "package_format": None,
+            "python": "",
+            "quiet": 0,
+            "skip_existing": False,
+            "test_only": False,
+            "use_mamba": True,
+        }
+        values.update(overrides)
+        return BuildArgs(**values)
 
-    builder._run_package_tests(pkg)
+    def make_rendered(raw: dict[str, Any]) -> RenderedRecipe:
+        return RenderedRecipe(
+            format=RecipeFormat.META_YAML,
+            recipe_dir=tmp_path,
+            name="foo",
+            version="1.0",
+            raw=raw,
+        )
+
+    builder = CondaBuild(make_args())
+    builder.work_dir = tmp_path / "build-work"
+    pkg = tmp_path / "foo-1.0-py_0.conda"
+    rendered = make_rendered({"test": {"imports": ["foo"], "source_files": ["test"]}})
+
+    builder._run_package_tests(pkg, rendered)
     assert len(calls) == 1
     call = calls[0]
     assert call["pkg"] == pkg
     assert call["spec"].imports == ("foo",)
     assert call["channels"] == ["chan"]
+    assert call["keep_env"] is True
+    assert call["use_mamba"] is True
     # no conda-build work dir: source files resolve from the recipe dir
     assert call["source_root"] == tmp_path
     assert call["env_prefix"] == builder.work_dir / "test-env"
 
     # conda-build work dir is preferred when present
-    work_src = builder.work_dir / "work"
+    work_src = builder.work_dir / "croot" / "foo_123" / "work"
     work_src.mkdir(parents=True)
-    builder._run_package_tests(pkg)
+    builder._run_package_tests(pkg, rendered)
     assert calls[1]["source_root"] == work_src
 
     # empty test section: runner is not invoked
-    builder.recipe = {}
-    builder._run_package_tests(pkg)
+    builder._run_package_tests(pkg, make_rendered({}))
     assert len(calls) == 2
