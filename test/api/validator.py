@@ -190,7 +190,7 @@ class PackageValidator:
         self._validate_file_copy()
         self._validate_hash_input(info_dir)
 
-        # TODO - validate *.data/ files
+        # TODO - validate *.data/ files (#227)
 
         self._validate_dist_info()
 
@@ -251,7 +251,7 @@ class PackageValidator:
 
         for key in ["author", "maintainer"]:
             assert extra.get(key) == md.get(key)
-        # TODO : check author-email, maintainer-email
+        # TODO - check author-email, maintainer-email (#227)
 
     def _validate_dist_info(self) -> None:
         site_packages = self._unpacked_conda / self._site_packages_prefix
