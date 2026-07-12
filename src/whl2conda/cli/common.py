@@ -34,6 +34,7 @@ __all__ = [
     "dedent",
     "existing_dir",
     "existing_path",
+    "get_conda_bld_path",
     "maybe_existing_dir",
 ]
 
@@ -152,7 +153,14 @@ def existing_dir(val: str) -> Path:
 
 
 class _SubcommandParser(argparse.ArgumentParser):
-    """Parser for subcommands"""
+    """Parser for subcommands.
+
+    This parser deliberately does NOT parse the subcommand's own
+    arguments: parse_known_args collects everything after the
+    subcommand name into `namespace.args`, and the subcommand's
+    main function re-parses them with its own parser. This two-stage
+    parse is what allows subcommand modules to be imported lazily.
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

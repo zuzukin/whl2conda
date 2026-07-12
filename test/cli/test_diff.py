@@ -28,10 +28,7 @@ import pytest
 
 from whl2conda.cli import main
 
-# pylint: disable=unused-import
 from ..test_packages import simple_conda_package, simple_wheel  # noqa: F401
-
-# pylint: disable=redefined-outer-name
 
 # ignore redefinition of simple_conda_package
 
@@ -69,7 +66,7 @@ def test_diff_errors(
 
 
 def test_diff(
-    capsys: pytest.CaptureFixture,  # pylint: disable=unused-argument
+    capsys: pytest.CaptureFixture,
     tmp_path: Path,
     simple_conda_package: Path,
     monkeypatch: pytest.MonkeyPatch,

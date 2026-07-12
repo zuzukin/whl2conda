@@ -20,14 +20,13 @@ from __future__ import annotations
 
 import io
 import sys
+from pathlib import Path
 
 __all__ = [
     "bool_input",
     "choose_wheel",
     "is_interactive",
 ]
-
-from pathlib import Path
 
 
 def is_interactive() -> bool:

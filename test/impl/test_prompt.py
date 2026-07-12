@@ -29,8 +29,6 @@ from whl2conda.impl.prompt import bool_input, choose_wheel, is_interactive
 
 __all__ = ["monkeypatch_interactive"]
 
-# pylint: disable=unused-argument
-
 
 def monkeypatch_interactive(monkeypatch: pytest.MonkeyPatch, interactive: bool) -> None:
     """monkeypatch is_interactive() to return given value"""

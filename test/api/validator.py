@@ -120,7 +120,6 @@ class PackageValidator:
 
         self._validate_unpacked()
 
-    # pylint: disable=too-many-locals
     @classmethod
     def _parse_wheel_metadata(cls, wheel_dir: Path) -> dict[str, Any]:
         dist_info_dir = next(wheel_dir.glob("*.dist-info"))
@@ -194,7 +193,6 @@ class PackageValidator:
 
         self._validate_dist_info()
 
-    # pylint: disable=too-many-locals,too-many-branches
     def _validate_about(self, info_dir: Path) -> None:
         about_file = info_dir.joinpath("about.json")
         assert about_file.is_file()

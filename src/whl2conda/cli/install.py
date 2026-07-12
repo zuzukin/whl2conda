@@ -72,12 +72,11 @@ class InstallFileInfo(NamedTuple):
     version: str
 
 
-# pylint: disable=too-many-locals
 def install_main(
     args: Sequence[str] | None = None,
     prog: str | None = None,
 ) -> None:
-    """Main routine for `whl2conda config` subcommand"""
+    """Main routine for `whl2conda install` subcommand"""
 
     parser = argparse.ArgumentParser(
         usage=dedent("""
@@ -119,7 +118,7 @@ def install_main(
         help="Path to target conda environment",
     )
     target_opts.add_argument(
-        "-n", "--name", metavar="<env-name>", help="Name of target conda enviroment"
+        "-n", "--name", metavar="<env-name>", help="Name of target conda environment"
     )
     target_opts.add_argument(
         "--conda-bld", action="store_true", help="Install into local conda-bld"
@@ -162,7 +161,7 @@ def install_main(
         nargs=argparse.REMAINDER,
         default=[],
         help=dedent("""
-            All the remaining arguments after this flat will be passed
+            All the remaining arguments after this flag will be passed
             to `conda install` or `conda create`. This can be used to add
             additional dependencies for testing.
             """),
@@ -211,7 +210,7 @@ def install_main(
                     InstallFileInfo(conda_file, package_name, package_version)
                 )
                 dependencies.extend(index.get("depends", []))
-            except Exception as ex:  # pylint: disable=broad-exception-caught
+            except Exception as ex:
                 parser.error(f"Cannot extract conda package '{conda_file}:\n{ex}'")
 
     if parsed.conda_bld:
@@ -220,7 +219,7 @@ def install_main(
     else:
         try:
             dependencies = _prune_dependencies(dependencies, file_specs)
-        except Exception as ex:  # pylint: disable=broad-exception-caught
+        except Exception as ex:
             parser.error(str(ex))
         conda_env_install(parsed, dependencies)
 
@@ -267,7 +266,7 @@ def install_into_conda_bld(
 
 def conda_env_install(parsed: InstallArgs, dependencies: list[str]):
     """Install package into an environment"""
-    # pylint: disable=too-many-branches
+
     common_opts: list[str] = []
     env_opts: list[str] = []
     if parsed.prefix:

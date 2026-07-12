@@ -226,8 +226,6 @@ def _extract_package(package: Path, dest_dir: Path) -> None:
     assert dest_info.is_dir()
     _sort_lines(dest_info / "RECORD")
 
-    # remove __pycache__ dirs?
-
 
 def _normalize_json(file: Path) -> None:
     if not file.is_file():

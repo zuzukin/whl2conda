@@ -39,8 +39,6 @@ markers_project = project_dir.joinpath("markers")
 simple_project = project_dir.joinpath("simple")
 setup_project = project_dir.joinpath("setup")
 
-# pylint: disable=redefined-outer-name
-
 
 @pytest.fixture(scope="session")
 def simple_wheel(

@@ -138,7 +138,6 @@ def test_load_std_renames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert fake_update_path[0] == local_renames_file
 
 
-# pylint: disable=too-many-statements,too-many-locals
 def test_update_renames_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Unit test for update_renames_file function"""
     renames_file = tmp_path.joinpath("renames.json")

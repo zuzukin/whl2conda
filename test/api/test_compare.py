@@ -31,10 +31,7 @@ from whl2conda.api.compare import (
     compare_conda_packages,
 )
 
-# pylint: disable=unused-import
 from ..test_packages import simple_conda_package, simple_wheel  # noqa: F401
-
-# pylint: disable=redefined-outer-name
 
 NO_RENAMES: dict[str, str] = {}
 
@@ -51,7 +48,7 @@ def make_pkg(
     noarch: str | None = "python",
     build: str = "py_0",
     build_number: int = 0,
-    license: str = "MIT",  # pylint: disable=redefined-builtin
+    license: str = "MIT",
     timestamp: int = 1234567890000,
     about: dict | None = None,
     extra_info_files: Sequence[str] = (),

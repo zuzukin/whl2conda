@@ -67,7 +67,7 @@ def noarch_build_string(build_number: int = 0) -> str:
     return f"py_{build_number}"
 
 
-def __compile_requires_dist_re() -> re.Pattern:
+def _compile_requires_dist_re() -> re.Pattern:
     # NOTE: these are currently fairly forgiving and will accept bad syntax
     name_re = r"(?P<name>[a-zA-Z0-9_.-]+)"
     extra_re = r"(?:\[(?P<extra>.+?)\])?"
@@ -79,7 +79,7 @@ def __compile_requires_dist_re() -> re.Pattern:
     )
 
 
-requires_dist_re = __compile_requires_dist_re()
+requires_dist_re = _compile_requires_dist_re()
 
 _extra_marker_re = [
     re.compile(r"""\bextra\s*==\s*(['"])(?P<name>\w+)\1"""),
@@ -601,6 +601,7 @@ class Wheel2CondaConverter:
     resolve_extras: bool = False
     """Resolve remaining extras from pypi metadata (best effort)"""
     python_version: str = ""
+    """Python dependency override: a version *spec*, e.g. '>=3.10'."""
     interactive: bool = False
     build_number: int | None = None
     allow_impure: bool = False
@@ -814,6 +815,7 @@ class Wheel2CondaConverter:
                     print(msg)
                     overwrite = bool_input("Overwrite? ")
                 if not overwrite:
+                    # builtin exception type kept for backward compatibility
                     raise FileExistsError(msg)
             self._info("Removing existing %s%s", conda_pkg_path, dry_run_suffix)
             if not self.dry_run:
@@ -931,9 +933,6 @@ class Wheel2CondaConverter:
             json.dumps(index_dict, indent=2),
             encoding="utf8",
         )
-
-    # Platform tag mapping is now handled by _WHEEL_PLATFORM_MAP and
-    # CondaTargetInfo.from_wheel_metadata()
 
     def _write_files_list(self, conda_info_dir: Path, rel_files: Sequence[str]) -> None:
         # * info/files - list of relative paths of files not including info/
@@ -1056,7 +1055,8 @@ class Wheel2CondaConverter:
 
             conda_name = pip_name = entry.name
             version = self.translate_version_spec(entry.version)
-            if saw_python := normalize_pypi_name(conda_name) == "python":
+            if normalize_pypi_name(conda_name) == "python":
+                saw_python = True
                 if self.python_version and version != self.python_version:
                     self._info(
                         "Overriding python version '%s' with '%s'",
@@ -1203,7 +1203,7 @@ class Wheel2CondaConverter:
             data = self._get_pypi_metadata(package, version_spec)
             info = data.get("info") or {}
             requires_dist = info.get("requires_dist") or []
-        except Exception as ex:  # pylint: disable=broad-exception-caught
+        except Exception as ex:
             self._warn("Cannot fetch pypi metadata for '%s': %s", package, ex)
             return None
 
@@ -1341,8 +1341,6 @@ class Wheel2CondaConverter:
 
         return result
 
-    # Known package prefixes that are unlikely to work as binary conversions
-    # due to bundled GPU libraries, complex runtime dependencies, etc.
     # directories used by wheel repair tools (auditwheel, delocate,
     # delvewheel) to vendor shared libraries into the wheel
     _VENDORED_LIB_DIR_RE = re.compile(r"(?:^|/)(?P<dir>[^/]+\.libs|\.dylibs)/")
@@ -1370,7 +1368,7 @@ class Wheel2CondaConverter:
             )
 
     def _check_binary_conversion(self, wheel_md: MetadataFromWheel) -> None:
-        """Check for conditions that make binary conversion unlikely to succeed.
+        """Check that binary conversion of this wheel is supported.
 
         Raises:
             Wheel2CondaError: if conversion is blocked due to known-bad patterns
@@ -1498,11 +1496,10 @@ class Wheel2CondaConverter:
         md, requires = self._parse_dist_metadata(wheel_info_dir)
 
         package_name = self.package_name or str(md.get("name"))
-        # Conda package names are lowercase with hyphens
-        package_name = re.sub(r"[-_.]+", "-", package_name).lower()
+        # conda package names use the PEP 503 normalized form
+        package_name = normalize_pypi_name(package_name)
         self.package_name = package_name
         version = md.get("version")
-
 
         python_version: str = str(md.get("requires-python", ""))
         if python_version:

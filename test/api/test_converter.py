@@ -54,20 +54,15 @@ from ..test_packages import (  # noqa: F401
     setup_wheel,
     simple_wheel,
 )
-
-# pylint: disable=unused-import
 from .converter import (  # noqa: F401
     ConverterTestCaseFactory,
     test_case,
 )
 
-# pylint: enable=unused-import
-
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent.parent
 test_projects = root_dir / "test-projects"
 
-# pylint: disable=redefined-outer-name
 
 #
 # RequiresdistEntry test cases
@@ -287,7 +282,7 @@ def test_init(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_this(test_case: ConverterTestCaseFactory) -> None:
     """Test using this own project's wheel"""
-    wheel_dir = test_case.tmp_path_factory.mktemp("test_this_wjheel_dir")
+    wheel_dir = test_case.tmp_path_factory.mktemp("test_this_wheel_dir")
     do_build_wheel(root_dir, wheel_dir, no_build_isolation=True, capture_output=True)
 
     wheel_path = next(iter(wheel_dir.glob("*")))
@@ -648,7 +643,6 @@ def test_overwrite_prompt(
     prompts: Iterator[str] = iter(())
     responses: Iterator[str] = iter(())
 
-    # pylint: disable=duplicate-code
     def fake_input(prompt: str) -> str:
         expected_prompt = next(prompts)
         assert re.search(expected_prompt, prompt), (

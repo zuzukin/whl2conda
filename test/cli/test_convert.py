@@ -53,14 +53,12 @@ root_dir = this_dir.parent.parent
 
 __all__ = ["CliTestCase", "CliTestCaseFactory", "test_case"]
 
-# pylint: disable=redefined-outer-name
 
 #
 # Test case fixture
 #
 
 
-# pylint: disable=too-many-instance-attributes
 class CliTestCase:
     """A CLI test case runner"""
 
@@ -114,7 +112,6 @@ class CliTestCase:
 
     project_dir: Path
 
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         args: Sequence[str],
@@ -194,7 +191,6 @@ class CliTestCase:
         prompts = iter(self.expected_prompts)
         responses = iter(self.responses)
 
-        # pylint: disable=unused-argument
         def fake_build_wheel(
             project_root: Path,
             wheel_dir: Path,
@@ -391,7 +387,6 @@ class CliTestCaseFactory:
         shutil.copytree(orig_project_dir, self.project_dir)
         self.cases = []
 
-    # pylint: disable=too-many-locals
     def __call__(
         self,
         args: Sequence[str],
@@ -660,9 +655,6 @@ def test_out_format(test_case: CliTestCaseFactory) -> None:
     case.run()
 
 
-# pylint: disable=too-many-statements
-
-
 def test_do_build_wheel(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -847,7 +839,7 @@ def test_choose_wheel(
 
 def test_download_wheel(
     test_case: CliTestCaseFactory,
-    simple_wheel: Path,  # pylint: disable=unused-argument
+    simple_wheel: Path,
 ) -> None:
     """Test downloading wheel"""
 

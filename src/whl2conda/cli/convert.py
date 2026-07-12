@@ -11,7 +11,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """
-whl2conda command line interface
+whl2conda convert subcommand implementation
 """
 
 from __future__ import annotations
@@ -45,7 +45,6 @@ from .common import (
 __all__ = ["convert_main"]
 
 
-# pylint: disable=too-many-instance-attributes
 @dataclass(slots=True)
 class ConvertArgs:
     """
@@ -91,7 +90,7 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
     """Creates the argument parser
 
     The parser will return a namespace with attributes matching
-    Whl2CondaArgs
+    ConvertArgs
     """
     parser = argparse.ArgumentParser(
         usage=dedent("""
@@ -442,7 +441,6 @@ def _is_project_root(path: Path) -> bool:
     return any(path.joinpath(f).is_file() for f in ["pyproject.toml", "setup.py"])
 
 
-# pylint: disable=too-many-statements,too-many-branches,too-many-locals
 def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
     """
     Main command line interface
@@ -463,7 +461,7 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
     wheel_dir: Path | None = parsed.wheel_dir
 
     build_wheel = parsed.build_wheel
-    build_no_deps = True  # pylint: disable=unused-variable
+    build_no_deps = True
 
     download_index = ""
     download_spec = ""
@@ -493,7 +491,7 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
     else:
         wheel_file = wheel_or_root
         if wheel_file.suffix != ".whl":
-            parser.error(f"Input file '{wheel_file} does not have .whl suffix")
+            parser.error(f"Input file '{wheel_file}' does not have .whl suffix")
         if not wheel_dir:
             wheel_dir = wheel_file.parent
         # Look for project root in wheel's parent directories
@@ -579,7 +577,7 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
                 build_wheel = True
             else:
                 parser.error(str(ex))
-        except Exception as ex:  # pylint: disable=broad-except
+        except Exception as ex:
             parser.error(str(ex))
 
     if fmtname := parsed.out_format:

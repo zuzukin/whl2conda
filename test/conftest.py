@@ -19,8 +19,6 @@ Don't run tests marked with @pytest.mark.external unless --run-external
 is given.
 """
 
-# content of conftest.py
-
 import pytest
 
 from whl2conda.settings import settings

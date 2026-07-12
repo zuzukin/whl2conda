@@ -97,7 +97,6 @@ def test_main_module() -> None:
     )
     assert version.strip() == __version__
 
-    # pylint: disable=import-outside-toplevel
     import whl2conda.__main__
 
     assert whl2conda.__main__.main is main

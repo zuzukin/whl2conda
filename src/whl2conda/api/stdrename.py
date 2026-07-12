@@ -21,7 +21,7 @@ are available from:
 
    https://github.com/regro/cf-graph-countyfair/blob/master/mappings/pypi
 
-This package provides utility functions for downlaading mappings
+This package provides utility functions for downloading mappings
 from that site and extracting a standard pypi to conda name
 mapping dictionary.
 
@@ -81,7 +81,7 @@ def parse_datetime(s: str) -> datetime.datetime | None:
     """
     try:
         return parsedate_to_datetime(s)
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:
         return None
 
 
@@ -104,9 +104,9 @@ def load_std_renames(
     """
     Load standard pypi to conda package rename table.
 
-    A copy of this table is kept in a local a cache
+    A copy of this table is kept in a local cache
     file (see [user_stdrenames_path][(m).])
-    The table will be read from that file, it it exists, otherwise the
+    The table will be read from that file, if it exists, otherwise the
     table included in this package will be copied to the
     user cache file.
 
@@ -170,7 +170,7 @@ class DownloadedMappings(NamedTuple):
 
     @property
     def expires(self) -> datetime.datetime | None:
-        """Expires date string frome header"""
+        """Expires date string from header"""
         return parse_datetime(self.headers.get("Expires", ""))
 
     @property
@@ -196,7 +196,7 @@ def process_name_mapping_dict(mappings: DownloadedMappings) -> dict[str, str]:
     This only returns mappings where the name is different.
 
     Args:
-        mappings: downlaoded mappings
+        mappings: downloaded mappings
 
     Returns:
         dictionary mapping pypi to conda package names
@@ -252,7 +252,7 @@ def update_renames_file(
         if date := parse_datetime(current_renames.get("$date", "")):
             try:
                 max_age = int(current_renames.get("$max-age", 0))
-            except Exception:  # pylint: disable=broad-exception-caught
+            except Exception:
                 max_age = 0
             max_age = max(min_expiration, max_age)
             if (date.timestamp() + max_age) > time.time():
@@ -276,7 +276,7 @@ def update_renames_file(
     return True
 
 
-class NotModified(HTTPError):  # pylint: disable=too-many-ancestors
+class NotModified(HTTPError):
     """Indicates content was not modified"""
 
 

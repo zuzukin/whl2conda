@@ -28,7 +28,7 @@ from urllib.error import URLError
 
 from ..api.stdrename import update_renames_file, user_stdrenames_path
 from ..impl.pyproject import add_pyproject_defaults
-from ..settings import _fromidentifier, settings
+from ..settings import fromidentifier, settings
 from .common import add_markdown_help, dedent
 
 __all__ = ["config_main"]
@@ -149,12 +149,13 @@ def config_main(
     parsed = parser.parse_args(args)
 
     if parsed.update_std_renames:
+        # NOTE: exits the program after updating
         update_std_renames(parsed.update_std_renames, dry_run=parsed.dry_run)
 
     if parsed.generate_pyproject:
         try:
             add_pyproject_defaults(parsed.generate_pyproject)
-        except Exception as ex:  # pylint: disable=broad-exception-caught
+        except Exception as ex:
             parser.error(str(ex))
 
     if parsed.remove:
@@ -217,7 +218,7 @@ def show_user_settings(
         print(f"==> {settings.settings_file} <==")
     if keys:
         for key in keys:
-            print(f"{_fromidentifier(key)}: {json.dumps(settings.get(key))}")
+            print(f"{fromidentifier(key)}: {json.dumps(settings.get(key))}")
     else:
         print(json.dumps(settings.to_dict(), indent=2))
 

@@ -40,6 +40,9 @@ class CondaPackageFormat(str, enum.Enum):
     """
     Supported output package formats
 
+    Although defined here, this is part of the public API and is
+    re-exported as `whl2conda.api.converter.CondaPackageFormat`.
+
     * V1: original conda format as .tar.bz2 file
     * V2: newer .conda format
     * TREE: dumps package out as a directory tree (for debugging)
@@ -167,7 +170,7 @@ TOOL_DEFAULTS = {
         "default": "V2",
         "comment": [
             "The default output conda package format.",
-            "Valid values are:"
+            "Valid values are:",
             '   "V1" / ".tar.bz2": original .tar.bz2 package format',
             '   "V2" / ".conda": new V2 .conda package format',
             '   "TREE":  output package as directory tree (debug)',
@@ -180,8 +183,8 @@ TOOL_DEFAULTS = {
             'Each entry should be a two element list of the form',
             '   ["<pypi-name-pattern>", "<conda-name>"]',
             'Where <pypi-name-pattern> may either just be the pypi package name',
-            'or is a Python regular expression that will match the full name,'
-            'and where <conda-name> can contain subsitution expression,',
+            'or is a Python regular expression that will match the full name,',
+            'and where <conda-name> can contain substitution expression,',
             'For example, to rename all `acme-<foo>` packages to `acme.<foo>`:',
             '   ["acme-(.*)", "acme.$1"]',
         ],
@@ -209,7 +212,7 @@ def add_pyproject_defaults(path: Path | str) -> None:
     Args:
         path: path to directory or toml file. The special
             value 'out' will write to stdout. If a directory,
-            will look for pyproject.toml in that direcdtory,
+            will look for pyproject.toml in that directory,
             if a file, must end in .toml.
     """
     toml = tomlkit.TOMLDocument()
@@ -242,7 +245,6 @@ def add_pyproject_defaults(path: Path | str) -> None:
         print(new_contents)
 
 
-# pylint: disable=too-many-branches,too-many-locals
 def read_pyproject(path: Path) -> PyProjInfo:
     """
     Reads project information
