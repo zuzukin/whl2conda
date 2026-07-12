@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 import tomlkit
+from tomlkit.items import Item
 
 __all__ = [
     "CondaPackageFormat",
@@ -322,10 +323,12 @@ def read_pyproject(path: Path) -> PyProjInfo:
         if isinstance(tests, Sequence) and not isinstance(tests, str):
             _tests: list[Mapping[str, Any]] = []
             for entry in tests:
-                if isinstance(entry, Mapping):
+                if isinstance(entry, Item) and isinstance(entry, Mapping):
                     # unwrap to plain python containers/strings, since
                     # tomlkit str subclasses do not survive e.g. Path.glob
-                    _tests.append(entry.unwrap() if hasattr(entry, "unwrap") else entry)
+                    _tests.append(entry.unwrap())
+                elif isinstance(entry, Mapping):
+                    _tests.append(entry)
                 else:
                     warn_ignored_value(
                         toml_file, "tests", f"Expected table but got '{entry}'"
