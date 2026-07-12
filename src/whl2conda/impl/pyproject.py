@@ -327,7 +327,8 @@ def read_pyproject(path: Path) -> PyProjInfo:
                     # unwrap to plain python containers/strings, since
                     # tomlkit str subclasses do not survive e.g. Path.glob
                     _tests.append(entry.unwrap())
-                elif isinstance(entry, Mapping):
+                elif isinstance(entry, Mapping):  # pragma: no cover
+                    # unreachable via tomlkit, which always yields Items
                     _tests.append(entry)
                 else:
                     warn_ignored_value(
