@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """
-Support for generating conda package from a pure python wheel.
+Support for generating conda packages from python wheels.
 """
 
 from .__about__ import __version__

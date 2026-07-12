@@ -1,5 +1,5 @@
-*whl2conda* supports the conversion of generic pure python wheels
-into noarch python conda packages.
+*whl2conda* supports the conversion of generic python wheels
+into conda packages.
 
 It has the following limitations and known issues, some of which 
 will be addressed in future releases.

@@ -48,7 +48,7 @@ points:
    leveraging this resource, whl2conda handles dependency renaming
    automatically for thousands of packages.
 
-The result is a lightweight tool that converts pure-Python wheels to conda
+The result is a lightweight tool that converts Python wheels to conda
 packages in seconds. No conda environments are needed for conversion,
 eliminating the primary bottleneck. The tool's own dependencies are minimal,
 and you only need to create a conda environment when testing the resulting
