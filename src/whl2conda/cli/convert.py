@@ -249,7 +249,7 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
         default=[],
         dest="dep_renames",
         help=dedent("""
-        Rename pip dependency for conda. May be specified muliple times.
+        Rename pip dependency for conda. May be specified multiple times.
         """),
     )
     override_opts.add_argument(
