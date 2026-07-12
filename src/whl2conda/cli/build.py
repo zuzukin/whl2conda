@@ -81,6 +81,7 @@ def predict_package_path(
         raise RecipeError(
             f"Cannot predict package path for recipe in {rendered.recipe_dir}:"
             " it does not build a `noarch: python` package"
+            " (see https://github.com/zuzukin/whl2conda/issues/216)"
         )
     name = normalize_pypi_name(rendered.name)
     build_string = noarch_build_string(rendered.build_number)

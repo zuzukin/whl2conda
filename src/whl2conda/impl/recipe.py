@@ -170,6 +170,7 @@ def _normalize_v1(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRecipe:
         raise RecipeError(
             f"Cannot build from v1 recipe in {recipe_dir}: whl2conda build"
             " only supports v1 recipes with `noarch: python`"
+            " (see https://github.com/zuzukin/whl2conda/issues/216)"
         )
     return RenderedRecipe(
         format=RecipeFormat.V1,

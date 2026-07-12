@@ -19,7 +19,8 @@ Instead of solving and creating build/host/test environments, whl2conda:
 Because there is no build environment, this is much faster than
 `conda build`, but it only works for recipes that:
 
-* build a pure python (`noarch: python`) package,
+* build a pure python (`noarch: python`) package
+  (see [#216] for planned binary package support),
 * whose build script consists of a single `pip install .` or
   `pip wheel .` command (extra pip options are fine), and
 * produce a single output package.
@@ -127,6 +128,7 @@ fresh conda environment created with `whl2conda install`:
   test environment, unlike rattler-build, which creates a separate
   environment per element.
 
+[#216]: https://github.com/zuzukin/whl2conda/issues/216
 [conda-build]: https://docs.conda.io/projects/conda-build/
 [rattler-build]: https://rattler.build/
 [py-rattler-build]: https://pypi.org/project/py-rattler-build/
