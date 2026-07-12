@@ -1,6 +1,6 @@
 {
-  "$date": "Sat, 11 Jul 2026 22:39:07 GMT",
-  "$etag": "87a9df70c57ef589a46364664ec0be9435d1dc9808763511b266c36c6c54a034",
+  "$date": "Sun, 12 Jul 2026 18:05:18 GMT",
+  "$etag": "61c24ce8a9a80e25c5f60933d2ec7022926d28cd9b1067bfa17933d8b1681c49",
   "$max-age": "300",
   "$source": "https://raw.githubusercontent.com/regro/cf-graph-countyfair/master/mappings/pypi/name_mapping.json",
   "0164e082b29777fbc56c2373b68da93d23a29a040787e7f1c65e1562f133": "django-jsoneditor",
