@@ -294,9 +294,7 @@ def read_pyproject(path: Path) -> PyProjInfo:
             if isinstance(value, str):
                 result.append(str(value))
             else:
-                warn_ignored_value(
-                    toml_file, key, f"Expected string but got '{value}'"
-                )
+                warn_ignored_value(toml_file, key, f"Expected string but got '{value}'")
         return tuple(result)
 
     pyproj.name = _read_str("name", project)
