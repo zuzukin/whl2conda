@@ -90,8 +90,6 @@ def config_main(
         ),
     )
 
-    # TODO - add a --describe option
-
     settings_opts.add_argument(
         "--set",
         metavar=("<key>", "<value>"),

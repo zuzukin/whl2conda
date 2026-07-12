@@ -502,7 +502,14 @@ class DependencyRename(NamedTuple):
             raise ValueError(f"Bad dependency rename pattern '{pattern}': {err}")
         repl = re.sub(r"\$(\d+)", r"\\\1", replacement)
         repl = re.sub(r"\$\{(\w+)}", r"\\g<\1>", repl)
-        # TODO also verify replacement does not contain invalid package chars
+        # apart from group references, the replacement must only contain
+        # valid conda package name characters (or be empty, meaning drop)
+        literal = re.sub(r"\\g<\w+>|\\\d+", "", repl)
+        if not re.fullmatch(r"[A-Za-z0-9._-]*", literal):
+            raise ValueError(
+                f"Bad dependency replacement '{replacement}' for pattern"
+                f" '{pattern}': contains invalid package name characters"
+            )
         try:
             pat.sub(repl, "")
         except Exception as ex:
@@ -620,7 +627,6 @@ class Wheel2CondaConverter:
         self.dependency_rename = []
         self.extra_dependencies = []
         self._pypi_metadata_cache: dict[tuple[str, str], dict[str, Any]] = {}
-        # TODO - option to ignore this
         self.std_renames = load_std_renames(update=update_std_renames)
 
     def convert_all(self) -> list[Path]:
@@ -749,8 +755,6 @@ class Wheel2CondaConverter:
                 )
 
             # Write conda info files
-            # TODO - copy readme file into info
-            #  must be one of README, README.md or README.rst
             self._copy_licenses(conda_info_dir, wheel_md)
             self._write_about(conda_info_dir, wheel_md.md)
             self._write_hash_input(conda_info_dir)
@@ -960,10 +964,6 @@ class Wheel2CondaConverter:
         #
         # conda-build also adds conda-build-version and conda-version fields.
 
-        # TODO description can come from METADATA message body
-        #   then need to also use content type. It doesn't seem
-        #   that conda-forge packages include this in the info/
-
         conda_about_file = conda_info_dir.joinpath("about.json")
 
         extra = non_none_dict(
@@ -1047,7 +1047,11 @@ class Wheel2CondaConverter:
                         "Including marker dependency for target platform: %s", entry
                     )
                 else:
-                    # TODO - support non-generic packages
+                    # noarch packages cannot express conditional
+                    # dependencies, since conda metadata has no
+                    # equivalent of environment markers; such
+                    # dependencies can be added manually with
+                    # --add-dependency if needed
                     self._warn("Skipping dependency with environment marker: %s", entry)
                     continue
 

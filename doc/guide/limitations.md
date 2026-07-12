@@ -33,18 +33,15 @@ are also not supported. Since this file format is deprecated and
 [uploads to pypi are no longer allowed](https://blog.pypi.org/posts/2023-06-26-deprecate-egg-uploads/),
 we have no plans to support this format.
 
-## Cannot handle dependencies using extras
+## Dependency extras require options or rules
 
-Currently, for any dependencies that declare extras, the extras dependencies
-are not included. For instance, the dependency:
-
-```
-black[jupyter]
-```
-
-will include the `black` dependency itself, but not any extra dependencies
-that are declared with the `extra == 'jupyter'` marker. This will be addressed
-in a future release. See [issue 36](https://github.com/zuzukin/whl2conda/issues/36).
+Conda packages cannot express pip *extras*, so by default the extras
+of a dependency like `black[jupyter]` are dropped with a warning and
+only the base package dependency is kept. Extras can be handled using
+dependency rename rules, the built-in table of known conda packages
+(`--known-extras`), or resolution from pypi metadata
+(`--resolve-extras`); see
+[Dependencies with extras](renaming.md#extras) for details.
 
 ## Only supports noarch python by default
 

@@ -33,6 +33,9 @@
 
 ### Changes
 
+* Dependency rename replacement strings are now validated to contain
+  only valid package name characters.
+
 * `whl2conda build` renders recipes into its own temporary work
   directory (instead of scraping conda-build console output to locate
   scratch space in conda-bld), checks the exit status of the render,

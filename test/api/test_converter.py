@@ -232,6 +232,14 @@ def test_dependency_rename() -> None:
         DependencyRename.from_strings("foo(.*)", r"$2")
     with pytest.raises(ValueError, match="Bad dependency replacement"):
         DependencyRename.from_strings("foo(.*)", r"${name}")
+    # replacements may only contain valid package name characters
+    for bad in ("foo bar", "foo!", "foo[bar]", "foo$1/baz"):
+        with pytest.raises(ValueError, match="invalid package name"):
+            DependencyRename.from_strings("foo(.*)", bad)
+    # group references and valid punctuation are fine
+    DependencyRename.from_strings("acme-(.*)", "acme.$1")
+    DependencyRename.from_strings("foo-(?P<part>.*)", "foo_${part}")
+    DependencyRename.from_strings("foo", "")
 
 
 #
