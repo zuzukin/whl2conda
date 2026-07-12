@@ -11,3 +11,11 @@ requires-python = ">=3.9"
 
 [tool.hatch.build.targets.wheel]
 packages = ["hello"]
+
+[[tool.whl2conda.tests]]
+python = { imports = ["hello"], pip_check = false }
+
+[[tool.whl2conda.tests]]
+script = ["pytest test"]
+requirements = { run = ["pytest"] }
+files = { source = ["test"] }
