@@ -458,7 +458,7 @@ def _strip_extra_marker(entry: RequiresDistEntry) -> RequiresDistEntry:
         marker = re.sub(
             r"extra\s*==\s*(['\"])[^'\"]*\1\s*\band\b\s*", "", marker
         ).strip()
-        if marker:
+        if marker:  # pragma: no branch
             new_entry.set_marker(marker)
     return new_entry
 

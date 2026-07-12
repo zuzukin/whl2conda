@@ -1770,6 +1770,29 @@ FAKE_PYPI_METADATA: dict[tuple[str, str], dict[str, Any]] = {
             ],
         },
     },
+    ("loopy", ""): {
+        "info": {
+            "version": "1.0",
+            "provides_extra": ["x"],
+            "requires_dist": [
+                "loopdep >=1 ; extra == 'x'",
+                "loopy[x] >=1 ; extra == 'x'",
+                "???",
+            ],
+        },
+        "releases": {"1.0": [], "not-a-version": []},
+    },
+    ("multi", ""): {
+        "info": {
+            "version": "2.0",
+            "provides_extra": ["e1", "e2"],
+            "requires_dist": [
+                "dep-one >=1 ; extra == 'e1'",
+                "dep-two >=2 ; extra == 'e2'",
+            ],
+        },
+        "releases": {"2.0": []},
+    },
     ("fastapi", ""): {
         "info": {
             "version": "0.110.0",
@@ -1862,6 +1885,45 @@ def test_compute_dependencies_resolve_extras(
     assert result == ["somepkg >=1.0"]
     assert "Cannot fetch pypi metadata for 'somepkg'" in caplog.text
     assert "Dropping extras [fancy]" in caplog.text
+
+    # self-referential extras terminate; unparseable entries are skipped
+    caplog.clear()
+    monkeypatch.setattr("whl2conda.api.converter.fetch_pypi_metadata", fake_fetch)
+    converter._pypi_metadata_cache.clear()
+    with caplog.at_level(logging.WARNING):
+        result = converter._compute_conda_dependencies([
+            RequiresDistEntry.parse("loopy[x] >=1")
+        ])
+    assert result == ["loopy >=1", "loopdep >=1", "loopy >=1"]
+    assert "Dropping extras" not in caplog.text
+
+    # metadata for multiple extras of one package is fetched only once,
+    # and unparseable release versions are skipped in version selection
+    fetches.clear()
+    converter._pypi_metadata_cache.clear()
+    result = converter._compute_conda_dependencies([
+        RequiresDistEntry.parse("multi[e1,e2] >=1")
+    ])
+    assert result == ["multi >=1", "dep-one >=1", "dep-two >=2"]
+    assert fetches == [("multi", "")]
+
+    # a dependency without a version spec uses the latest metadata
+    fetches.clear()
+    converter._pypi_metadata_cache.clear()
+    result = converter._compute_conda_dependencies([
+        RequiresDistEntry.parse("multi[e2]")
+    ])
+    assert result == ["multi ", "dep-two >=2"]
+    assert fetches == [("multi", "")]
+
+    # when no release satisfies the spec, the latest metadata is used
+    fetches.clear()
+    converter._pypi_metadata_cache.clear()
+    result = converter._compute_conda_dependencies([
+        RequiresDistEntry.parse("multi[e1] >=99")
+    ])
+    assert result == ["multi >=99", "dep-one >=1"]
+    assert fetches == [("multi", "")]
 
     # known extras take precedence over pypi resolution when enabled
     fetches.clear()
