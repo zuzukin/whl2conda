@@ -502,7 +502,7 @@ class DependencyRename(NamedTuple):
 
 class Wheel2CondaConverter:
     """
-    Converter supports generation of conda package from a pure python wheel.
+    Converter supports generation of a conda package from a python wheel.
 
     """
 
