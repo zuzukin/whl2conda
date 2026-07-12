@@ -16,20 +16,20 @@
   otherwise the recipe's local `path:` source), instead of the current
   directory, so it no longer needs to be invoked from the project root.
 * New "Building from Recipes" user guide documentation page.
-* `whl2conda build` now supports the render-only and test-only
-  `conda build` modes: `--output` prints the predicted package path
-  without building, `-t`/`--test` runs the recipe tests against the
-  already-built package, and `--skip-existing` skips the build when the
-  package already exists. The new whl2conda extension `--check` renders
-  the recipe and verifies whl2conda can build it, without building
-  anything. (#110)
 * `whl2conda build` now supports most applicable `conda build` options:
-  `--output-folder`, `--package-format`, `--croot`, `--python`,
-  `-b`/`--build-only`, `-q`/`--quiet`, `--debug`, and the whl2conda
-  extensions `--extra-deps` and `--keep-test-env`. Inapplicable
-  conda build options are accepted and ignored with a warning, except
-  upload/signing and non-python language options, which are rejected
-  with an error. (#110)
+  the build modes `--output` (print the predicted package path without
+  building), `-t`/`--test` (test the already-built package),
+  `-b`/`--build-only`, and `--skip-existing`, plus `--output-folder`,
+  `--package-format`, `--croot`, `--python`, `-q`/`--quiet`, and
+  `--debug`. Inapplicable conda build options are accepted and ignored
+  with a warning, except upload/signing and non-python language
+  options, which are rejected with an error. (#110)
+* New `whl2conda build` extension options: `--check` renders the recipe
+  and verifies whl2conda can build it, without building anything;
+  `--extra-deps` adds conda dependencies to the generated package;
+  `--keep-test-env` keeps the test environment for debugging; and
+  `--mamba` uses mamba to create test environments and to run
+  conda-build when it must be run in the base environment. (#110)
 
 ### Changes
 
