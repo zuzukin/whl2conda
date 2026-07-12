@@ -1,5 +1,16 @@
 # whl2conda changes
 
+## [26.8.0] - *in progress*
+
+### Development
+
+* Extracted the package test logic from `whl2conda build` into a shared,
+  reusable test runner supporting both classic recipe `test:` sections
+  and v1 recipe `tests:` lists, in preparation for `whl2conda test`
+  (#83) and pyproject test specifications (#190). The recipe
+  `test.source_files` entries are now honored (they were previously
+  ignored).
+
 ## [26.7.0] - 2026-7-11
 
 ### Features
