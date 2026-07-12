@@ -34,7 +34,13 @@ from ..impl.recipe import (
     recipe_source_root,
     render_recipe,
 )
-from .common import add_markdown_help, dedent, existing_dir, existing_path
+from .common import (
+    add_markdown_help,
+    dedent,
+    existing_dir,
+    existing_path,
+    setup_logging,
+)
 from .testenv import PackageTestError, PackageTestSpec, run_package_tests
 
 __all__ = ["test_main"]
@@ -184,17 +190,7 @@ def test_main(
     parsed = parser.parse_args(args)
     testargs = TestArgs(**vars(parsed))
 
-    verbosity = (1 if testargs.debug else 0) - testargs.quiet
-    if verbosity < -1:
-        level = logging.ERROR
-    elif verbosity < 0:
-        level = logging.WARNING
-    elif verbosity == 0:
-        level = logging.INFO
-    else:
-        level = logging.DEBUG
-    logging.getLogger().setLevel(level)
-    logging.basicConfig(level=level, format="%(message)s")
+    setup_logging((1 if testargs.debug else 0) - testargs.quiet)
 
     if testargs.prefix and len(testargs.python) > 1:
         parser.error("-p/--prefix is not allowed with multiple --python versions")

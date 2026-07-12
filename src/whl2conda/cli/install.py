@@ -53,16 +53,6 @@ class InstallArgs:
     yes: bool
     remaining_args: list[str]
 
-    @classmethod
-    def parse(
-        cls,
-        parser: argparse.ArgumentParser,
-        args: Sequence[str] | None,
-    ):
-        """Parses and returns parsed args"""
-        ns = parser.parse_args(args)
-        return cls(**vars(ns))
-
 
 class InstallFileInfo(NamedTuple):
     """Holds information about a conda file to be installed"""
@@ -181,7 +171,7 @@ def install_main(
 
     add_markdown_help(parser)
 
-    parsed = InstallArgs.parse(parser, args)
+    parsed = InstallArgs(**vars(parser.parse_args(args)))
 
     conda_files = parsed.package_files
 

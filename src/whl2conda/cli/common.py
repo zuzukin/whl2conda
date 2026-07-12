@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import logging
 import subprocess
 import sys
 import textwrap
@@ -36,6 +37,7 @@ __all__ = [
     "existing_path",
     "get_conda_bld_path",
     "maybe_existing_dir",
+    "setup_logging",
 ]
 
 
@@ -255,3 +257,25 @@ def get_conda_bld_path() -> Path:
         # this is extremely unlikely to ever occur
         raise LookupError("Cannot find conda-bld location")
     return Path(conda_bld)
+
+
+def setup_logging(verbosity: int) -> int:
+    """Configure root logging from a verbosity count and return the level.
+
+    Verbosity 0 maps to INFO; each -q decrements and each verbose
+    flag increments, mapping to WARNING/ERROR below and DEBUG (or
+    finer) above.
+    """
+    if verbosity < -1:
+        level = logging.ERROR
+    elif verbosity < 0:
+        level = logging.WARNING
+    elif verbosity == 0:
+        level = logging.INFO
+    elif verbosity == 1:
+        level = logging.DEBUG
+    else:  # verbosity >= 2
+        level = logging.DEBUG - 5
+    logging.getLogger().setLevel(level)
+    logging.basicConfig(level=level, format="%(message)s")
+    return level

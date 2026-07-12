@@ -50,6 +50,7 @@ from .common import (
     existing_dir,
     get_conda_bld_path,
     maybe_existing_dir,
+    setup_logging,
 )
 from .install import install_into_conda_bld
 from .testenv import PackageTestSpec, run_package_tests
@@ -435,17 +436,7 @@ def build_main(
     if len(buildargs.recipe_path) > 1:
         parser.error("only one recipe path is supported")
 
-    verbosity = (1 if buildargs.debug else 0) - buildargs.quiet
-    if verbosity < -1:
-        level = logging.ERROR
-    elif verbosity < 0:
-        level = logging.WARNING
-    elif verbosity == 0:
-        level = logging.INFO
-    else:
-        level = logging.DEBUG
-    logging.getLogger().setLevel(level)
-    logging.basicConfig(level=level, format="%(message)s")
+    setup_logging((1 if buildargs.debug else 0) - buildargs.quiet)
 
     builder = CondaBuild(buildargs)
     try:
