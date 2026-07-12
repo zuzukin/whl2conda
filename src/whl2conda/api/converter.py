@@ -438,7 +438,8 @@ def _evaluate_marker(marker: str, env: dict[str, str]) -> bool:
     Returns True on parse errors (conservative — include the dependency).
     """
     try:
-        from packaging.markers import Marker
+        # deferred import: only needed when converting binary wheels
+        from packaging.markers import Marker  # noqa: PLC0415
 
         m = Marker(marker)
         return bool(m.evaluate(env))

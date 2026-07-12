@@ -419,7 +419,6 @@ ignore = [
     "PLW2901", # redefining loop variable
     "BLE001",  # blind exception
     "PERF203", # try-except in loop
-    "PLC0415", # import not at top level
     "S110",    # try-except-pass
     "SIM102",  # collapsible if statements
     "RUF009",  # function call in dataclass default
@@ -432,6 +431,7 @@ explicit-preview-rules = true
 [tool.ruff.lint.per-file-ignores]
 "test/**" = [
     "F811",    # pytest fixture redefinitions
+    "PLC0415", # tests may use function-local imports
     "PT011",   # too-broad pytest.raises
     "PT012",   # multi-statement pytest.raises block
     "PT017",   # assertion on exception in except block
