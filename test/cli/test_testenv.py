@@ -236,3 +236,45 @@ def test_test_package_failures(fake_runner: FakeRunner, tmp_path: Path) -> None:
             work_dir=tmp_path / "work",
             source_root=tmp_path,
         )
+
+
+def test_build_test_adapter(
+    fake_runner: FakeRunner,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """CondaBuild._run_package_tests delegates to the shared runner"""
+    from whl2conda.cli.build import BuildArgs, CondaBuild
+
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "whl2conda.cli.build.run_package_tests",
+        lambda pkg, spec, **kwargs: calls.append({"pkg": pkg, "spec": spec, **kwargs}),
+    )
+
+    args = BuildArgs(recipe_path=tmp_path, no_test=False, channels=["chan"])
+    builder = CondaBuild(args)
+    builder.work_dir = tmp_path / "build-work"
+    builder.recipe = {"test": {"imports": ["foo"], "source_files": ["test"]}}
+    pkg = tmp_path / "foo-1.0-py_0.conda"
+
+    builder._run_package_tests(pkg)
+    assert len(calls) == 1
+    call = calls[0]
+    assert call["pkg"] == pkg
+    assert call["spec"].imports == ["foo"]
+    assert call["channels"] == ["chan"]
+    # no conda-build work dir: source files resolve from the recipe dir
+    assert call["source_root"] == tmp_path
+    assert call["env_prefix"] == builder.work_dir / "test-env"
+
+    # conda-build work dir is preferred when present
+    work_src = builder.work_dir / "work"
+    work_src.mkdir(parents=True)
+    builder._run_package_tests(pkg)
+    assert calls[1]["source_root"] == work_src
+
+    # empty test section: runner is not invoked
+    builder.recipe = {}
+    builder._run_package_tests(pkg)
+    assert len(calls) == 2
