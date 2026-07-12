@@ -1231,8 +1231,8 @@ class Wheel2CondaConverter:
     def _get_pypi_metadata(self, package: str, version_spec: str) -> dict[str, Any]:
         """Get pypi metadata for newest release matching the version spec."""
         # standard
-        from packaging.specifiers import SpecifierSet  # noqa: PLC0415
-        from packaging.version import InvalidVersion, Version  # noqa: PLC0415
+        from packaging.specifiers import SpecifierSet
+        from packaging.version import InvalidVersion, Version
 
         norm_name = normalize_pypi_name(package)
         data = self._pypi_metadata(norm_name)
