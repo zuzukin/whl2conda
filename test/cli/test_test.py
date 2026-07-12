@@ -25,7 +25,7 @@ import pytest
 
 from whl2conda.cli import main
 from whl2conda.cli.testenv import PackageTestError
-from whl2conda.impl.recipe import RecipeFormat, RenderedRecipe
+from whl2conda.impl.recipe import RecipeError, RecipeFormat, RenderedRecipe
 
 PYPROJECT_WITH_TESTS = dedent("""
     [project]
@@ -47,6 +47,7 @@ class FakeTest:
         self.tmp_path = tmp_path
         self.test_calls: list[dict[str, Any]] = []
         self.fail = False
+        self.render_fail = False
         self.rendered_raw: dict[str, Any] = {}
         self.render_calls: list[Path] = []
 
@@ -59,6 +60,8 @@ class FakeTest:
 
         def fake_render(recipe_dir: Path, **_kwargs) -> RenderedRecipe:
             fake.render_calls.append(recipe_dir)
+            if fake.render_fail:
+                raise RecipeError("render boom")
             fmt = (
                 RecipeFormat.V1
                 if (recipe_dir / "recipe.yaml").is_file()
@@ -237,3 +240,28 @@ def test_test_errors_and_modes(
         main(["test", str(fake_test.package), str(fake_test.project)])
     assert exc_info.value.code == 1
     assert "test failed" in capsys.readouterr().err
+
+    # recipe errors are reported as command line errors
+    fake_test.fail = False
+    fake_test.render_fail = True
+    (fake_test.project / "pyproject.toml").unlink()
+    (fake_test.project / "meta.yaml").write_text("unrendered")
+    with pytest.raises(SystemExit):
+        main(["test", str(fake_test.package), str(fake_test.project)])
+    assert "render boom" in capsys.readouterr().err
+
+
+def test_test_verbosity(fake_test: FakeTest) -> None:
+    """Verbosity options map to log levels"""
+    import logging
+
+    (fake_test.project / "pyproject.toml").write_text(PYPROJECT_WITH_TESTS)
+    base = ["test", str(fake_test.package), str(fake_test.project), "--dry-run"]
+    for flags, level in [
+        ([], logging.INFO),
+        (["--debug"], logging.DEBUG),
+        (["-q"], logging.WARNING),
+        (["-qq"], logging.ERROR),
+    ]:
+        main(base + flags)
+        assert logging.getLogger().getEffectiveLevel() == level
