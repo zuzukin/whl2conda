@@ -155,6 +155,11 @@ def test_render_recipe_v1(
     assert rendered.build_script == ["echo before", "pip install ."]
     assert rendered.build_number == 0
 
+    # a missing script is normalized to an empty list
+    rendered_raw["build"] = {"noarch": "python"}
+    rendered = render_recipe(recipe_dir, tmp_path / "work")
+    assert rendered.build_script == []
+
     # non-noarch v1 recipes are rejected
     rendered_raw["build"] = {"script": "pip install ."}
     with pytest.raises(RecipeError, match="noarch: python"):
@@ -352,7 +357,9 @@ def test_render_meta_yaml_failure(
 #
 
 
-def _fake_rattler_module(*, multi=False, parse_fail=False, render_fail=False):
+def _fake_rattler_module(
+    *, multi=False, parse_fail=False, render_fail=False, variants=1
+):
     """Create a fake rattler_build module rendering RENDERED_V1."""
     mod = types.ModuleType("rattler_build")
 
@@ -379,7 +386,7 @@ def _fake_rattler_module(*, multi=False, parse_fail=False, render_fail=False):
         def render(self) -> list:
             if render_fail:
                 raise ValueError("render boom")
-            return [FakeRendered()]
+            return [FakeRendered() for _ in range(variants)]
 
     mod.Stage0Recipe = Stage0Recipe  # type: ignore[attr-defined]
     return mod
@@ -405,6 +412,24 @@ def test_render_v1_yaml_in_process(
     monkeypatch.setitem(sys.modules, "rattler_build", _fake_rattler_module(multi=True))
     with pytest.raises(RecipeError, match="multiple outputs"):
         render_v1_yaml(recipe_file)
+
+    # multiple rendered variants are also rejected
+    monkeypatch.setitem(sys.modules, "rattler_build", _fake_rattler_module(variants=2))
+    with pytest.raises(RecipeError, match="multiple outputs"):
+        render_v1_yaml(recipe_file)
+
+    # unexpected binding version (no Stage0Recipe): falls back to the CLI
+    monkeypatch.setitem(sys.modules, "rattler_build", types.ModuleType("rattler_build"))
+    monkeypatch.setattr(
+        "whl2conda.impl.render_v1.shutil.which", lambda _name: "/bin/rattler-build"
+    )
+    monkeypatch.setattr(
+        "whl2conda.impl.render_v1.subprocess.run",
+        lambda cmd, **_kwargs: subprocess.CompletedProcess(
+            cmd, 0, stdout=json.dumps([{"recipe": RENDERED_V1}]), stderr=""
+        ),
+    )
+    assert render_v1_yaml(recipe_file) == RENDERED_V1
 
     monkeypatch.setitem(
         sys.modules, "rattler_build", _fake_rattler_module(parse_fail=True)

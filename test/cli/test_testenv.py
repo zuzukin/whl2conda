@@ -17,6 +17,7 @@ Unit tests for whl2conda.cli.testenv
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -312,6 +313,18 @@ def test_build_test_adapter(
     builder._run_package_tests(pkg, rendered)
     assert calls[2]["source_root"] == work_src
 
+    # no work dir and no local path source: falls back to the current dir
+    shutil.rmtree(builder.work_dir / "croot")
+    builder._run_package_tests(pkg, make_rendered({"test": {"imports": ["foo"]}}))
+    assert calls[3]["source_root"] == Path.cwd()
+
+    # single-dict source form (as rendered from meta.yaml)
+    builder._run_package_tests(
+        pkg,
+        make_rendered({"source": {"path": "."}, "test": {"imports": ["foo"]}}),
+    )
+    assert calls[4]["source_root"] == tmp_path
+
     # empty test section: runner is not invoked
     builder._run_package_tests(pkg, make_rendered({}))
-    assert len(calls) == 3
+    assert len(calls) == 5
