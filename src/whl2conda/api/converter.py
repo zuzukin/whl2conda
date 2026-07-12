@@ -58,7 +58,6 @@ __all__ = [
     "DependencyRename",
     "Wheel2CondaConverter",
     "Wheel2CondaError",
-    "noarch_build_string",
     "normalize_pypi_name",
 ]
 
