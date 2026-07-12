@@ -25,7 +25,7 @@ This is described in the section on [Dependency Modification](renaming.md).
 
 ## Downloading wheels
 
-If you want to create a conda package for a pure python package from [pypi] that doesn't
+If you want to create a conda package for a python package from [pypi] that doesn't
 currently have one available on a public channel, you can download the wheel
 using [pip download][pip-download]. You do not need to download dependencies and 
 want a wheel, not an sdist, so use:
