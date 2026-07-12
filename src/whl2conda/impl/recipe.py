@@ -26,7 +26,7 @@ from __future__ import annotations
 # standard
 import enum
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -69,9 +69,9 @@ class RenderedRecipe:
     name: str
     version: str
     build_number: int = 0
-    build_script: list[str] = field(default_factory=list)
+    build_script: tuple[str, ...] = ()
     noarch_python: bool = False
-    raw: dict[str, Any] = field(default_factory=dict)
+    raw: Mapping[str, Any] = field(default_factory=dict)
     """The full rendered recipe document."""
 
 
@@ -106,9 +106,10 @@ def find_recipe_file(recipe_dir: Path) -> tuple[Path, RecipeFormat]:
 
 def render_recipe(
     recipe_dir: Path,
-    work_dir: Path,
     *,
+    work_dir: Path,
     variant_config: Sequence[Path] = (),
+    use_mamba: bool = False,
 ) -> RenderedRecipe:
     """Render the recipe in the given directory.
 
@@ -116,6 +117,8 @@ def render_recipe(
         recipe_dir: directory containing the recipe file
         work_dir: scratch directory for rendering
         variant_config: variant configuration files, if any
+        use_mamba: use mamba instead of conda to run conda-build when
+            it cannot be imported into the current process
 
     Returns:
         The rendered recipe, normalized.
@@ -132,13 +135,13 @@ def render_recipe(
         )
 
     # local import so that recipe.py has no yaml dependency at import time
-    from .render_meta import render_meta_yaml
+    from .render_meta import render_meta_yaml  # noqa: PLC0415
 
-    raw = render_meta_yaml(recipe_dir, work_dir)
+    raw = render_meta_yaml(recipe_dir, work_dir=work_dir, use_mamba=use_mamba)
     return _normalize_meta_yaml(raw, recipe_dir)
 
 
-def _normalize_meta_yaml(raw: dict[str, Any], recipe_dir: Path) -> RenderedRecipe:
+def _normalize_meta_yaml(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRecipe:
     """Normalize a rendered meta.yaml document."""
     package = raw.get("package") or {}
     build = raw.get("build") or {}
@@ -155,7 +158,7 @@ def _normalize_meta_yaml(raw: dict[str, Any], recipe_dir: Path) -> RenderedRecip
         name=str(package.get("name") or ""),
         version=str(package.get("version") or ""),
         build_number=build_number,
-        build_script=[str(line) for line in script],
+        build_script=tuple(str(line) for line in script),
         noarch_python=build.get("noarch") == "python",
         raw=raw,
     )
