@@ -316,6 +316,18 @@ def test_read_pyproject_tests(tmp_path: Path) -> None:
             """),
         encoding="ascii",
     )
+    with pytest.warns(UserWarning, match="Ignoring"):
+        assert not read_pyproject(tmp_path).test_python
+
+    # non-list test-python is also warned about and ignored
+    proj_file.write_text(
+        dedent(r"""
+            [tool.whl2conda]
+            tests = "not-a-list"
+            test-python = 3.10
+            """),
+        encoding="ascii",
+    )
     with pytest.warns(UserWarning, match="Ignoring") as warnings:
         pyproj = read_pyproject(tmp_path)
     assert not pyproj.tests
