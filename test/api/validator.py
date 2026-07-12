@@ -41,6 +41,14 @@ class PackageValidator:
     """
     Conda package validator.
 
+    Validates a generated conda package against the wheel it was
+    converted from. This class deliberately re-derives the expected
+    package contents from the wheel metadata itself — mirroring (not
+    reusing) the converter's own logic — so that it serves as an
+    independent oracle: a bug in the converter cannot silently
+    propagate into the expectations. When converter behavior changes,
+    the corresponding logic here must be updated to agree.
+
     You can either call the `validate` method or call
     this object as a function.
     """
@@ -119,6 +127,9 @@ class PackageValidator:
             self._site_packages_prefix = "site-packages"
 
         self._validate_unpacked()
+
+    # allow the validator object to be used as a function
+    __call__ = validate
 
     @classmethod
     def _parse_wheel_metadata(cls, wheel_dir: Path) -> dict[str, Any]:
@@ -570,8 +581,6 @@ class PackageValidator:
             #  specify the same file path with different contents, but in practice we do not
             #  expect that to ever happen.
             assert wheel_file.read_bytes() == conda_file.read_bytes()
-
-    __call__ = validate
 
 
 @pytest.fixture

@@ -46,7 +46,6 @@ from whl2conda.impl.prompt import is_interactive
 from whl2conda.settings import settings
 
 from ..impl.test_prompt import monkeypatch_interactive
-from ..test_packages import simple_wheel  # noqa: F401
 
 this_dir = Path(__file__).parent.absolute()
 root_dir = this_dir.parent.parent
@@ -87,7 +86,6 @@ class CliTestCase:
     expected_for_conda_forge: bool = False
     expected_known_extras: bool = False
     expected_resolve_extras: bool = False
-    expected_interactive: bool = True
     expected_keep_pip: bool = False
     expected_out_dir: str = ""
     expected_out_fmt: CondaPackageFormat = CondaPackageFormat.V2
@@ -95,8 +93,8 @@ class CliTestCase:
     expected_package_name: str = ""
     expected_parser_error: str = ""
     expected_platform_tag: str = ""
-    """Relative path from projects dir"""
     expected_project_root: str = ""
+    """Relative path from projects dir"""
     expected_python_version: str = ""
     expected_wheel_path: str = ""
 
@@ -133,7 +131,6 @@ class CliTestCase:
         expected_for_conda_forge: bool = False,
         expected_known_extras: bool = False,
         expected_resolve_extras: bool = False,
-        expected_interactive: bool = True,
         expected_keep_pip: bool = False,
         expected_out_dir: str = "",
         expected_out_fmt: CondaPackageFormat = CondaPackageFormat.V2,
@@ -164,7 +161,6 @@ class CliTestCase:
         self.expected_for_conda_forge = expected_for_conda_forge
         self.expected_known_extras = expected_known_extras
         self.expected_resolve_extras = expected_resolve_extras
-        self.expected_interactive = expected_interactive
         self.expected_keep_pip = expected_keep_pip
         self.expected_out_dir = expected_out_dir
         self.expected_out_fmt = expected_out_fmt
@@ -390,61 +386,21 @@ class CliTestCaseFactory:
     def __call__(
         self,
         args: Sequence[str],
-        *,
-        interactive: bool | None = None,
-        expected_allow_metadata_version: str = "",
-        expected_build_number: int | None = None,
-        expected_download_index: str = "",
-        expected_download_spec: str = "",
-        expected_dry_run: bool = False,
-        expected_package_name: str = "",
-        expected_parser_error: str = "",
-        expected_platform_tag: str = "",
-        expected_out_dir: str = "",
-        expected_out_fmt: CondaPackageFormat = CondaPackageFormat.V2,
-        expected_overwrite: bool = False,
-        expected_keep_pip: bool = False,
-        expected_extra_dependencies: Sequence[str] = (),
-        expected_for_conda_forge: bool = False,
-        expected_known_extras: bool = False,
-        expected_resolve_extras: bool = False,
-        expected_interactive: bool = True,
-        expected_project_root: str = "",
-        expected_python_version: str = "",
-        expected_wheel_path: str = "",
-        expected_stdrenames_update: bool = False,
-        from_dir: str = "",
+        **case_kwargs: Any,
     ) -> CliTestCase:
+        """Create a test case.
+
+        Keyword arguments pass through to [CliTestCase][(m).], which
+        defines the full set of `expected_*` values.
+        """
         case = CliTestCase(
+            args,
             caplog=self.caplog,
             capsys=self.capsys,
             monkeypatch=self.monkeypatch,
             tmp_path=self.tmp_path,
             project_dir=self.project_dir,
-            args=args,
-            interactive=interactive,
-            expected_allow_metadata_version=expected_allow_metadata_version,
-            expected_build_number=expected_build_number,
-            expected_download_index=expected_download_index,
-            expected_download_spec=expected_download_spec,
-            expected_dry_run=expected_dry_run,
-            expected_package_name=expected_package_name,
-            expected_parser_error=expected_parser_error,
-            expected_platform_tag=expected_platform_tag,
-            expected_out_dir=expected_out_dir,
-            expected_out_fmt=expected_out_fmt,
-            expected_overwrite=expected_overwrite,
-            expected_keep_pip=expected_keep_pip,
-            expected_extra_dependencies=expected_extra_dependencies,
-            expected_for_conda_forge=expected_for_conda_forge,
-            expected_known_extras=expected_known_extras,
-            expected_resolve_extras=expected_resolve_extras,
-            expected_interactive=expected_interactive,
-            expected_project_root=expected_project_root,
-            expected_python_version=expected_python_version,
-            expected_wheel_path=expected_wheel_path,
-            expected_stdrenames_update=expected_stdrenames_update,
-            from_dir=from_dir,
+            **case_kwargs,
         )
         self.cases.append(case)
         return case

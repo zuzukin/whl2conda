@@ -24,8 +24,6 @@ import pytest
 
 from whl2conda.impl.wheel import unpack_wheel
 
-from ..test_packages import setup_wheel  # noqa: F401
-
 
 def test_unpack_wheel(
     tmp_path: Path,

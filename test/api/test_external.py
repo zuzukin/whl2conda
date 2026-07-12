@@ -25,10 +25,7 @@ import pytest
 
 from whl2conda.api.converter import Wheel2CondaError
 
-from .converter import (
-    ConverterTestCaseFactory,
-    test_case,  # noqa: F401
-)
+from .converter_support import ConverterTestCaseFactory
 
 #
 # External pypi tests

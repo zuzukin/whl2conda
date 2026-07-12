@@ -28,8 +28,6 @@ import pytest
 
 from whl2conda.cli import main
 
-from ..test_packages import simple_conda_package, simple_wheel  # noqa: F401
-
 # ignore redefinition of simple_conda_package
 
 

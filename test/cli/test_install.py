@@ -29,7 +29,6 @@ from whl2conda.cli import main
 from whl2conda.cli.install import InstallFileInfo, _prune_dependencies
 
 from ..test_conda import conda_config, conda_json, conda_output
-from ..test_packages import simple_conda_package, simple_wheel  # noqa: F401
 
 
 def test_errors(capsys: pytest.CaptureFixture, tmp_path: Path):

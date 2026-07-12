@@ -31,8 +31,6 @@ from whl2conda.api.compare import (
     compare_conda_packages,
 )
 
-from ..test_packages import simple_conda_package, simple_wheel  # noqa: F401
-
 NO_RENAMES: dict[str, str] = {}
 
 
