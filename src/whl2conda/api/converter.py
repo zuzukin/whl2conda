@@ -1134,7 +1134,6 @@ class Wheel2CondaConverter:
                 )
 
             if conda_name and dropped_extras:
-                # TODO - optionally resolve extras from pypi metadata (#36)
                 if known_extras:
                     known_names = ", ".join(
                         f"'{conda_pkg}' for [{extra}]"
@@ -1501,11 +1500,6 @@ class Wheel2CondaConverter:
         self.package_name = package_name
         version = md.get("version")
 
-        # RECORD_file = wheel_info_dir / "RECORD"
-        # TODO: strip __pycache__ entries from RECORD
-        # TODO: add INSTALLER and REQUESTED to RECORD
-        # TODO: add direct_url to wheel and to RECORD
-        # RECORD line format: <path>,sha256=<hash>,<len>
 
         python_version: str = str(md.get("requires-python", ""))
         if python_version:

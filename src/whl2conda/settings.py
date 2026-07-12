@@ -179,10 +179,6 @@ class Whl2CondaSettings:
     )
     """Default filepath for saved settings."""
 
-    # TODO:
-    #   - difftool
-    #   - pyproject defaults
-
     auto_update_std_renames: _BoolField = _BoolField()
     """
     Whether to automatically update the standard renames for operations

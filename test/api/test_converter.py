@@ -492,7 +492,6 @@ def test_poetry(
     try:
         wheel = do_build_wheel(poetry_dir, tmp_path, capture_output=True)
     except subprocess.CalledProcessError as err:
-        # TODO - look at captured output
         pytest.skip(str(err))
     pkg = test_case(wheel).build()
     # conda package name taken from project name
@@ -508,7 +507,6 @@ def test_poetry_2_1(
     try:
         wheel = do_build_wheel(poetry_dir, tmp_path, capture_output=True)
     except subprocess.CalledProcessError as err:
-        # TODO - look at captured output
         pytest.skip(str(err))
     pkg = test_case(wheel).build()
     # conda package name taken from project name

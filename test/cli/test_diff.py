@@ -93,13 +93,11 @@ def test_diff(
         parser.add_argument("-r", action="store_true")
         parsed = parser.parse_args(cmd[1:])
 
-        # TODO: Use Path.is_relative method introduced in Python 3.9
-
         assert parsed.r == expected_r
         for d in [parsed.dir1, parsed.dir2]:
             dirpath = Path(d)
             assert dirpath.is_dir()
-            dirpath.relative_to(tmp_path)
+            assert dirpath.is_relative_to(tmp_path)
             info = dirpath / "info"
             assert info.is_dir()
 

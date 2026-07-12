@@ -526,10 +526,8 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
             wheel_dir = pyproj_info.wheel_dir
             if not wheel_dir:
                 # Use dist directory of project
-                # TODO - check for build system specific alternate dist (#23)
                 wheel_dir = project_root.joinpath("dist")
 
-    # TODO - rearrange logic to make this more obvious?
     assert wheel_dir is not None
     wheel_dir = wheel_dir.expanduser().absolute()
 

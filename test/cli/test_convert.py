@@ -203,7 +203,6 @@ class CliTestCase:
             dry_run: bool = False,
             capture_output: bool = False,
         ) -> Path:
-            # TODO validate no_deps, dry_run
             return wheel_dir.joinpath("fake-1.0-py3-none-any.whl")
 
         def fake_download_wheel(
@@ -260,7 +259,6 @@ class CliTestCase:
             return True
 
         with self.monkeypatch.context() as mp:
-            # TODO monkeypatch for --test-install
             mp.setattr(Wheel2CondaConverter, "convert", fake_convert)
             mp.setattr("builtins.input", fake_input)
             mp.setattr("whl2conda.cli.convert.do_build_wheel", fake_build_wheel)
