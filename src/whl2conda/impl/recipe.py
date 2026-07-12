@@ -37,6 +37,7 @@ __all__ = [
     "RecipeRenderError",
     "RenderedRecipe",
     "find_recipe_file",
+    "recipe_source_root",
     "render_recipe",
     "rewrite_build_script",
 ]
@@ -214,6 +215,29 @@ _PIP_BUILD_RE = re.compile(
     r"pip\s+(?P<cmd>install|wheel)\s+\.(?=\s|$)"
     r"(?P<post>.*)"
 )
+
+
+def recipe_source_root(rendered: RenderedRecipe, work_dir: Path) -> Path:
+    """Directory containing the project source for a rendered recipe.
+
+    This is the source copy in conda-build's work directory under
+    `work_dir` when it exists, otherwise the recipe's local `path:`
+    source when it has one, and otherwise the current directory.
+    """
+    for work_src in sorted(work_dir.glob("croot/*/work")):
+        # conda-build only populates the work dir when the recipe
+        # needs the source at render time
+        if any(work_src.iterdir()):
+            return work_src
+    sources = rendered.raw.get("source") or ()
+    if isinstance(sources, dict):
+        sources = (sources,)
+    for source in sources:
+        if isinstance(source, dict) and (path := source.get("path")):
+            source_root = (rendered.recipe_dir / str(path)).resolve()
+            if source_root.is_dir():
+                return source_root
+    return Path.cwd()
 
 
 def rewrite_build_script(recipe: RenderedRecipe, dist_dir: Path) -> list[str]:

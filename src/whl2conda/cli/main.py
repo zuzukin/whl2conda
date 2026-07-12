@@ -72,6 +72,11 @@ def main(args: Sequence[str] | None = None, prog: str | None = None) -> None:
         "whl2conda.cli.install.install_main",
         "install conda package file with dependencies",
     )
+    subcmds.add_subcommand(
+        "test",
+        "whl2conda.cli.test.test_main",
+        "test conda package file in a fresh environment",
+    )
     # TODO subcommand for clean/fixup of conda-bld or pkgs cache
 
     class ListSubcommands(argparse.Action):

@@ -37,6 +37,11 @@
   `tool.whl2conda.test-python` option lists python versions to test
   against. (#190)
 
+* New `whl2conda test` command tests a conda package file in a fresh
+  environment, using tests from a `--test-file` YAML file, the
+  pyproject.toml `[tool.whl2conda.tests]` section, or the test section
+  of a conda recipe, optionally against multiple python versions. (#83)
+
 ### Changes
 
 * `whl2conda build` renders recipes into its own temporary work

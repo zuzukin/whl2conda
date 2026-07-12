@@ -40,6 +40,7 @@ from ..impl.recipe import (
     RecipeError,
     RecipeFormat,
     RenderedRecipe,
+    recipe_source_root,
     render_recipe,
     rewrite_build_script,
 )
@@ -533,26 +534,8 @@ class CondaBuild:
         return predict_package_path(rendered, bld_path, fmt)
 
     def _source_root(self, rendered: RenderedRecipe) -> Path:
-        """Directory containing the project source for this recipe.
-
-        This is the source copy in conda-build's work directory when it
-        exists, otherwise the recipe's local `path:` source when it has
-        one, and otherwise the current directory.
-        """
-        for work_src in sorted(self.work_dir.glob("croot/*/work")):
-            # conda-build only populates the work dir when the recipe
-            # needs the source at render time
-            if any(work_src.iterdir()):
-                return work_src
-        sources = rendered.raw.get("source") or ()
-        if isinstance(sources, dict):
-            sources = (sources,)
-        for source in sources:
-            if isinstance(source, dict) and (path := source.get("path")):
-                source_root = (rendered.recipe_dir / str(path)).resolve()
-                if source_root.is_dir():
-                    return source_root
-        return Path.cwd()
+        """Directory containing the project source for this recipe."""
+        return recipe_source_root(rendered, self.work_dir)
 
     def _build_wheel(self, dist_dir: Path, source_root: Path) -> Path:
         for line in self.build_script:
