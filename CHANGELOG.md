@@ -2,6 +2,24 @@
 
 ## [26.8.0] - *in progress*
 
+### Features
+
+* `whl2conda build` now supports most applicable `conda build` options:
+  `--output-folder`, `--package-format`, `--croot`, `--python`,
+  `-b`/`--build-only`, `-q`/`--quiet`, `--debug`, and the whl2conda
+  extensions `--extra-deps` and `--keep-test-env`. Inapplicable
+  conda build options are accepted and ignored with a warning, except
+  upload/signing and non-python language options, which are rejected
+  with an error. (#110)
+
+### Changes
+
+* `whl2conda build` renders recipes into its own temporary work
+  directory (instead of scraping conda-build console output to locate
+  scratch space in conda-bld), checks the exit status of the render,
+  uses conda-build in-process when it is importable, and reports
+  build errors clearly. (#110)
+
 ### Development
 
 * Extracted the package test logic from `whl2conda build` into a shared,

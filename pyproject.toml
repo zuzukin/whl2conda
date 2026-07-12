@@ -60,6 +60,8 @@ hatchling = ">=1.21,<2.0"
 twine = ">=6.2"
 
 [tool.pixi.feature.test.dependencies]
+# for whl2conda build recipe rendering (in-process path + external tests)
+conda-build = ">=25.1"
 mypy = ">=1.8,<2.0"
 packaging = ">=23"
 pyright = ">=1.1,<2.0"

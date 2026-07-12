@@ -12,7 +12,6 @@ source:
     folder: src
   - path: ../LICENSE.md
   - path: ../README.md
-  - path: ../conftest.py
   - path: ../test
     folder: test
   - path: ../test-projects
@@ -49,7 +48,6 @@ test:
   source_files:
     - test
     - test-projects
-    - conftest.py
     # need for self test
     - pyproject.toml
     - LICENSE.md
@@ -66,8 +64,7 @@ test:
 about:
   home: {{ project['urls']['homepage']}}
 #  readme: {{ project['readme'] }}
-  summary: {{ project['summary'] }}
-#  description: {{ project['description'] }}
+  summary: {{ project['description'] }}
   keywords:
     {% for keyword in project['keywords'] %}
     - '{{ keyword }}'
@@ -75,7 +72,7 @@ about:
   dev_url: {{ project['urls']['repository'] }}
   doc_url: {{ project['urls']['documentation'] }}
   license: {{ project['license'] }}
-  license_file: {{ project['license-files']['paths'][0] }}
+  license_file: LICENSE.md
 
 extra:
   authors:
