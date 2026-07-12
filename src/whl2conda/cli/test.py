@@ -265,8 +265,7 @@ def _resolve_test_spec(
         return spec, project_dir.absolute(), pyproj.test_python
 
     if not any(
-        project_dir.joinpath(name).is_file()
-        for name in ("meta.yaml", "recipe.yaml")
+        project_dir.joinpath(name).is_file() for name in ("meta.yaml", "recipe.yaml")
     ):
         return PackageTestSpec(), project_dir.absolute(), ()
 

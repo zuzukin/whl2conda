@@ -72,9 +72,7 @@ class FakeTest:
                 raw=fake.rendered_raw,
             )
 
-        monkeypatch.setattr(
-            "whl2conda.cli.test.run_package_tests", fake_run_tests
-        )
+        monkeypatch.setattr("whl2conda.cli.test.run_package_tests", fake_run_tests)
         monkeypatch.setattr("whl2conda.cli.test.render_recipe", fake_render)
 
         self.package = tmp_path / "simple-1.0-py_0.conda"
@@ -84,9 +82,7 @@ class FakeTest:
 
 
 @pytest.fixture
-def fake_test(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> FakeTest:
+def fake_test(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeTest:
     return FakeTest(monkeypatch, tmp_path)
 
 
