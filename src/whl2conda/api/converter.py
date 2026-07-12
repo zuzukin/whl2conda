@@ -505,6 +505,56 @@ class DependencyRename(NamedTuple):
         return pypi_name, False
 
 
+#: Known conda-forge packages corresponding to pypi extras, keyed by
+#: normalized pypi package name and then by normalized extra name.
+#: Only extras with a dedicated conda-forge package that uses the same
+#: version numbering as, and also depends on (or subsumes), the base
+#: package belong in this table: the mapped package *replaces* the
+#: bracketed dependency, carrying over its version spec.
+KNOWN_EXTRA_PACKAGES: dict[str, dict[str, str]] = {
+    "black": {"jupyter": "black-jupyter"},
+    "dask": {"complete": "dask"},
+    "ibis-framework": {
+        extra: f"ibis-{extra}"
+        for extra in (
+            "bigquery",
+            "clickhouse",
+            "datafusion",
+            "duckdb",
+            "exasol",
+            "impala",
+            "mssql",
+            "mysql",
+            "oracle",
+            "polars",
+            "postgres",
+            "pyspark",
+            "snowflake",
+            "sqlite",
+            "trino",
+        )
+    },
+    # the binary/c extras select the psycopg implementation, which is
+    # not meaningful for conda packages: the base package suffices
+    "psycopg": {"binary": "psycopg", "c": "psycopg"},
+    "ray": {
+        extra: f"ray-{extra}"
+        for extra in (
+            "air",
+            "all",
+            "client",
+            "data",
+            "default",
+            "rllib",
+            "serve",
+            "train",
+            "tune",
+        )
+    },
+    "uvicorn": {"standard": "uvicorn-standard"},
+}
+
+
 class Wheel2CondaConverter:
     """
     Converter supports generation of conda package from a pure python wheel.
@@ -549,6 +599,8 @@ class Wheel2CondaConverter:
     keep_pip_dependencies: bool = False
     dependency_rename: list[DependencyRename]
     extra_dependencies: list[str]
+    use_known_extras: bool = False
+    """Replace known pypi extras with corresponding conda packages"""
     python_version: str = ""
     interactive: bool = False
     build_number: int | None = None
@@ -1015,7 +1067,7 @@ class Wheel2CondaConverter:
 
             # check manual renames first
             renamed = False
-            extras_handled = not entry.extras
+            dropped_extras = list(entry.extras)
             extras_name = pip_name
             if entry.extras:
                 # a rule matching the bracketed name[extra,...] form maps
@@ -1025,8 +1077,35 @@ class Wheel2CondaConverter:
                 for renamer in self.dependency_rename:
                     conda_name, renamed = renamer.rename(extras_name)
                     if renamed:
-                        extras_handled = True
+                        dropped_extras = []
                         break
+
+            # extras with known corresponding conda packages (#217)
+            known_extras: dict[str, str] = {}
+            if dropped_extras:
+                known = KNOWN_EXTRA_PACKAGES.get(normalize_pypi_name(pip_name), {})
+                known_extras = {
+                    extra: known[normalize_pypi_name(extra)]
+                    for extra in dropped_extras
+                    if normalize_pypi_name(extra) in known
+                }
+            if known_extras and self.use_known_extras:
+                dropped_extras = [
+                    extra for extra in dropped_extras if extra not in known_extras
+                ]
+                for mapped in dict.fromkeys(known_extras.values()):
+                    conda_dep = f"{mapped} {version}"
+                    self._info(
+                        "Replaced extras dependency: '%s' -> '%s'",
+                        entry,
+                        conda_dep,
+                    )
+                    conda_dependencies.append(conda_dep)
+                known_extras = {}
+                if not dropped_extras:
+                    # the mapped conda packages subsume the base package
+                    continue
+
             if not renamed:
                 conda_name = pip_name
                 for renamer in self.dependency_rename:
@@ -1038,16 +1117,29 @@ class Wheel2CondaConverter:
                     normalize_pypi_name(pip_name), pip_name
                 )
 
-            if conda_name and not extras_handled:
+            if conda_name and dropped_extras:
                 # TODO - optionally resolve extras from pypi metadata (#36)
+                if known_extras:
+                    known_names = ", ".join(
+                        f"'{name}'" for name in dict.fromkeys(known_extras.values())
+                    )
+                    hint = (
+                        f" Note: conda-forge provides {known_names} for the"
+                        f" [{','.join(known_extras)}] extras; use the"
+                        " --known-extras option to apply this automatically."
+                    )
+                else:
+                    hint = (
+                        " Add the extra's dependencies with --extra-dep, or"
+                        f" map '{extras_name}' to a conda equivalent with a"
+                        " dependency rename rule."
+                    )
                 self._warn(
                     "Dropping extras [%s] from dependency '%s': conda"
-                    " packages cannot express extras. Add the extra's"
-                    " dependencies with --extra-dep, or map '%s' to a"
-                    " conda equivalent with a dependency rename rule.",
-                    ",".join(entry.extras),
+                    " packages cannot express extras.%s",
+                    ",".join(dropped_extras),
                     entry,
-                    extras_name,
+                    hint,
                 )
 
             if conda_name:

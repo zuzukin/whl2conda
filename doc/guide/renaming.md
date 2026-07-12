@@ -164,6 +164,26 @@ Note that the square brackets must be escaped in the regular
 expression pattern. Alternatively, the extra's dependencies can be
 added individually using `-A` / `--add-dependency`.
 
+*whl2conda* also knows about a number of common extras that have a
+dedicated corresponding package on [conda-forge], including:
+
+| pypi dependency | conda package |
+|---|---|
+| `black[jupyter]` | `black-jupyter` |
+| `dask[complete]` | `dask` |
+| `ibis-framework[<backend>]` | `ibis-<backend>` |
+| `psycopg[binary]`, `psycopg[c]` | `psycopg` |
+| `ray[default]`, `ray[serve]`, ... | `ray-default`, `ray-serve`, ... |
+| `uvicorn[standard]` | `uvicorn-standard` |
+
+When such a dependency is encountered, the warning will point out the
+corresponding conda package, and the `--known-extras` option will
+apply these replacements automatically:
+
+```bash
+$ whl2conda convert --known-extras ...
+```
+
 ### Renaming converted package
 
 By default, the name of the generated conda package will be taken

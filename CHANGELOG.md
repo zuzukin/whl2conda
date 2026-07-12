@@ -8,7 +8,11 @@
   when the extras are dropped, instead of dropping them silently, and
   dependency rename rules are matched against the bracketed form first
   so such dependencies can be mapped to a corresponding conda package
-  (e.g. `dask[complete]` to `dask`). (#217)
+  (e.g. `dask[complete]` to `dask`). For a built-in table of common
+  extras with dedicated conda-forge packages (e.g. `uvicorn[standard]`,
+  `ray[default]`, `black[jupyter]`), the warning names the
+  corresponding conda package, and the new `--known-extras` option
+  applies those replacements automatically. (#217)
 
 ## [26.7.0] - 2026-7-11
 

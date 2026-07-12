@@ -1627,11 +1627,22 @@ def test_compute_dependencies_extras(caplog: pytest.LogCaptureFixture) -> None:
     # extras are dropped with a warning by default
     with caplog.at_level(logging.WARNING):
         result = converter._compute_conda_dependencies([
+            RequiresDistEntry.parse("somepkg[fancy] >=1.0")
+        ])
+    assert result == ["somepkg >=1.0"]
+    assert "Dropping extras [fancy]" in caplog.text
+    assert "somepkg[fancy]" in caplog.text
+
+    # for known extras, the warning suggests the conda package instead
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        result = converter._compute_conda_dependencies([
             RequiresDistEntry.parse("uvicorn[standard] >=0.20")
         ])
     assert result == ["uvicorn >=0.20"]
     assert "Dropping extras [standard]" in caplog.text
-    assert "uvicorn[standard]" in caplog.text
+    assert "'uvicorn-standard'" in caplog.text
+    assert "--known-extras" in caplog.text
 
     # a rule matching the bracketed form maps the dependency
     # and suppresses the warning
@@ -1680,4 +1691,55 @@ def test_compute_dependencies_extras(caplog: pytest.LogCaptureFixture) -> None:
             RequiresDistEntry.parse("uvicorn[standard] >=0.20")
         ])
     assert result == []
+    assert "Dropping extras" not in caplog.text
+
+
+def test_compute_dependencies_known_extras(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """use_known_extras replaces known extras with conda packages (#217)"""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+    converter.use_known_extras = True
+
+    # known extra replaced by the corresponding conda package
+    with caplog.at_level(logging.WARNING):
+        result = converter._compute_conda_dependencies([
+            RequiresDistEntry.parse("uvicorn[standard] >=0.20")
+        ])
+    assert result == ["uvicorn-standard >=0.20"]
+    assert "Dropping extras" not in caplog.text
+
+    # multiple extras mapping to the same package are deduplicated
+    result = converter._compute_conda_dependencies([
+        RequiresDistEntry.parse("psycopg[binary,c] >=3.1")
+    ])
+    assert result == ["psycopg >=3.1"]
+
+    # each extra contributes its own package
+    result = converter._compute_conda_dependencies([
+        RequiresDistEntry.parse("ray[default, serve] >=2.9")
+    ])
+    assert result == ["ray-default >=2.9", "ray-serve >=2.9"]
+
+    # unknown extras keep the base package and still warn
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        result = converter._compute_conda_dependencies([
+            RequiresDistEntry.parse("ray[default,nosuchextra] >=2.9")
+        ])
+    # (the base package still goes through the standard renames)
+    assert result == ["ray-default >=2.9", "ray-core >=2.9"]
+    assert "Dropping extras [nosuchextra]" in caplog.text
+
+    # explicit rename rules take precedence over the known table
+    caplog.clear()
+    converter.dependency_rename = [
+        DependencyRename.from_strings(r"uvicorn\[standard\]", "my-uvicorn")
+    ]
+    with caplog.at_level(logging.WARNING):
+        result = converter._compute_conda_dependencies([
+            RequiresDistEntry.parse("uvicorn[standard] >=0.20")
+        ])
+    assert result == ["my-uvicorn >=0.20"]
     assert "Dropping extras" not in caplog.text
