@@ -11,6 +11,11 @@
   conda build options are accepted and ignored with a warning, except
   upload/signing and non-python language options, which are rejected
   with an error. (#110)
+* Dependencies with extras (`name[extra,...]`) now generate a warning
+  when the extras are dropped, instead of dropping them silently, and
+  dependency rename rules are matched against the bracketed form first
+  so such dependencies can be mapped to a corresponding conda package
+  (e.g. `dask[complete]` to `dask`). (#217)
 
 ### Changes
 

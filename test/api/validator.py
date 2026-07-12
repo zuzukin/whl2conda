@@ -392,10 +392,18 @@ class PackageValidator:
             version = entry.version
             conda_version = cvt.translate_version_spec(version)
             renamed = False
-            for pat, template in self._renamed_dependencies.items():
-                if m := re.fullmatch(name, pat):
-                    name = m.expand(template)
-                    renamed = True
+            # rules are matched against the bracketed name[extra,...]
+            # form first, then the bare name - like the converter
+            match_names = [name]
+            if entry.extras:
+                match_names.insert(0, f"{name}[{','.join(entry.extras)}]")
+            for match_name in match_names:
+                for pat, template in self._renamed_dependencies.items():
+                    if m := re.fullmatch(pat, match_name):
+                        name = m.expand(template)
+                        renamed = True
+                        break
+                if renamed:
                     break
             if not renamed:
                 name = self._std_renames.get(name, name)

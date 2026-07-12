@@ -142,6 +142,28 @@ be replaced with the named capture group with given name.
     $ whl2conda convert -R 'acme-(?P<part>.*)' 'acme.${part}'
     ```
 
+### <a name="extras">Dependencies with extras</a>
+
+Conda packages cannot express pip *extras*, so by default the
+extras are dropped with a warning from dependencies of the form
+`name[extra,...]` — only the base package dependency is kept.
+
+Rename rules are matched against the bracketed form of such
+dependencies (as written in the wheel metadata) before the bare
+name, so where a corresponding conda package exists — for example,
+on conda-forge the `dask` metapackage corresponds to
+`dask[complete]`, while plain `dask` corresponds to `dask-core` —
+you can map the dependency explicitly, which also suppresses the
+warning:
+
+```bash
+$ whl2conda convert -R 'dask\[complete\]' dask -R dask dask-core
+```
+
+Note that the square brackets must be escaped in the regular
+expression pattern. Alternatively, the extra's dependencies can be
+added individually using `-A` / `--add-dependency`.
+
 ### Renaming converted package
 
 By default, the name of the generated conda package will be taken

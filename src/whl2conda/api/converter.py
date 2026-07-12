@@ -454,6 +454,11 @@ class DependencyRename(NamedTuple):
     The pattern must fully match the input package.
     The replacement string may contain group references
     e.g. r'\1', r'\g<name>`.
+
+    For dependencies with extras, patterns are first matched against
+    the bracketed `name[extra,...]` form (as written in the wheel
+    metadata), so that a dependency with extras can be mapped to a
+    corresponding conda package, e.g. `dask\[complete\]` -> `dask`.
     """
 
     pattern: re.Pattern
@@ -1009,17 +1014,41 @@ class Wheel2CondaConverter:
                     )
                     version = self.python_version
 
-            # TODO - do something with extras (#36)
-            #   download target pip package and its extra dependencies
             # check manual renames first
             renamed = False
-            for renamer in self.dependency_rename:
-                conda_name, renamed = renamer.rename(pip_name)
-                if renamed:
-                    break
+            extras_handled = not entry.extras
+            extras_name = pip_name
+            if entry.extras:
+                # a rule matching the bracketed name[extra,...] form maps
+                # the dependency with its extras to a conda equivalent,
+                # e.g. 'dask[complete]' -> 'dask' (#217)
+                extras_name = f"{pip_name}[{','.join(entry.extras)}]"
+                for renamer in self.dependency_rename:
+                    conda_name, renamed = renamer.rename(extras_name)
+                    if renamed:
+                        extras_handled = True
+                        break
+            if not renamed:
+                conda_name = pip_name
+                for renamer in self.dependency_rename:
+                    conda_name, renamed = renamer.rename(pip_name)
+                    if renamed:
+                        break
             if not renamed:
                 conda_name = self.std_renames.get(
                     normalize_pypi_name(pip_name), pip_name
+                )
+
+            if conda_name and not extras_handled:
+                # TODO - optionally resolve extras from pypi metadata (#36)
+                self._warn(
+                    "Dropping extras [%s] from dependency '%s': conda"
+                    " packages cannot express extras. Add the extra's"
+                    " dependencies with --extra-dep, or map '%s' to a"
+                    " conda equivalent with a dependency rename rule.",
+                    ",".join(entry.extras),
+                    entry,
+                    extras_name,
                 )
 
             if conda_name:
