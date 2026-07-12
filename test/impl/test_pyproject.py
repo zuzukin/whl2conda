@@ -255,3 +255,79 @@ def test_add_pyproject_defaults(tmp_path: Path, capsys: pytest.CaptureFixture) -
 
     with pytest.raises(ValueError):
         add_pyproject_defaults("foo.not-toml")
+
+
+def test_read_pyproject_tests(tmp_path: Path) -> None:
+    """Parsing of tool.whl2conda.tests and test-python (#190)"""
+    proj_file = tmp_path.joinpath("pyproject.toml")
+    proj_file.write_text(
+        dedent(r"""
+            [project]
+            name = "widget"
+
+            [tool.whl2conda]
+            test-python = ["3.10", "3.14"]
+
+            [[tool.whl2conda.tests]]
+            python = { imports = ["widget"], pip_check = true }
+
+            [[tool.whl2conda.tests]]
+            script = ["pytest test"]
+            requirements = { run = ["pytest >=7"] }
+            files = { source = ["test", "conftest.py"] }
+            """),
+        encoding="ascii",
+    )
+    pyproj = read_pyproject(tmp_path)
+    assert len(pyproj.tests) == 2
+    assert pyproj.tests[0]["python"]["imports"] == ["widget"]
+    assert pyproj.test_python == ("3.10", "3.14")
+
+    # the parsed tests convert directly into a test spec
+    from whl2conda.cli.testenv import PackageTestSpec
+
+    spec = PackageTestSpec.from_v1_tests(pyproj.tests)
+    assert spec.imports == ("widget",)
+    assert spec.pip_check
+    assert spec.commands == ("pytest test",)
+    assert spec.requires == ("pytest >=7", "pip")
+    assert spec.source_files == ("test", "conftest.py")
+
+    # a single test-python string is accepted
+    proj_file.write_text(
+        dedent(r"""
+            [tool.whl2conda]
+            test-python = "3.12"
+            """),
+        encoding="ascii",
+    )
+    assert read_pyproject(tmp_path).test_python == ("3.12",)
+
+    # bad values are warned about and ignored
+    proj_file.write_text(
+        dedent(r"""
+            [tool.whl2conda]
+            tests = "not-a-list"
+            test-python = [3.10]
+            """),
+        encoding="ascii",
+    )
+    with pytest.warns(UserWarning, match="Ignoring") as warnings:
+        pyproj = read_pyproject(tmp_path)
+    assert not pyproj.tests
+    assert not pyproj.test_python
+    messages = "\n".join(str(w.message) for w in warnings)
+    assert "tests" in messages
+    assert "test-python" in messages
+
+    # non-table test entries are dropped individually
+    proj_file.write_text(
+        dedent(r"""
+            [tool.whl2conda]
+            tests = ["bad", { script = "pytest" }]
+            """),
+        encoding="ascii",
+    )
+    with pytest.warns(UserWarning, match="Expected table"):
+        pyproj = read_pyproject(tmp_path)
+    assert len(pyproj.tests) == 1

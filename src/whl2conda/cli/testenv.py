@@ -33,6 +33,9 @@ from itertools import chain
 from pathlib import Path
 from typing import Any
 
+# third party
+import yaml
+
 # this project
 from .install import install_main
 
@@ -132,6 +135,31 @@ class PackageTestSpec:
             pip_check=pip_check,
         )
 
+    @classmethod
+    def from_file(cls, path: Path) -> PackageTestSpec:
+        """Load spec from a YAML file containing a v1 recipe `tests` list.
+
+        The file may contain either a bare list of test elements or a
+        mapping with a `tests` key (e.g. an excerpt from a recipe.yaml).
+
+        Raises:
+            PackageTestError: if the file cannot be parsed as a v1
+                `tests` list.
+        """
+        try:
+            data = yaml.safe_load(path.read_text("utf8"))
+        except (OSError, yaml.YAMLError) as ex:
+            raise PackageTestError(f"Cannot read test file {path}: {ex}") from ex
+        if isinstance(data, Mapping):
+            data = data.get("tests")
+        if not isinstance(data, list) or not all(
+            isinstance(entry, Mapping) for entry in data
+        ):
+            raise PackageTestError(
+                f"Test file {path} does not contain a v1 recipe `tests` list"
+            )
+        return cls.from_v1_tests(data)
+
 
 def run_package_tests(
     package: Path,
@@ -143,6 +171,7 @@ def run_package_tests(
     channels: Sequence[str] = (),
     keep_env: bool = False,
     use_mamba: bool = False,
+    python_version: str = "",
 ) -> None:
     """Install a conda package into a fresh environment and test it.
 
@@ -158,6 +187,8 @@ def run_package_tests(
         keep_env: do not remove the test environment afterwards
         use_mamba: use mamba instead of conda to create the test
             environment and run the tests
+        python_version: python version for the test environment, e.g.
+            "3.10"; when empty, the solver chooses
 
     Raises:
         PackageTestError: if a test fails or cannot be run.
@@ -176,6 +207,7 @@ def run_package_tests(
             # channels must come after the package specs, since conda's
             # parser does not accept specs following a -c option
             *spec.requires,
+            *([f"python={python_version}"] if python_version else []),
             *chain.from_iterable(("-c", channel) for channel in channels),
         ]
         install_main(install_cmd)

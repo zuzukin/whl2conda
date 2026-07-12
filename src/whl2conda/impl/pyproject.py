@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import enum
 import warnings
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -109,6 +109,20 @@ class PyProjInfo:
     """tool.whl2conda.extra-dependencies - additional conda dependencies
     """
 
+    tests: Sequence[Mapping[str, Any]] = ()
+    """tool.whl2conda.tests - package tests for the generated conda package
+
+    This is a list of test elements using the v1 recipe `tests` schema
+    (CEP 13/14), as used by rattler-build.
+    """
+
+    test_python: Sequence[str] = ()
+    """tool.whl2conda.test-python - python versions for test environments
+
+    Package tests are run once per listed version. When empty, a single
+    test environment is created letting the solver choose the version.
+    """
+
 
 def warn_ignored_key(file: Path, key: str, msg: str) -> None:
     """Warn about ignored key in pyproject.toml config"""
@@ -174,6 +188,15 @@ TOOL_DEFAULTS = {
     "extra-dependencies": {
         "default": [],
         "comment": ["An optional list of extra conda dependencies."],
+    },
+    "test-python": {
+        "default": [],
+        "comment": [
+            "An optional list of python versions (e.g. [\"3.10\", \"3.14\"])",
+            "against which package tests are run, once per version.",
+            "If empty, a single test environment is created letting the",
+            "solver choose the python version.",
+        ],
     },
 }
 
@@ -294,6 +317,42 @@ def read_pyproject(path: Path) -> PyProjInfo:
                     toml_file, "extra-dependencies", f"Expected string but got '{dep}'"
                 )
         pyproj.extra_dependencies = tuple(_extra_deps)
+
+    if tests := whl2conda.get("tests", ()):
+        if isinstance(tests, Sequence) and not isinstance(tests, str):
+            _tests: list[Mapping[str, Any]] = []
+            for entry in tests:
+                if isinstance(entry, Mapping):
+                    _tests.append(entry)
+                else:
+                    warn_ignored_value(
+                        toml_file, "tests", f"Expected table but got '{entry}'"
+                    )
+            pyproj.tests = tuple(_tests)
+        else:
+            warn_ignored_key(
+                toml_file, "tests", f"value is not a list of tables: {tests}"
+            )
+
+    if test_python := whl2conda.get("test-python", ()):
+        if isinstance(test_python, str):
+            test_python = [test_python]
+        _test_python: list[str] = []
+        if isinstance(test_python, Sequence):
+            for version in test_python:
+                if isinstance(version, str):
+                    _test_python.append(version)
+                else:
+                    warn_ignored_value(
+                        toml_file,
+                        "test-python",
+                        f"Expected string (e.g. \"3.10\") but got '{version}'",
+                    )
+            pyproj.test_python = tuple(_test_python)
+        else:
+            warn_ignored_key(
+                toml_file, "test-python", f"value is not a list: {test_python}"
+            )
 
     if conda_format := _read_str("conda-format", whl2conda):
         try:
