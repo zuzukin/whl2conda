@@ -28,7 +28,7 @@ import logging
 import shutil
 import subprocess
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
 from typing import Any
@@ -51,18 +51,24 @@ class PackageTestError(RuntimeError):
 
 @dataclass(slots=True)
 class PackageTestSpec:
-    """Normalized specification of conda package tests."""
+    """Normalized specification of conda package tests.
 
-    requires: list[str] = field(default_factory=list)
+    A spec is falsy when it does not specify anything to run, that is
+    when it has no imports, no commands, and no pip check. The
+    `requires` and `source_files` fields do not affect truthiness,
+    since on their own they do not cause any test to run.
+    """
+
+    requires: tuple[str, ...] = ()
     """Additional conda dependencies for the test environment."""
 
-    imports: list[str] = field(default_factory=list)
+    imports: tuple[str, ...] = ()
     """Python modules that must import successfully."""
 
-    commands: list[str] = field(default_factory=list)
+    commands: tuple[str, ...] = ()
     """Shell commands that must succeed, run in the test working dir."""
 
-    source_files: list[str] = field(default_factory=list)
+    source_files: tuple[str, ...] = ()
     """Files/globs copied from the source root into the test working dir."""
 
     pip_check: bool = False
@@ -75,10 +81,10 @@ class PackageTestSpec:
     def from_meta_yaml(cls, test_section: Mapping[str, Any]) -> PackageTestSpec:
         """Create spec from a rendered meta.yaml `test:` section."""
         return cls(
-            requires=list(test_section.get("requires") or ()),
-            imports=list(test_section.get("imports") or ()),
-            commands=list(test_section.get("commands") or ()),
-            source_files=list(test_section.get("source_files") or ()),
+            requires=tuple(test_section.get("requires") or ()),
+            imports=tuple(test_section.get("imports") or ()),
+            commands=tuple(test_section.get("commands") or ()),
+            source_files=tuple(test_section.get("source_files") or ()),
         )
 
     @classmethod
@@ -89,33 +95,42 @@ class PackageTestSpec:
         this flattens all elements into a single specification run in
         one shared test environment.
         """
-        spec = cls()
+        requires: list[str] = []
+        imports: list[str] = []
+        commands: list[str] = []
+        source_files: list[str] = []
+        pip_check = False
         for test in tests:
             if python_test := test.get("python"):
-                spec.imports.extend(python_test.get("imports") or ())
+                imports.extend(python_test.get("imports") or ())
                 if python_test.get("pip_check", True):
-                    spec.pip_check = True
-            elif "script" in test:
-                script = test["script"]
+                    pip_check = True
+            elif script := test.get("script"):
                 if isinstance(script, (str, Mapping)):
                     script = [script]
-                spec.commands.extend(
+                commands.extend(
                     line["content"] if isinstance(line, Mapping) else str(line)
                     for line in script
                 )
                 requirements = test.get("requirements") or {}
-                spec.requires.extend(requirements.get("run") or ())
+                requires.extend(requirements.get("run") or ())
                 files = test.get("files") or {}
                 if isinstance(files, Mapping):
-                    spec.source_files.extend(files.get("source") or ())
+                    source_files.extend(files.get("source") or ())
                 else:
-                    spec.source_files.extend(files)
+                    source_files.extend(files)
             else:
                 kind = ", ".join(test.keys()) or "empty"
                 logger.warning("Ignoring unsupported v1 test element: %s", kind)
-        if spec.pip_check:
-            spec.requires.append("pip")
-        return spec
+        if pip_check:
+            requires.append("pip")
+        return cls(
+            requires=tuple(requires),
+            imports=tuple(imports),
+            commands=tuple(commands),
+            source_files=tuple(source_files),
+            pip_check=pip_check,
+        )
 
 
 def run_package_tests(
@@ -127,6 +142,7 @@ def run_package_tests(
     source_root: Path | None = None,
     channels: Sequence[str] = (),
     keep_env: bool = False,
+    use_mamba: bool = False,
 ) -> None:
     """Install a conda package into a fresh environment and test it.
 
@@ -140,10 +156,13 @@ def run_package_tests(
             resolved; defaults to the current directory
         channels: additional conda channels for the test environment
         keep_env: do not remove the test environment afterwards
+        use_mamba: use mamba instead of conda to create the test
+            environment and run the tests
 
     Raises:
         PackageTestError: if a test fails or cannot be run.
     """
+    conda = "mamba" if use_mamba else "conda"
     try:
         install_cmd = [
             str(package),
@@ -151,6 +170,7 @@ def run_package_tests(
             "-p",
             str(env_prefix),
             "--yes",
+            *(["--mamba"] if use_mamba else []),
             "--extra",
             # NOTE: the remaining arguments pass through to conda create;
             # channels must come after the package specs, since conda's
@@ -166,7 +186,7 @@ def run_package_tests(
         for import_name in spec.imports:
             _run_test(
                 [
-                    "conda",
+                    conda,
                     "run",
                     "-p",
                     str(env_prefix),
@@ -181,7 +201,7 @@ def run_package_tests(
         if spec.pip_check:
             _run_test(
                 [
-                    "conda",
+                    conda,
                     "run",
                     "-p",
                     str(env_prefix),
@@ -196,7 +216,7 @@ def run_package_tests(
 
         for command in spec.commands:
             _run_test(
-                f"conda run -p {env_prefix!s} {command}",
+                f"{conda} run -p {env_prefix!s} {command}",
                 work_dir,
                 f"command '{command}'",
                 shell=True,
