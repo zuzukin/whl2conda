@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """
-whl2conda test implementation (#83)
+whl2conda test implementation
 """
 
 from __future__ import annotations
@@ -31,7 +31,6 @@ from pathlib import Path
 from ..impl.pyproject import PyProjInfo, read_pyproject
 from ..impl.recipe import (
     RecipeError,
-    RenderedRecipe,
     recipe_source_root,
     render_recipe,
 )
@@ -81,13 +80,13 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
 
     parser.add_argument(
         "package_file",
-        metavar="PACKAGE_FILE",
+        metavar="<package-file>",
         type=existing_path,
         help="Conda package file (.conda or .tar.bz2) to test",
     )
     parser.add_argument(
         "project_dir",
-        metavar="PROJECT_DIR",
+        metavar="<project-dir>",
         nargs="?",
         default=Path.cwd(),
         type=existing_dir,
@@ -213,7 +212,9 @@ def test_main(
         python_versions: Sequence[str] = testargs.python or project_python or [""]
 
         if testargs.dry_run:
-            _show_spec(spec, python_versions)
+            versions = ", ".join(v for v in python_versions if v) or "<default>"
+            print(f"python versions: {versions}")
+            print(spec.describe())
             return
 
         for python_version in python_versions:
@@ -272,36 +273,5 @@ def _resolve_test_spec(
     rendered = render_recipe(
         project_dir, work_dir=work_dir, use_mamba=testargs.use_mamba
     )
-    spec = _spec_from_recipe(rendered)
+    spec = PackageTestSpec.from_rendered_recipe(rendered)
     return spec, recipe_source_root(rendered, work_dir), pyproj.test_python
-
-
-def _spec_from_recipe(rendered: RenderedRecipe) -> PackageTestSpec:
-    """Extract the test spec from a rendered recipe."""
-    if tests := rendered.raw.get("tests"):
-        return PackageTestSpec.from_v1_tests(tests)
-    return PackageTestSpec.from_meta_yaml(rendered.raw.get("test") or {})
-
-
-def _show_spec(spec: PackageTestSpec, python_versions: Sequence[str]) -> None:
-    """Display the resolved test spec for --dry-run."""
-    versions = ", ".join(v for v in python_versions if v) or "<default>"
-    print(f"python versions: {versions}")
-    if spec.requires:
-        print("requires:")
-        for requirement in spec.requires:
-            print(f"  {requirement}")
-    if spec.source_files:
-        print("source files:")
-        for pattern in spec.source_files:
-            print(f"  {pattern}")
-    if spec.imports:
-        print("imports:")
-        for import_name in spec.imports:
-            print(f"  {import_name}")
-    if spec.pip_check:
-        print("pip check")
-    if spec.commands:
-        print("commands:")
-        for command in spec.commands:
-            print(f"  {command}")

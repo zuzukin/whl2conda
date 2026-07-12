@@ -37,6 +37,7 @@ from typing import Any
 import yaml
 
 # this project
+from ..impl.recipe import RenderedRecipe
 from .install import install_main
 
 __all__ = [
@@ -136,6 +137,17 @@ class PackageTestSpec:
         )
 
     @classmethod
+    def from_rendered_recipe(cls, rendered: RenderedRecipe) -> PackageTestSpec:
+        """Create spec from the test section of a rendered conda recipe.
+
+        Reads the `tests` list of a v1 recipe, or else the `test`
+        section of a classic recipe.
+        """
+        if tests := rendered.raw.get("tests"):
+            return cls.from_v1_tests(tests)
+        return cls.from_meta_yaml(rendered.raw.get("test") or {})
+
+    @classmethod
     def from_file(cls, path: Path) -> PackageTestSpec:
         """Load spec from a YAML file containing a v1 recipe `tests` list.
 
@@ -159,6 +171,25 @@ class PackageTestSpec:
                 f"Test file {path} does not contain a v1 recipe `tests` list"
             )
         return cls.from_v1_tests(data)
+
+    def describe(self) -> str:
+        """Multi-line human-readable description of the tests."""
+        lines: list[str] = []
+        if self.requires:
+            lines.append("requires:")
+            lines.extend(f"  {requirement}" for requirement in self.requires)
+        if self.source_files:
+            lines.append("source files:")
+            lines.extend(f"  {pattern}" for pattern in self.source_files)
+        if self.imports:
+            lines.append("imports:")
+            lines.extend(f"  {import_name}" for import_name in self.imports)
+        if self.pip_check:
+            lines.append("pip check")
+        if self.commands:
+            lines.append("commands:")
+            lines.extend(f"  {command}" for command in self.commands)
+        return "\n".join(lines)
 
 
 def run_package_tests(
