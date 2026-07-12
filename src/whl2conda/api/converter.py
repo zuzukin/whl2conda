@@ -1669,7 +1669,7 @@ class Wheel2CondaConverter:
         md_version_str = md_msg.get("Metadata-Version")
         if md_version_str not in self.SUPPORTED_METADATA_VERSIONS:
             msg = f"Wheel {self.wheel_path} has unsupported metadata version {md_version_str}"
-            # TODO - perhaps just warn about this if not in "strict" mode
+            # TODO - perhaps only warn when not in strict mode (#224)
             raise Wheel2CondaError(msg)
         for mdkey, mdval in md_msg.items():
             mdkey = mdkey.strip()
@@ -1688,7 +1688,7 @@ class Wheel2CondaConverter:
                 entry = RequiresDistEntry.parse(raw_entry)
                 requires.append(entry)
             except SyntaxError as err:
-                # TODO: error in strict mode?
+                # TODO - error in strict mode (#224)
                 self._warn(str(err))
 
         if not self.keep_pip_dependencies:
@@ -1740,7 +1740,7 @@ class Wheel2CondaConverter:
                         v += f",=={'.'.join(rv_parts[:-1])}.*"
                 elif operator == "===":
                     operator = "=="
-                    # TODO perhaps treat as an error in "strict" mode
+                    # TODO - error in strict mode (#224)
                     self._warn(
                         "Converted arbitrary equality clause %s to ==%s - may not match!",
                         spec,
