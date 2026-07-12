@@ -93,7 +93,7 @@ def _render_in_process(recipe_dir: Path, croot: Path, out_file: Path) -> None:
     """Render using conda-build imported into this process."""
     logger.debug("Rendering %s with in-process conda-build", recipe_dir)
     # conda-build is an optional runtime dependency, not installed here
-    import conda_build.api as api  # type: ignore[import-untyped,import-not-found]  # noqa: PLC0415
+    import conda_build.api as api  # type: ignore # noqa: PLC0415
 
     try:
         config = api.Config(croot=str(croot))

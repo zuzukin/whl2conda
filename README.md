@@ -16,10 +16,10 @@
 
 </div>
 
-**Generate conda packages directly from pure python wheels**
+**Generate conda packages directly from python wheels**
 
 *whl2conda* is a command line utility to build and test conda packages
-generated directly from pure python wheels.
+generated directly from python wheels.
 
 > **Background**: See [doc/about/motivation.md](doc/about/motivation.md) for the
 > story behind this project.

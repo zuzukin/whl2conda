@@ -98,7 +98,7 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
             """),
         prog=prog,
         description=dedent("""
-            Generates a conda package from a pure python wheel
+            Generates a conda package from a python wheel
             """),
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
