@@ -288,6 +288,10 @@ def test_read_pyproject_tests(tmp_path: Path) -> None:
 
     spec = PackageTestSpec.from_v1_tests(pyproj.tests)
     assert spec.imports == ("widget",)
+    # values are plain python strings, not tomlkit subclasses,
+    # which e.g. Path.glob rejects on python 3.10
+    assert all(type(f) is str for f in spec.source_files)
+    assert all(type(v) is str for v in read_pyproject(tmp_path).test_python)
     assert spec.pip_check
     assert spec.commands == ("pytest test",)
     assert spec.requires == ("pytest >=7", "pip")
