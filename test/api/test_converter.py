@@ -1617,3 +1617,67 @@ def test_compute_conda_deps_name_normalization() -> None:
         RequiresDistEntry.parse("Acme.Internal_Pkg >=2.0")
     ])
     assert result == ["acme_internal >=2.0"]
+
+
+def test_compute_dependencies_extras(caplog: pytest.LogCaptureFixture) -> None:
+    """Dependencies with extras warn unless handled by a rename rule (#217)"""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+
+    # extras are dropped with a warning by default
+    with caplog.at_level(logging.WARNING):
+        result = converter._compute_conda_dependencies([
+            RequiresDistEntry.parse("uvicorn[standard] >=0.20")
+        ])
+    assert result == ["uvicorn >=0.20"]
+    assert "Dropping extras [standard]" in caplog.text
+    assert "uvicorn[standard]" in caplog.text
+
+    # a rule matching the bracketed form maps the dependency
+    # and suppresses the warning
+    caplog.clear()
+    converter.dependency_rename = [
+        DependencyRename.from_strings(r"dask\[complete\]", "dask")
+    ]
+    with caplog.at_level(logging.WARNING):
+        result = converter._compute_conda_dependencies([
+            RequiresDistEntry.parse("dask[complete] >=2024.1")
+        ])
+    assert result == ["dask >=2024.1"]
+    assert "Dropping extras" not in caplog.text
+
+    # multiple extras are matched in the order written
+    caplog.clear()
+    converter.dependency_rename = [
+        DependencyRename.from_strings(r"foo\[bar,baz\]", "foo-full")
+    ]
+    with caplog.at_level(logging.WARNING):
+        result = converter._compute_conda_dependencies([
+            RequiresDistEntry.parse("foo[bar, baz] >=1")
+        ])
+    assert result == ["foo-full >=1"]
+    assert "Dropping extras" not in caplog.text
+
+    # a bare-name rule still renames the base package but warns
+    caplog.clear()
+    converter.dependency_rename = [
+        DependencyRename.from_strings("uvicorn", "uvicorn-base")
+    ]
+    with caplog.at_level(logging.WARNING):
+        result = converter._compute_conda_dependencies([
+            RequiresDistEntry.parse("uvicorn[standard] >=0.20")
+        ])
+    assert result == ["uvicorn-base >=0.20"]
+    assert "Dropping extras [standard]" in caplog.text
+
+    # explicitly dropping the bracketed form is silent
+    caplog.clear()
+    converter.dependency_rename = [
+        DependencyRename.from_strings(r"uvicorn\[standard\]", "")
+    ]
+    with caplog.at_level(logging.WARNING):
+        result = converter._compute_conda_dependencies([
+            RequiresDistEntry.parse("uvicorn[standard] >=0.20")
+        ])
+    assert result == []
+    assert "Dropping extras" not in caplog.text

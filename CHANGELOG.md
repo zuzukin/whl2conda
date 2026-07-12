@@ -1,5 +1,15 @@
 # whl2conda changes
 
+## [26.7.1] - *in progress*
+
+### Bug fixes
+
+* Dependencies with extras (`name[extra,...]`) now generate a warning
+  when the extras are dropped, instead of dropping them silently, and
+  dependency rename rules are matched against the bracketed form first
+  so such dependencies can be mapped to a corresponding conda package
+  (e.g. `dask[complete]` to `dask`). (#217)
+
 ## [26.7.0] - 2026-7-11
 
 ### Features
