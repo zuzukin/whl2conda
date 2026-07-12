@@ -31,6 +31,50 @@ them in a single install command, e.g.:
 $ whl2conda install mypackage-1.2.3-py_0.conda mycorepackage-1.2.3-py_0.conda ...
 ```
 
+## Running package tests
+
+The `whl2conda test` command automates the install-and-test cycle:
+it creates a fresh environment, installs the package and any test
+requirements into it, runs the specified tests, and removes the
+environment:
+
+```bash
+$ whl2conda test dist/mypackage-1.2.3-py_0.conda
+```
+
+The tests are taken from, in order of precedence:
+
+* a YAML file given with `--test-file`, containing a v1 recipe
+  `tests` list (either a bare list or a mapping with a `tests` key),
+* the `[[tool.whl2conda.tests]]` section of the project's
+  `pyproject.toml` (see [the pyproject guide](pyproject.md#tests)), or
+* the test section of a conda recipe (`meta.yaml` or `recipe.yaml`)
+  in the project directory, which will be rendered first.
+
+The project directory defaults to the current directory and may be
+given as a second argument:
+
+```bash
+$ whl2conda test dist/mypackage-1.2.3-py_0.conda conda.recipe
+```
+
+To test against specific python versions (for example, to check the
+boundaries of a `noarch: python` package's python requirement), use
+one or more `--python` options, or the `test-python` setting in
+`pyproject.toml`; the tests are run once per version:
+
+```bash
+$ whl2conda test dist/mypackage-1.2.3-py_0.conda --python 3.10 --python 3.14
+```
+
+Additional channels for the test environment can be supplied with
+`-c`/`--channel`, `--keep-test-env` retains the environment for
+debugging, and `--dry-run` shows the tests that would be run. The
+command exits with a non-zero status if any test fails, so it can be
+used in scripts and CI. See the
+[command reference](../reference/cli/whl2conda-test.md) for all
+options.
+
 ## Installing into conda-bld
 
 Once you are done testing, you may upload your package to a

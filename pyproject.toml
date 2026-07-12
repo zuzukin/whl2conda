@@ -436,6 +436,9 @@ preview = true
 explicit-preview-rules = true
 
 [tool.ruff.lint.per-file-ignores]
+# pytest-style rules do not apply to the package itself (e.g. the
+# whl2conda test command module is not a pytest test module)
+"src/**" = ["PT"]
 "test/**" = [
     "F811",    # pytest fixture redefinitions
     "PLC0415", # tests may use function-local imports
