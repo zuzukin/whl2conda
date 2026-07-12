@@ -88,6 +88,7 @@ class CliTestCase:
     expected_extra_dependencies: Sequence[str] = ()
     expected_for_conda_forge: bool = False
     expected_known_extras: bool = False
+    expected_resolve_extras: bool = False
     expected_interactive: bool = True
     expected_keep_pip: bool = False
     expected_out_dir: str = ""
@@ -134,6 +135,7 @@ class CliTestCase:
         expected_download_spec: str = "",
         expected_for_conda_forge: bool = False,
         expected_known_extras: bool = False,
+        expected_resolve_extras: bool = False,
         expected_interactive: bool = True,
         expected_keep_pip: bool = False,
         expected_out_dir: str = "",
@@ -164,6 +166,7 @@ class CliTestCase:
         self.expected_extra_dependencies = list(expected_extra_dependencies)
         self.expected_for_conda_forge = expected_for_conda_forge
         self.expected_known_extras = expected_known_extras
+        self.expected_resolve_extras = expected_resolve_extras
         self.expected_interactive = expected_interactive
         self.expected_keep_pip = expected_keep_pip
         self.expected_out_dir = expected_out_dir
@@ -346,6 +349,7 @@ class CliTestCase:
         assert converter.keep_pip_dependencies is self.expected_keep_pip
         assert converter.for_conda_forge is self.expected_for_conda_forge
         assert converter.use_known_extras is self.expected_known_extras
+        assert converter.resolve_extras is self.expected_resolve_extras
         assert converter.platform_tag == self.expected_platform_tag
         assert converter.extra_dependencies == list(self.expected_extra_dependencies)
         assert converter.dependency_rename == list(self.expected_dependency_renames)
@@ -410,6 +414,7 @@ class CliTestCaseFactory:
         expected_extra_dependencies: Sequence[str] = (),
         expected_for_conda_forge: bool = False,
         expected_known_extras: bool = False,
+        expected_resolve_extras: bool = False,
         expected_interactive: bool = True,
         expected_project_root: str = "",
         expected_python_version: str = "",
@@ -440,6 +445,7 @@ class CliTestCaseFactory:
             expected_extra_dependencies=expected_extra_dependencies,
             expected_for_conda_forge=expected_for_conda_forge,
             expected_known_extras=expected_known_extras,
+            expected_resolve_extras=expected_resolve_extras,
             expected_interactive=expected_interactive,
             expected_project_root=expected_project_root,
             expected_python_version=expected_python_version,
@@ -1028,6 +1034,9 @@ def test_known_extras(
     """--known-extras enables known extras replacement"""
     test_case([str(simple_wheel)]).run()
     test_case([str(simple_wheel), "--known-extras"], expected_known_extras=True).run()
+    test_case(
+        [str(simple_wheel), "--resolve-extras"], expected_resolve_extras=True
+    ).run()
 
 
 def test_allow_metadata_version(

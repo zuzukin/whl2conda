@@ -26,6 +26,7 @@ import subprocess
 from collections.abc import Iterator
 from pathlib import Path
 from time import sleep
+from typing import Any
 
 # third party
 import pytest
@@ -1743,3 +1744,132 @@ def test_compute_dependencies_known_extras(
         ])
     assert result == ["my-uvicorn >=0.20"]
     assert "Dropping extras" not in caplog.text
+
+
+FAKE_PYPI_METADATA: dict[tuple[str, str], dict[str, Any]] = {
+    ("uvicorn", ""): {
+        "info": {
+            "version": "0.30.0",
+            "provides_extra": ["standard"],
+            "requires_dist": [
+                "click >=7.0",
+                "httptools >=0.6.0 ; extra == 'standard'",
+                "watchfiles >=0.13 ; extra == 'standard'",
+                "uvloop >=0.14.0 ; sys_platform != 'win32' and extra == 'standard'",
+            ],
+        },
+        "releases": {"0.29.0": [], "0.30.0": []},
+    },
+    ("uvicorn", "0.29.0"): {
+        "info": {
+            "version": "0.29.0",
+            "provides_extra": ["standard"],
+            "requires_dist": [
+                "click >=7.0",
+                "httptools >=0.5.0 ; extra == 'standard'",
+            ],
+        },
+    },
+    ("fastapi", ""): {
+        "info": {
+            "version": "0.110.0",
+            "provides_extra": ["all"],
+            "requires_dist": [
+                "starlette >=0.36",
+                "uvicorn[standard] >=0.20 ; extra == 'all'",
+                "orjson >=3.2 ; extra == 'all'",
+            ],
+        },
+        "releases": {"0.110.0": []},
+    },
+}
+
+
+def test_compute_dependencies_resolve_extras(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """resolve_extras expands extras from pypi metadata (#36)"""
+    fetches: list[tuple[str, str]] = []
+
+    def fake_fetch(package: str, version: str = "") -> dict[str, Any]:
+        fetches.append((package, version))
+        return FAKE_PYPI_METADATA[(package, version)]
+
+    monkeypatch.setattr("whl2conda.api.converter.fetch_pypi_metadata", fake_fetch)
+
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+    converter.resolve_extras = True
+
+    # extras expand into the extra's dependencies plus the base package
+    with caplog.at_level(logging.WARNING):
+        result = converter._compute_conda_dependencies([
+            RequiresDistEntry.parse("uvicorn[standard] >=0.30")
+        ])
+    assert result == ["uvicorn >=0.30", "httptools >=0.6.0", "watchfiles >=0.13"]
+    assert "Dropping extras" not in caplog.text
+    # the platform-marker dependency is skipped as usual for noarch
+    assert "Skipping dependency with environment marker" in caplog.text
+    assert fetches == [("uvicorn", "")]
+
+    # the newest release satisfying the version spec is used
+    caplog.clear()
+    fetches.clear()
+    converter._pypi_metadata_cache.clear()
+    result = converter._compute_conda_dependencies([
+        RequiresDistEntry.parse("uvicorn[standard] <0.30")
+    ])
+    assert result == ["uvicorn <0.30", "httptools >=0.5.0"]
+    assert fetches == [("uvicorn", ""), ("uvicorn", "0.29.0")]
+
+    # nested extras are expanded recursively
+    caplog.clear()
+    converter._pypi_metadata_cache.clear()
+    with caplog.at_level(logging.WARNING):
+        result = converter._compute_conda_dependencies([
+            RequiresDistEntry.parse("fastapi[all] >=0.100")
+        ])
+    assert "fastapi >=0.100" in result
+    assert "uvicorn >=0.20" in result
+    assert "httptools >=0.6.0" in result
+    assert "orjson >=3.2" in result
+    assert "Dropping extras" not in caplog.text
+
+    # unknown extras fall back to the dropped-extras warning
+    caplog.clear()
+    converter._pypi_metadata_cache.clear()
+    with caplog.at_level(logging.WARNING):
+        result = converter._compute_conda_dependencies([
+            RequiresDistEntry.parse("uvicorn[nosuchextra] >=0.30")
+        ])
+    assert result == ["uvicorn >=0.30"]
+    assert "does not provide extra 'nosuchextra'" in caplog.text
+    assert "Dropping extras [nosuchextra]" in caplog.text
+
+    # fetch failures fall back to the dropped-extras warning
+    caplog.clear()
+
+    def failing_fetch(package: str, version: str = "") -> dict[str, Any]:
+        raise OSError("no network")
+
+    monkeypatch.setattr("whl2conda.api.converter.fetch_pypi_metadata", failing_fetch)
+    converter._pypi_metadata_cache.clear()
+    with caplog.at_level(logging.WARNING):
+        result = converter._compute_conda_dependencies([
+            RequiresDistEntry.parse("somepkg[fancy] >=1.0")
+        ])
+    assert result == ["somepkg >=1.0"]
+    assert "Cannot fetch pypi metadata for 'somepkg'" in caplog.text
+    assert "Dropping extras [fancy]" in caplog.text
+
+    # known extras take precedence over pypi resolution when enabled
+    fetches.clear()
+    monkeypatch.setattr("whl2conda.api.converter.fetch_pypi_metadata", fake_fetch)
+    converter.use_known_extras = True
+    converter._pypi_metadata_cache.clear()
+    result = converter._compute_conda_dependencies([
+        RequiresDistEntry.parse("uvicorn[standard] >=0.30")
+    ])
+    assert result == ["uvicorn-standard >=0.30"]
+    assert not fetches

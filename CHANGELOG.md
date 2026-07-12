@@ -11,8 +11,25 @@
   (e.g. `dask[complete]` to `dask`). For a built-in table of common
   extras with dedicated conda-forge packages (e.g. `uvicorn[standard]`,
   `ray[default]`, `black[jupyter]`), the warning names the
-  corresponding conda package, and the new `--known-extras` option
-  applies those replacements automatically. (#217)
+  corresponding conda package. (#217)
+
+### Features
+
+* New `--known-extras` option automatically replaces dependency extras
+  from the built-in table of common extras with dedicated conda-forge
+  packages (e.g. `uvicorn[standard]` with `uvicorn-standard`). (#217)
+* New `--resolve-extras` option resolves remaining dependency extras
+  from pypi.org metadata: the extra's dependencies are read from the
+  newest release satisfying the dependency's version spec, converted
+  like regular dependencies, and any nested extras are resolved
+  recursively. This is a best-effort approximation, since the solver
+  may install a version whose extras differ. (#36)
+
+### Changes
+
+* New runtime dependency on `packaging` (used to select release
+  versions when resolving extras from pypi metadata; it was already
+  used opportunistically for dependency marker evaluation).
 
 ## [26.7.0] - 2026-7-11
 

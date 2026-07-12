@@ -184,6 +184,22 @@ apply these replacements automatically:
 $ whl2conda convert --known-extras ...
 ```
 
+Extras not handled by any of the above can be resolved from
+[pypi.org] metadata using the `--resolve-extras` option, which
+requires network access:
+
+```bash
+$ whl2conda convert --resolve-extras ...
+```
+
+This reads the extra's dependencies from the newest release of the
+package that satisfies the dependency's version spec, converts them
+like regular dependencies, and recursively resolves any extras they
+use in turn. Note that this is a best-effort approximation: the
+extra's dependencies are taken from one specific version of the
+package, while the conda solver may ultimately install a different
+version whose extras differ.
+
 ### Renaming converted package
 
 By default, the name of the generated conda package will be taken
