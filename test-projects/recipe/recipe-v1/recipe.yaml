@@ -1,0 +1,44 @@
+# v1 conda recipe for the whl2conda build test fixture.
+# Equivalent to the classic recipe in ../recipe-meta/meta.yaml.
+
+context:
+  name: hello
+  version: "1.0.0"
+
+package:
+  name: ${{ name }}
+  version: ${{ version }}
+
+source:
+  path: ../
+
+build:
+  number: 1
+  noarch: python
+  script: pip install . -vv --no-deps --no-build-isolation
+
+requirements:
+  host:
+    - python
+    - pip
+    - hatchling
+  run:
+    - python >=3.9
+
+tests:
+  - python:
+      imports:
+        - hello
+      pip_check: false
+  - script:
+      - pytest test
+    requirements:
+      run:
+        - pytest
+    files:
+      source:
+        - test/
+
+about:
+  summary: whl2conda build test fixture
+  license: MIT

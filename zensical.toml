@@ -22,6 +22,7 @@ nav = [
     { "Dependency Modification" = "guide/renaming.md" },
     { "Configuring pyproject.toml" = "guide/pyproject.md" },
     { "Binary Conversion" = "guide/binary-conversion.md" },
+    { "Building from Recipes" = "guide/building.md" },
     { "Installing and Testing" = "guide/testing.md" },
     { "Limitations" = "guide/limitations.md" },
   ] },

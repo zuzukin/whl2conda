@@ -17,6 +17,7 @@ Unit tests for whl2conda.impl.recipe and whl2conda.impl.render_meta
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import types
@@ -36,6 +37,7 @@ from whl2conda.impl.recipe import (
     rewrite_build_script,
 )
 from whl2conda.impl.render_meta import render_meta_yaml
+from whl2conda.impl.render_v1 import render_v1_yaml
 
 RENDERED_META = {
     "package": {"name": "simple", "version": "1.2.3"},
@@ -104,12 +106,58 @@ def test_render_recipe_meta(
     assert not rendered.noarch_python
 
 
-def test_render_recipe_v1_unsupported(tmp_path: Path) -> None:
-    """v1 recipes are rejected until #160 lands"""
+RENDERED_V1 = {
+    "schema_version": 1,
+    "package": {"name": "simple", "version": "1.2.3"},
+    "source": [{"path": "../"}],
+    "build": {
+        "number": 2,
+        "string": "pyh4616a5c_2",
+        "script": "pip install . -vv",
+        "noarch": "python",
+    },
+    "tests": [{"python": {"imports": ["simple"]}}],
+}
+
+
+def test_render_recipe_v1(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """render_recipe normalizes rendered v1 recipes"""
     recipe_dir = tmp_path / "recipe"
     recipe_dir.mkdir()
-    (recipe_dir / "recipe.yaml").write_text("package: {name: foo}")
-    with pytest.raises(RecipeError, match="not yet supported"):
+    recipe_file = recipe_dir / "recipe.yaml"
+    recipe_file.write_text("unrendered")
+
+    rendered_raw = dict(RENDERED_V1)
+    monkeypatch.setattr(
+        "whl2conda.impl.render_v1.render_v1_yaml",
+        lambda _recipe_file: dict(rendered_raw),
+    )
+
+    rendered = render_recipe(recipe_dir, tmp_path / "work")
+    assert rendered.format is RecipeFormat.V1
+    assert rendered.recipe_dir == recipe_dir
+    assert rendered.name == "simple"
+    assert rendered.version == "1.2.3"
+    assert rendered.build_number == 2
+    assert rendered.build_script == ["pip install . -vv"]
+    assert rendered.noarch_python
+    assert rendered.raw == RENDERED_V1
+
+    # the v1 object script form
+    rendered_raw["build"] = {
+        "noarch": "python",
+        "script": {"content": ["echo before", "pip install ."], "env": {"X": "1"}},
+    }
+    rendered = render_recipe(recipe_dir, tmp_path / "work")
+    assert rendered.build_script == ["echo before", "pip install ."]
+    assert rendered.build_number == 0
+
+    # non-noarch v1 recipes are rejected
+    rendered_raw["build"] = {"script": "pip install ."}
+    with pytest.raises(RecipeError, match="noarch: python"):
         render_recipe(recipe_dir, tmp_path / "work")
 
 
@@ -297,3 +345,134 @@ def test_render_meta_yaml_failure(
     monkeypatch.setattr("whl2conda.impl.render_meta.subprocess.run", fake_run_noop)
     with pytest.raises(RecipeRenderError, match="did not produce"):
         render_meta_yaml(recipe_dir, work_dir)
+
+
+#
+# render_v1 backends
+#
+
+
+def _fake_rattler_module(*, multi=False, parse_fail=False, render_fail=False):
+    """Create a fake rattler_build module rendering RENDERED_V1."""
+    mod = types.ModuleType("rattler_build")
+
+    class FakeRendered:
+        class recipe:
+            @staticmethod
+            def to_dict() -> dict:
+                return dict(RENDERED_V1)
+
+    class Stage0Recipe:
+        paths: ClassVar[list[str]] = []
+
+        @classmethod
+        def from_file(cls, path: str) -> Stage0Recipe:
+            if parse_fail:
+                raise ValueError("bad yaml")
+            cls.paths.append(path)
+            return cls()
+
+        def as_single_output(self) -> None:
+            if multi:
+                raise TypeError("multi-output recipe")
+
+        def render(self) -> list:
+            if render_fail:
+                raise ValueError("render boom")
+            return [FakeRendered()]
+
+    mod.Stage0Recipe = Stage0Recipe  # type: ignore[attr-defined]
+    return mod
+
+
+def test_render_v1_yaml_in_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Whitebox test of the py-rattler-build render backend"""
+    recipe_file = tmp_path / "recipe.yaml"
+    recipe_file.write_text("unrendered")
+    monkeypatch.setattr(
+        "whl2conda.impl.render_v1.importlib.util.find_spec",
+        lambda _name: object(),
+    )
+
+    fake = _fake_rattler_module()
+    monkeypatch.setitem(sys.modules, "rattler_build", fake)
+    assert render_v1_yaml(recipe_file) == RENDERED_V1
+    assert fake.Stage0Recipe.paths == [str(recipe_file)]
+
+    monkeypatch.setitem(sys.modules, "rattler_build", _fake_rattler_module(multi=True))
+    with pytest.raises(RecipeError, match="multiple outputs"):
+        render_v1_yaml(recipe_file)
+
+    monkeypatch.setitem(
+        sys.modules, "rattler_build", _fake_rattler_module(parse_fail=True)
+    )
+    with pytest.raises(RecipeRenderError, match="bad yaml"):
+        render_v1_yaml(recipe_file)
+
+    monkeypatch.setitem(
+        sys.modules, "rattler_build", _fake_rattler_module(render_fail=True)
+    )
+    with pytest.raises(RecipeRenderError, match="render boom"):
+        render_v1_yaml(recipe_file)
+
+
+def test_render_v1_yaml_cli(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Whitebox test of the rattler-build executable render backend"""
+    recipe_file = tmp_path / "recipe.yaml"
+    recipe_file.write_text("unrendered")
+
+    # force the executable path even if py-rattler-build is importable
+    monkeypatch.setattr(
+        "whl2conda.impl.render_v1.importlib.util.find_spec", lambda _name: None
+    )
+
+    # no rattler-build executable either
+    monkeypatch.setattr("whl2conda.impl.render_v1.shutil.which", lambda _name: None)
+    with pytest.raises(RecipeError, match="requires either"):
+        render_v1_yaml(recipe_file)
+
+    monkeypatch.setattr(
+        "whl2conda.impl.render_v1.shutil.which", lambda _name: "/bin/rattler-build"
+    )
+
+    commands: list[list[str]] = []
+    stdout = json.dumps([{"recipe": RENDERED_V1}])
+    returncode = 0
+
+    def fake_run(cmd, capture_output=False, encoding="", check=False):
+        commands.append(cmd)
+        return subprocess.CompletedProcess(cmd, returncode, stdout=stdout, stderr="")
+
+    monkeypatch.setattr("whl2conda.impl.render_v1.subprocess.run", fake_run)
+
+    assert render_v1_yaml(recipe_file) == RENDERED_V1
+    cmd = commands[0]
+    assert cmd[0] == "/bin/rattler-build"
+    assert "--render-only" in cmd
+    assert str(recipe_file) in cmd
+
+    # multiple outputs are rejected
+    stdout = json.dumps([{"recipe": RENDERED_V1}, {"recipe": RENDERED_V1}])
+    with pytest.raises(RecipeError, match="multiple outputs"):
+        render_v1_yaml(recipe_file)
+
+    # unparseable output
+    stdout = "this is not json"
+    with pytest.raises(RecipeRenderError, match="Cannot parse"):
+        render_v1_yaml(recipe_file)
+
+    # render failure reports stderr
+    returncode = 1
+
+    def fake_run_fail(cmd, capture_output=False, encoding="", check=False):
+        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="no such recipe")
+
+    monkeypatch.setattr("whl2conda.impl.render_v1.subprocess.run", fake_run_fail)
+    with pytest.raises(RecipeRenderError, match="no such recipe"):
+        render_v1_yaml(recipe_file)

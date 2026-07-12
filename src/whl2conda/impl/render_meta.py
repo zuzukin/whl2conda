@@ -23,7 +23,9 @@ into a whl2conda-controlled work directory.
 from __future__ import annotations
 
 # standard
+import contextlib
 import importlib.util
+import io
 import logging
 import subprocess
 from pathlib import Path
@@ -87,16 +89,23 @@ def _render_in_process(recipe_dir: Path, croot: Path, out_file: Path) -> None:
     # conda-build is an optional runtime dependency, not installed here
     import conda_build.api as api  # type: ignore[import-untyped,import-not-found]
 
+    # conda-build prints progress chatter directly to stdout, which
+    # would corrupt output-sensitive modes like `whl2conda build --output`
+    chatter = io.StringIO()
     try:
-        config = api.Config(croot=str(croot))
-        mds = api.render(str(recipe_dir), config=config, bypass_env_check=True)
-        if len(mds) > 1:
-            logger.warning("Recipe has multiple variants; using the first")
-        api.output_yaml(mds[0][0], file_path=str(out_file))
+        with contextlib.redirect_stdout(chatter):
+            config = api.Config(croot=str(croot))
+            mds = api.render(str(recipe_dir), config=config, bypass_env_check=True)
+            if len(mds) > 1:
+                logger.warning("Recipe has multiple variants; using the first")
+            api.output_yaml(mds[0][0], file_path=str(out_file))
     except Exception as ex:
         raise RecipeRenderError(
             f"conda-build failed to render {recipe_dir}: {ex}"
         ) from ex
+    finally:
+        if output := chatter.getvalue():
+            logger.debug("conda-build render output:\n%s", output)
 
 
 def _render_in_base_env(recipe_dir: Path, croot: Path, out_file: Path) -> None:
