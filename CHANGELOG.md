@@ -20,9 +20,18 @@
   `ray[default]`, `black[jupyter]`), the warning names the
   corresponding conda package, and the new `--known-extras` option
   applies those replacements automatically. (#217)
+* New `--resolve-extras` option resolves remaining dependency extras
+  from pypi.org metadata: the extra's dependencies are read from the
+  newest release satisfying the dependency's version spec, converted
+  like regular dependencies, and any nested extras are resolved
+  recursively. This is a best-effort approximation, since the solver
+  may install a version whose extras differ. (#36)
 
 ### Changes
 
+* New runtime dependency on `packaging` (used to select release
+  versions when resolving extras from pypi metadata; it was already
+  used opportunistically for dependency marker evaluation).
 * `whl2conda build` renders recipes into its own temporary work
   directory (instead of scraping conda-build console output to locate
   scratch space in conda-bld), checks the exit status of the render,

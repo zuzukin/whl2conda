@@ -13,24 +13,49 @@
 #  limitations under the License.
 #
 """
-Support for downloading wheels
+Support for downloading wheels and pypi metadata
 """
 
 from __future__ import annotations
 
 import configparser
+import json
 import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from pathlib import Path
+from typing import Any
 
 from ..settings import settings
 
 __all__ = [
     "download_wheel",
+    "fetch_pypi_metadata",
     "lookup_pypi_index",
 ]
+
+
+def fetch_pypi_metadata(package: str, version: str = "") -> dict[str, Any]:
+    """Fetch project metadata from the pypi.org JSON API.
+
+    Args:
+        package: pypi package name
+        version: specific version; when empty, the returned metadata
+            describes the latest version and includes all releases
+
+    Returns:
+        The decoded JSON metadata dictionary.
+
+    Raises:
+        urllib.error.URLError: if the metadata cannot be fetched.
+    """
+    url = f"https://pypi.org/pypi/{package}/json"
+    if version:
+        url = f"https://pypi.org/pypi/{package}/{version}/json"
+    with urllib.request.urlopen(url, timeout=30) as response:
+        return json.load(response)
 
 
 def lookup_pypi_index(index: str) -> str:
