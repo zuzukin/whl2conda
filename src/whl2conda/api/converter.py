@@ -24,6 +24,8 @@ import dataclasses
 import email
 import email.message
 import email.policy
+import functools
+import importlib.resources
 import io
 import json
 import logging
@@ -522,54 +524,19 @@ class DependencyRename(NamedTuple):
         return pypi_name, False
 
 
-#: Known conda-forge packages corresponding to pypi extras, keyed by
-#: normalized pypi package name and then by normalized extra name.
-#: Only extras with a dedicated conda-forge package that uses the same
-#: version numbering as, and also depends on (or subsumes), the base
-#: package belong in this table: the mapped package *replaces* the
-#: bracketed dependency, carrying over its version spec.
-KNOWN_EXTRA_PACKAGES: dict[str, dict[str, str]] = {
-    "black": {"jupyter": "black-jupyter"},
-    "dask": {"complete": "dask"},
-    "ibis-framework": {
-        extra: f"ibis-{extra}"
-        for extra in (
-            "bigquery",
-            "clickhouse",
-            "datafusion",
-            "duckdb",
-            "exasol",
-            "impala",
-            "mssql",
-            "mysql",
-            "oracle",
-            "polars",
-            "postgres",
-            "pyspark",
-            "snowflake",
-            "sqlite",
-            "trino",
-        )
-    },
-    # the binary/c extras select the psycopg implementation, which is
-    # not meaningful for conda packages: the base package suffices
-    "psycopg": {"binary": "psycopg", "c": "psycopg"},
-    "ray": {
-        extra: f"ray-{extra}"
-        for extra in (
-            "air",
-            "all",
-            "client",
-            "data",
-            "default",
-            "rllib",
-            "serve",
-            "train",
-            "tune",
-        )
-    },
-    "uvicorn": {"standard": "uvicorn-standard"},
-}
+@functools.cache
+def load_known_extras() -> dict[str, dict[str, str]]:
+    """Table of known conda-forge packages corresponding to pypi extras.
+
+    Loaded from the bundled `known_extras.json` data file, keyed by
+    normalized pypi package name and then by normalized extra name.
+    Only extras with a dedicated conda-forge package that uses the same
+    version numbering as, and also depends on (or subsumes), the base
+    package belong in this table: the mapped package *replaces* the
+    bracketed dependency, carrying over its version spec.
+    """
+    resources = importlib.resources.files("whl2conda.api")
+    return json.loads(resources.joinpath("known_extras.json").read_text("utf8"))
 
 
 class Wheel2CondaConverter:
@@ -1106,7 +1073,7 @@ class Wheel2CondaConverter:
             # extras with known corresponding conda packages (#217)
             known_extras: dict[str, str] = {}
             if dropped_extras:
-                known = KNOWN_EXTRA_PACKAGES.get(normalize_pypi_name(pip_name), {})
+                known = load_known_extras().get(normalize_pypi_name(pip_name), {})
                 known_extras = {
                     extra: known[normalize_pypi_name(extra)]
                     for extra in dropped_extras
@@ -1163,11 +1130,11 @@ class Wheel2CondaConverter:
                 # TODO - optionally resolve extras from pypi metadata (#36)
                 if known_extras:
                     known_names = ", ".join(
-                        f"'{name}'" for name in dict.fromkeys(known_extras.values())
+                        f"'{conda_pkg}' for [{extra}]"
+                        for extra, conda_pkg in known_extras.items()
                     )
                     hint = (
-                        f" Note: conda-forge provides {known_names} for the"
-                        f" [{','.join(known_extras)}] extras; use the"
+                        f" Note: conda-forge provides {known_names}; use the"
                         " --known-extras option to apply this automatically."
                     )
                 else:
@@ -1268,11 +1235,7 @@ class Wheel2CondaConverter:
         from packaging.version import InvalidVersion, Version  # noqa: PLC0415
 
         norm_name = normalize_pypi_name(package)
-        cache_key = (norm_name, version_spec)
-        if cached := self._pypi_metadata_cache.get(cache_key):
-            return cached
-
-        data = fetch_pypi_metadata(norm_name)
+        data = self._pypi_metadata(norm_name)
         latest = (data.get("info") or {}).get("version") or ""
         target = latest
         if version_spec:
@@ -1288,9 +1251,21 @@ class Wheel2CondaConverter:
             if candidates:
                 target = str(max(candidates))
         if target and target != latest:
-            data = fetch_pypi_metadata(norm_name, target)
-        self._pypi_metadata_cache[cache_key] = data
+            data = self._pypi_metadata(norm_name, target)
         return data
+
+    def _pypi_metadata(self, package: str, version: str = "") -> dict[str, Any]:
+        """Fetch pypi metadata, cached per package and version.
+
+        The cache is per converter instance rather than a global
+        functools cache so that repeated conversions cannot see
+        stale metadata and instances do not leak.
+        """
+        cache_key = (package, version)
+        if (cached := self._pypi_metadata_cache.get(cache_key)) is None:
+            cached = fetch_pypi_metadata(package, version)
+            self._pypi_metadata_cache[cache_key] = cached
+        return cached
 
     def _add_binary_dependencies(
         self,

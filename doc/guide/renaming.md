@@ -160,9 +160,11 @@ warning:
 $ whl2conda convert -R 'dask\[complete\]' dask -R dask dask-core
 ```
 
-Note that the square brackets must be escaped in the regular
-expression pattern. Alternatively, the extra's dependencies can be
-added individually using `-A` / `--add-dependency`.
+Note that the square brackets are escaped because the pattern is
+a regular expression, in which unescaped brackets would denote a
+character class — this is independent of any shell quoting.
+Alternatively, the extra's dependencies can be added individually
+using `-A` / `--add-dependency`.
 
 *whl2conda* also knows about a number of common extras that have a
 dedicated corresponding package on [conda-forge], including:
@@ -195,10 +197,15 @@ $ whl2conda convert --resolve-extras ...
 This reads the extra's dependencies from the newest release of the
 package that satisfies the dependency's version spec, converts them
 like regular dependencies, and recursively resolves any extras they
-use in turn. Note that this is a best-effort approximation: the
-extra's dependencies are taken from one specific version of the
-package, while the conda solver may ultimately install a different
-version whose extras differ.
+use in turn.
+
+!!! warning
+
+    This is a best-effort approximation: the extra's dependencies
+    are taken from one specific version of the package, while the
+    conda solver may ultimately install a different version whose
+    extras differ. Review the resulting dependencies when using
+    this option.
 
 ### Renaming converted package
 

@@ -1,0 +1,43 @@
+{
+  "black": {
+    "jupyter": "black-jupyter"
+  },
+  "dask": {
+    "complete": "dask"
+  },
+  "ibis-framework": {
+    "bigquery": "ibis-bigquery",
+    "clickhouse": "ibis-clickhouse",
+    "datafusion": "ibis-datafusion",
+    "duckdb": "ibis-duckdb",
+    "exasol": "ibis-exasol",
+    "impala": "ibis-impala",
+    "mssql": "ibis-mssql",
+    "mysql": "ibis-mysql",
+    "oracle": "ibis-oracle",
+    "polars": "ibis-polars",
+    "postgres": "ibis-postgres",
+    "pyspark": "ibis-pyspark",
+    "snowflake": "ibis-snowflake",
+    "sqlite": "ibis-sqlite",
+    "trino": "ibis-trino"
+  },
+  "psycopg": {
+    "binary": "psycopg",
+    "c": "psycopg"
+  },
+  "ray": {
+    "air": "ray-air",
+    "all": "ray-all",
+    "client": "ray-client",
+    "data": "ray-data",
+    "default": "ray-default",
+    "rllib": "ray-rllib",
+    "serve": "ray-serve",
+    "train": "ray-train",
+    "tune": "ray-tune"
+  },
+  "uvicorn": {
+    "standard": "uvicorn-standard"
+  }
+}

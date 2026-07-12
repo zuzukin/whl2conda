@@ -23,6 +23,8 @@ classifiers = [
 ]
 keywords = ["conda", "wheel", "build"]
 requires-python = ">=3.10"
+# NOTE: new runtime dependencies must also be added to the recipe in
+# the conda-forge whl2conda-feedstock when updating it for a release
 dependencies = [
     "conda-package-handling >=2.2",
     "packaging >=23",
