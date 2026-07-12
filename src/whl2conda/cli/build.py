@@ -28,7 +28,12 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import ClassVar
 
-from ..api.converter import CondaPackageFormat, Wheel2CondaConverter
+from ..api.converter import (
+    CondaPackageFormat,
+    Wheel2CondaConverter,
+    noarch_build_string,
+    normalize_pypi_name,
+)
 
 # this project
 from ..impl.recipe import (
@@ -37,13 +42,51 @@ from ..impl.recipe import (
     render_recipe,
     rewrite_build_script,
 )
-from .common import add_markdown_help, dedent, existing_dir, maybe_existing_dir
+from .common import (
+    add_markdown_help,
+    dedent,
+    existing_dir,
+    get_conda_bld_path,
+    maybe_existing_dir,
+)
 from .install import install_into_conda_bld
 from .testenv import PackageTestSpec, run_package_tests
 
-__all__ = ["build_main"]
+__all__ = ["build_main", "predict_package_path"]
 
 logger = logging.getLogger(__name__)
+
+
+def predict_package_path(
+    rendered: RenderedRecipe,
+    conda_bld_path: Path,
+    package_format: CondaPackageFormat,
+) -> Path:
+    """Predict the file path of the package built from a rendered recipe.
+
+    Uses the same name normalization and build string generation as the
+    wheel converter, so the prediction matches the actual output.
+
+    Args:
+        rendered: the rendered recipe
+        conda_bld_path: conda-bld (or output) directory containing the
+            `noarch/` subdirectory the package lands in
+        package_format: the conda package format
+
+    Raises:
+        RecipeError: if the recipe does not build a noarch python package.
+    """
+    if not rendered.noarch_python:
+        raise RecipeError(
+            f"Cannot predict package path for recipe in {rendered.recipe_dir}:"
+            " it does not build a `noarch: python` package"
+        )
+    name = normalize_pypi_name(rendered.name)
+    build_string = noarch_build_string(rendered.build_number)
+    suffix = str(package_format.value)
+    return (
+        conda_bld_path / "noarch" / f"{name}-{rendered.version}-{build_string}{suffix}"
+    )
 
 
 @dataclasses.dataclass(slots=True)
@@ -53,6 +96,7 @@ class BuildArgs:
     recipe_path: list[Path]
     build_only: bool
     channels: list[str]
+    check: bool
     croot: Path | None
     debug: bool
     extra_deps: list[str]
@@ -233,6 +277,14 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
         help="Print the path of the output package without building.",
     )
     mode_opts.add_argument(
+        "--check",
+        action="store_true",
+        help=dedent("""
+            Only render the recipe and verify that whl2conda can build
+            it, without building anything. (whl2conda extension)
+            """),
+    )
+    mode_opts.add_argument(
         "-t",
         "--test",
         dest="test_only",
@@ -381,15 +433,6 @@ def build_main(
     if len(buildargs.recipe_path) > 1:
         parser.error("only one recipe path is supported")
 
-    # implemented with the render-only support (issue #110)
-    for flag, value in [
-        ("--output", buildargs.output),
-        ("-t/--test", buildargs.test_only),
-        ("--skip-existing", buildargs.skip_existing),
-    ]:
-        if value:
-            parser.error(f"{flag} is not yet supported")
-
     verbosity = (1 if buildargs.debug else 0) - buildargs.quiet
     if verbosity < -1:
         level = logging.ERROR
@@ -436,9 +479,31 @@ class CondaBuild:
                 use_mamba=self.args.use_mamba,
             )
 
+            if self.args.output:
+                print(self._package_path(rendered))
+                return
+
+            if self.args.test_only:
+                pkg_path = self._package_path(rendered)
+                if not pkg_path.is_file():
+                    raise RecipeError(
+                        f"No package to test at {pkg_path} - build it first"
+                    )
+                self._run_package_tests(pkg_path, rendered)
+                return
+
+            if self.args.skip_existing:
+                pkg_path = self._package_path(rendered)
+                if pkg_path.is_file():
+                    logger.info("Skipping existing package %s", pkg_path)
+                    return
+
             dist_dir = self.work_dir / "dist"
             dist_dir.mkdir()
             self.build_script = rewrite_build_script(rendered, dist_dir)
+            if self.args.check:
+                logger.info("whl2conda can build the recipe in %s", self.recipe_path)
+                return
             wheel = self._build_wheel(dist_dir)
             pkg = self._build_package(wheel, rendered)
             if not (self.args.no_test or self.args.build_only):
@@ -449,6 +514,22 @@ class CondaBuild:
             self._cleanup()
         end = time.time()
         logger.info("Elapsed time: %f seconds", end - start)
+
+    def _package_path(self, rendered: RenderedRecipe) -> Path:
+        """Predict the path of the package built from this recipe.
+
+        This is the path in the output folder, if one was given, and
+        otherwise in the conda-bld directory the package would be
+        installed into.
+        """
+        if self.args.output_folder:
+            bld_path = self.args.output_folder
+        elif self.args.croot:
+            bld_path = self.args.croot
+        else:
+            bld_path = get_conda_bld_path()
+        fmt = self.args.package_format or CondaPackageFormat.V2
+        return predict_package_path(rendered, bld_path, fmt)
 
     def _build_wheel(self, dist_dir: Path) -> Path:
         for line in self.build_script:

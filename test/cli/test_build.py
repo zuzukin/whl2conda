@@ -29,9 +29,15 @@ from whl2conda.api.converter import (
     CondaTargetInfo,
     MetadataFromWheel,
     Wheel2CondaConverter,
+    noarch_build_string,
 )
 from whl2conda.cli import main
-from whl2conda.cli.build import _IGNORED_OPTIONS, _UNSUPPORTED_OPTIONS, CondaBuild
+from whl2conda.cli.build import (
+    _IGNORED_OPTIONS,
+    _UNSUPPORTED_OPTIONS,
+    CondaBuild,
+    predict_package_path,
+)
 from whl2conda.impl.recipe import RecipeError, RecipeFormat, RenderedRecipe
 
 RENDERED_RAW: dict[str, Any] = {
@@ -296,6 +302,175 @@ def test_build_wheel_step(
     builder._cleanup()
 
 
+def test_predict_package_path(tmp_path: Path) -> None:
+    """Unit test for predict_package_path"""
+    rendered = RenderedRecipe(
+        format=RecipeFormat.META_YAML,
+        recipe_dir=tmp_path,
+        name="My_Package.name",
+        version="1.2.3",
+        build_number=5,
+        noarch_python=True,
+    )
+    assert (
+        predict_package_path(rendered, tmp_path, CondaPackageFormat.V2)
+        == tmp_path / "noarch" / "my-package-name-1.2.3-py_5.conda"
+    )
+    assert (
+        predict_package_path(rendered, tmp_path, CondaPackageFormat.V1)
+        == tmp_path / "noarch" / "my-package-name-1.2.3-py_5.tar.bz2"
+    )
+
+    # the build string comes from the same helper the converter uses
+    wheel_md = MetadataFromWheel(
+        md={},
+        package_name="my-package-name",
+        version="1.2.3",
+        wheel_build_number="",
+        license=None,
+        dependencies=[],
+        wheel_info_dir=tmp_path,
+        is_pure_python=True,
+        python_tag="py3",
+        abi_tag="none",
+        platform_tag="any",
+    )
+    target = CondaTargetInfo.from_wheel_metadata(wheel_md, build_number=5)
+    assert target.build_string == noarch_build_string(5) == "py_5"
+
+    rendered.noarch_python = False
+    with pytest.raises(RecipeError, match="noarch: python"):
+        predict_package_path(rendered, tmp_path, CondaPackageFormat.V2)
+
+
+def test_build_output_mode(
+    fake_build: tuple[FakeBuild, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """--output prints the predicted package path without building"""
+    fake, recipe_dir = fake_build
+
+    out_folder = tmp_path / "out"
+    main(["build", str(recipe_dir), "--output", "--output-folder", str(out_folder)])
+    out, _err = capsys.readouterr()
+    assert out.strip() == str(out_folder / "noarch" / "simple-1.2.3-py_0.conda")
+    assert fake.converter is None  # nothing was built
+    assert not fake.test_calls
+    assert not fake.install_calls
+
+    # --croot and --package-format are reflected in the prediction
+    croot = tmp_path / "croot"
+    main([
+        "build",
+        str(recipe_dir),
+        "--output",
+        "--croot",
+        str(croot),
+        "--package-format",
+        "tar.bz2",
+    ])
+    out, _err = capsys.readouterr()
+    assert out.strip() == str(croot / "noarch" / "simple-1.2.3-py_0.tar.bz2")
+
+    # defaults to the configured conda-bld directory
+    monkeypatch.setattr(
+        "whl2conda.cli.build.get_conda_bld_path", lambda: tmp_path / "bld"
+    )
+    main(["build", str(recipe_dir), "--output"])
+    out, _err = capsys.readouterr()
+    assert out.strip() == str(tmp_path / "bld" / "noarch" / "simple-1.2.3-py_0.conda")
+
+    # prediction matches where the actual build puts the package
+    main(["build", str(recipe_dir), "--no-test", "--output-folder", str(out_folder)])
+    assert fake.converter is not None
+    actual = Path(fake.converter.out_dir) / "simple-1.2.3-py_0.conda"
+    assert actual == out_folder / "noarch" / "simple-1.2.3-py_0.conda"
+    assert actual.is_file()
+
+
+def test_build_check_mode(
+    fake_build: tuple[FakeBuild, Path],
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """--check renders and validates without building"""
+    fake, recipe_dir = fake_build
+
+    main(["build", str(recipe_dir), "--check"])
+    assert fake.converter is None
+    assert not fake.install_calls
+
+    # a recipe whl2conda cannot build fails the check
+    fake.rendered_raw = {**RENDERED_RAW, "build": {"script": "make install"}}
+    with pytest.raises(SystemExit):
+        main(["build", str(recipe_dir), "--check"])
+    _out, err = capsys.readouterr()
+    assert "does not use" in err
+
+
+def test_build_test_only(
+    fake_build: tuple[FakeBuild, Path],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """-t/--test tests the already-built package"""
+    fake, recipe_dir = fake_build
+    out_folder = tmp_path / "out"
+    pkg = out_folder / "noarch" / "simple-1.2.3-py_0.conda"
+
+    # package has not been built yet
+    with pytest.raises(SystemExit):
+        main(["build", str(recipe_dir), "-t", "--output-folder", str(out_folder)])
+    _out, err = capsys.readouterr()
+    assert "build it first" in err
+    assert not fake.test_calls
+
+    pkg.parent.mkdir(parents=True)
+    pkg.write_bytes(b"")
+    main(["build", str(recipe_dir), "-t", "--output-folder", str(out_folder)])
+    assert fake.converter is None  # nothing was rebuilt
+    assert not fake.install_calls
+    assert len(fake.test_calls) == 1
+    test_call = fake.test_calls[0]
+    assert test_call["pkg"] == pkg
+    assert test_call["spec"].imports == ("simple",)
+    assert test_call["source_root"] == recipe_dir
+
+
+def test_build_skip_existing(
+    fake_build: tuple[FakeBuild, Path],
+    tmp_path: Path,
+) -> None:
+    """--skip-existing short-circuits when the package exists"""
+    fake, recipe_dir = fake_build
+    out_folder = tmp_path / "out"
+
+    # package does not exist: build proceeds
+    main([
+        "build",
+        str(recipe_dir),
+        "--skip-existing",
+        "--output-folder",
+        str(out_folder),
+    ])
+    assert fake.converter is not None
+    assert len(fake.test_calls) == 1
+
+    # package now exists: build is skipped
+    fake.converter = None
+    fake.test_calls.clear()
+    main([
+        "build",
+        str(recipe_dir),
+        "--skip-existing",
+        "--output-folder",
+        str(out_folder),
+    ])
+    assert fake.converter is None
+    assert not fake.test_calls
+
+
 def test_build_mode_conflicts(
     fake_build: tuple[FakeBuild, Path],
     capsys: pytest.CaptureFixture,
@@ -304,7 +479,9 @@ def test_build_mode_conflicts(
     _fake, recipe_dir = fake_build
     for combo in [
         ["--output", "-b"],
+        ["--check", "--output"],
         ["-t", "--no-test"],
+        ["-t", "--check"],
         ["-b", "--no-test"],
     ]:
         with pytest.raises(SystemExit):
@@ -327,12 +504,6 @@ def test_build_errors(
         main(["build", str(recipe_dir), str(recipe_dir2)])
     _out, err = capsys.readouterr()
     assert "only one recipe path" in err
-
-    for flag in ["--output", "-t", "--skip-existing"]:
-        with pytest.raises(SystemExit):
-            main(["build", str(recipe_dir), flag])
-        _out, err = capsys.readouterr()
-        assert "not yet supported" in err
 
     with pytest.raises(SystemExit):
         main(["build", str(recipe_dir), "--package-format", "zip"])

@@ -326,24 +326,6 @@ class PackageValidator:
         now_ms = time.time() * 1000
         assert now_ms - 3_600_000 < index["timestamp"] <= now_ms
 
-        if self._is_binary:
-            assert index["arch"] is not None
-            assert index["platform"] is not None
-            assert index["subdir"] != "noarch"
-            if self._is_abi3:
-                # abi3 packages keep platform subdir but use the noarch
-                # python install machinery (CEP-20)
-                assert index["noarch"] == "python"
-                assert re.match(r"py\d+_abi3_\d+", index["build"])
-            else:
-                assert "noarch" not in index
-                assert re.match(r"py\d+_\d+", index["build"])
-        else:
-            assert index["arch"] is None
-            assert index['build'] == 'py_0'
-            assert index["platform"] is None
-            assert index["subdir"] == "noarch"
-
         if self._build_number is not None:
             build_number = self._build_number
         else:
@@ -352,6 +334,24 @@ class PackageValidator:
             except ValueError:
                 build_number = 0
         assert index['build_number'] == build_number
+
+        if self._is_binary:
+            assert index["arch"] is not None
+            assert index["platform"] is not None
+            assert index["subdir"] != "noarch"
+            if self._is_abi3:
+                # abi3 packages keep platform subdir but use the noarch
+                # python install machinery (CEP-20)
+                assert index["noarch"] == "python"
+                assert re.match(rf"py\d+_abi3_{build_number}$", index["build"])
+            else:
+                assert "noarch" not in index
+                assert re.match(rf"py\d+_{build_number}$", index["build"])
+        else:
+            assert index["arch"] is None
+            assert index['build'] == f'py_{build_number}'
+            assert index["platform"] is None
+            assert index["subdir"] == "noarch"
 
         assert index.get("license") == wheel_md.get(
             "license-expression", wheel_md.get("license")

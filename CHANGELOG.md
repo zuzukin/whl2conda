@@ -5,12 +5,46 @@
 ### Features
 
 * `whl2conda build` now supports most applicable `conda build` options:
-  `--output-folder`, `--package-format`, `--croot`, `--python`,
-  `-b`/`--build-only`, `-q`/`--quiet`, `--debug`, and the whl2conda
-  extensions `--extra-deps` and `--keep-test-env`. Inapplicable
-  conda build options are accepted and ignored with a warning, except
-  upload/signing and non-python language options, which are rejected
-  with an error. (#110)
+  the build modes `--output` (print the predicted package path without
+  building), `-t`/`--test` (test the already-built package),
+  `-b`/`--build-only`, and `--skip-existing`, plus `--output-folder`,
+  `--package-format`, `--croot`, `--python`, `-q`/`--quiet`, and
+  `--debug`. Inapplicable conda build options are accepted and ignored
+  with a warning, except upload/signing and non-python language
+  options, which are rejected with an error. (#110)
+* New `whl2conda build` extension options: `--check` renders the recipe
+  and verifies whl2conda can build it, without building anything;
+  `--extra-deps` adds conda dependencies to the generated package;
+  `--keep-test-env` keeps the test environment for debugging; and
+  `--mamba` uses mamba to create test environments and to run
+  conda-build when it must be run in the base environment. (#110)
+
+### Changes
+
+* `whl2conda build` renders recipes into its own temporary work
+  directory (instead of scraping conda-build console output to locate
+  scratch space in conda-bld), checks the exit status of the render,
+  uses conda-build in-process when it is importable, and reports
+  build errors clearly. (#110)
+
+### Bug fixes
+
+* The build string of generated noarch packages now includes the build
+  number (e.g. `py_1`) instead of always being `py_0`. (#110)
+
+### Development
+
+* Extracted the package test logic from `whl2conda build` into a shared,
+  reusable test runner supporting both classic recipe `test:` sections
+  and v1 recipe `tests:` lists, in preparation for `whl2conda test`
+  (#83) and pyproject test specifications (#190). The recipe
+  `test.source_files` entries are now honored (they were previously
+  ignored).
+
+## [26.7.1] - 2026-7-12
+
+### Bug fixes
+
 * Dependencies with extras (`name[extra,...]`) now generate a warning
   when the extras are dropped, instead of dropping them silently, and
   dependency rename rules are matched against the bracketed form first
@@ -18,8 +52,13 @@
   (e.g. `dask[complete]` to `dask`). For a built-in table of common
   extras with dedicated conda-forge packages (e.g. `uvicorn[standard]`,
   `ray[default]`, `black[jupyter]`), the warning names the
-  corresponding conda package, and the new `--known-extras` option
-  applies those replacements automatically. (#217)
+  corresponding conda package. (#217)
+
+### Features
+
+* New `--known-extras` option automatically replaces dependency extras
+  from the built-in table of common extras with dedicated conda-forge
+  packages (e.g. `uvicorn[standard]` with `uvicorn-standard`). (#217)
 * New `--resolve-extras` option resolves remaining dependency extras
   from pypi.org metadata: the extra's dependencies are read from the
   newest release satisfying the dependency's version spec, converted
@@ -32,20 +71,6 @@
 * New runtime dependency on `packaging` (used to select release
   versions when resolving extras from pypi metadata; it was already
   used opportunistically for dependency marker evaluation).
-* `whl2conda build` renders recipes into its own temporary work
-  directory (instead of scraping conda-build console output to locate
-  scratch space in conda-bld), checks the exit status of the render,
-  uses conda-build in-process when it is importable, and reports
-  build errors clearly. (#110)
-
-### Development
-
-* Extracted the package test logic from `whl2conda build` into a shared,
-  reusable test runner supporting both classic recipe `test:` sections
-  and v1 recipe `tests:` lists, in preparation for `whl2conda test`
-  (#83) and pyproject test specifications (#190). The recipe
-  `test.source_files` entries are now honored (they were previously
-  ignored).
 
 ## [26.7.0] - 2026-7-11
 
