@@ -31,6 +31,12 @@
   `--mamba` uses mamba to create test environments and to run
   conda-build when it must be run in the base environment. (#110)
 
+* Package tests for the generated conda package can now be specified
+  in `[[tool.whl2conda.tests]]` in pyproject.toml, using the v1 recipe
+  `tests` schema, or in a standalone YAML file; the new
+  `tool.whl2conda.test-python` option lists python versions to test
+  against. (#190)
+
 ### Changes
 
 * Dependency rename replacement strings are now validated to contain

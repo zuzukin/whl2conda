@@ -20,6 +20,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 from pathlib import Path
+from textwrap import dedent
 from typing import Any
 
 import pytest
@@ -353,3 +354,65 @@ def test_build_test_adapter(
     # empty test section: runner is not invoked
     builder._run_package_tests(pkg, make_rendered({}))
     assert len(calls) == 5
+
+
+def test_spec_from_file(tmp_path: Path) -> None:
+    """Spec loaded from a YAML file with a v1 tests list"""
+    test_file = tmp_path / "tests.yaml"
+
+    # bare list form
+    test_file.write_text(
+        dedent("""
+            - python:
+                imports: [foo]
+                pip_check: false
+            - script: pytest test
+              requirements:
+                run: ["pytest >=7"]
+            """)
+    )
+    spec = PackageTestSpec.from_file(test_file)
+    assert spec.imports == ("foo",)
+    assert spec.commands == ("pytest test",)
+    assert spec.requires == ("pytest >=7",)
+
+    # recipe.yaml excerpt form with a `tests` key
+    test_file.write_text(
+        dedent("""
+            tests:
+              - python:
+                  imports: [foo]
+            """)
+    )
+    spec = PackageTestSpec.from_file(test_file)
+    assert spec.imports == ("foo",)
+
+    # bad contents
+    test_file.write_text("just a string")
+    with pytest.raises(PackageTestError, match="does not contain"):
+        PackageTestSpec.from_file(test_file)
+    test_file.write_text("tests:\n  - not-a-table")
+    with pytest.raises(PackageTestError, match="does not contain"):
+        PackageTestSpec.from_file(test_file)
+    with pytest.raises(PackageTestError, match="Cannot read"):
+        PackageTestSpec.from_file(tmp_path / "no-such-file.yaml")
+
+
+def test_run_package_tests_python_version(
+    fake_runner: FakeRunner, tmp_path: Path
+) -> None:
+    """python_version adds a python spec to the test environment"""
+    prefix = tmp_path / "env"
+    prefix.mkdir()
+    run_package_tests(
+        tmp_path / "foo.conda",
+        PackageTestSpec(requires=("pytest",), imports=("foo",)),
+        env_prefix=prefix,
+        work_dir=tmp_path / "work",
+        channels=["chan"],
+        python_version="3.12",
+    )
+    install_args = fake_runner.install_args[0]
+    # python spec comes after requires and before the channel options
+    extra = install_args[install_args.index("--extra") + 1 :]
+    assert extra == ["pytest", "python=3.12", "-c", "chan"]
