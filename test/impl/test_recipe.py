@@ -18,7 +18,10 @@ Unit tests for whl2conda.impl.recipe and whl2conda.impl.render_meta
 from __future__ import annotations
 
 import subprocess
+import sys
+import types
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 import yaml
@@ -87,6 +90,19 @@ def test_render_recipe_meta(
     assert rendered.noarch_python
     assert rendered.raw == RENDERED_META
 
+    # list-valued script and unparseable build number
+    monkeypatch.setattr(
+        "whl2conda.impl.render_meta.render_meta_yaml",
+        lambda _recipe_dir, _work_dir: {
+            "package": {"name": "simple", "version": "1.2.3"},
+            "build": {"number": "not-a-number", "script": ["pip install ."]},
+        },
+    )
+    rendered = render_recipe(recipe_dir, tmp_path / "work")
+    assert rendered.build_number == 0
+    assert rendered.build_script == ["pip install ."]
+    assert not rendered.noarch_python
+
 
 def test_render_recipe_v1_unsupported(tmp_path: Path) -> None:
     """v1 recipes are rejected until #160 lands"""
@@ -153,6 +169,7 @@ def test_rewrite_build_script(tmp_path: Path) -> None:
 def test_render_meta_yaml_subprocess(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Whitebox test of the base-env subprocess render backend"""
     recipe_dir = tmp_path / "recipe"
@@ -171,18 +188,82 @@ def test_render_meta_yaml_subprocess(
         commands.append(cmd)
         out_file = work_dir / "rendered-meta.yaml"
         out_file.write_text(yaml.safe_dump(RENDERED_META))
-        return subprocess.CompletedProcess(cmd, 0, stdout="rendered ok", stderr="")
+        return subprocess.CompletedProcess(
+            cmd, 0, stdout="rendered ok", stderr="WARNING: check your recipe"
+        )
 
     monkeypatch.setattr("whl2conda.impl.render_meta.subprocess.run", fake_run)
 
-    rendered = render_meta_yaml(recipe_dir, work_dir)
+    with caplog.at_level("WARNING"):
+        rendered = render_meta_yaml(recipe_dir, work_dir)
     assert rendered["package"]["name"] == "simple"
+    # stderr from a successful render is passed through as a warning
+    assert "check your recipe" in caplog.text
 
     cmd = commands[0]
     assert cmd[:6] == ["conda", "run", "-n", "base", "python", "-c"]
     assert str(recipe_dir) in cmd[6]
     assert str(work_dir / "croot") in cmd[6]
     assert (work_dir / "croot").is_dir()
+
+
+def test_render_meta_yaml_in_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Whitebox test of the in-process conda-build render backend"""
+    recipe_dir = tmp_path / "recipe"
+    recipe_dir.mkdir()
+    work_dir = tmp_path / "work"
+    work_dir.mkdir()
+
+    class FakeCondaBuildApi(types.ModuleType):
+        """Stands in for conda_build.api"""
+
+        croots: ClassVar[list[str]] = []
+        variants = 1
+        fail = False
+
+        @classmethod
+        def Config(cls, croot: str) -> str:
+            cls.croots.append(croot)
+            return croot
+
+        @classmethod
+        def render(cls, recipe: str, config: str, bypass_env_check: bool) -> list:
+            if cls.fail:
+                raise ValueError("bad recipe")
+            return [(f"metadata for {recipe}", True, True)] * cls.variants
+
+        @staticmethod
+        def output_yaml(metadata: str, file_path: str) -> None:
+            Path(file_path).write_text(yaml.safe_dump(RENDERED_META))
+
+    fake_api = FakeCondaBuildApi("conda_build.api")
+    fake_pkg = types.ModuleType("conda_build")
+    fake_pkg.api = fake_api  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "conda_build", fake_pkg)
+    monkeypatch.setitem(sys.modules, "conda_build.api", fake_api)
+    monkeypatch.setattr(
+        "whl2conda.impl.render_meta.importlib.util.find_spec",
+        lambda _name: object(),
+    )
+
+    rendered = render_meta_yaml(recipe_dir, work_dir)
+    assert rendered["package"]["name"] == "simple"
+    assert FakeCondaBuildApi.croots == [str(work_dir / "croot")]
+
+    # multiple variants only produce a warning
+    FakeCondaBuildApi.variants = 2
+    with caplog.at_level("WARNING"):
+        render_meta_yaml(recipe_dir, work_dir)
+    assert "multiple variants" in caplog.text
+
+    # render errors are wrapped in RecipeRenderError
+    FakeCondaBuildApi.fail = True
+    with pytest.raises(RecipeRenderError, match="bad recipe"):
+        render_meta_yaml(recipe_dir, work_dir)
 
 
 def test_render_meta_yaml_failure(

@@ -17,16 +17,22 @@ Unit tests for `whl2conda build` subcommand
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from whl2conda.api.converter import CondaPackageFormat, Wheel2CondaConverter
+from whl2conda.api.converter import (
+    CondaPackageFormat,
+    CondaTargetInfo,
+    MetadataFromWheel,
+    Wheel2CondaConverter,
+)
 from whl2conda.cli import main
 from whl2conda.cli.build import _IGNORED_OPTIONS, _UNSUPPORTED_OPTIONS, CondaBuild
-from whl2conda.impl.recipe import RecipeFormat, RenderedRecipe
+from whl2conda.impl.recipe import RecipeError, RecipeFormat, RenderedRecipe
 
 RENDERED_RAW: dict[str, Any] = {
     "package": {"name": "simple", "version": "1.2.3"},
@@ -72,6 +78,21 @@ class FakeBuild:
 
         def fake_convert(converter: Wheel2CondaConverter) -> Path:
             fake.converter = converter
+            converter.conda_target = CondaTargetInfo.from_wheel_metadata(
+                MetadataFromWheel(
+                    md={},
+                    package_name="simple",
+                    version="1.2.3",
+                    wheel_build_number="",
+                    license=None,
+                    dependencies=[],
+                    wheel_info_dir=fake.tmp_path,
+                    is_pure_python=True,
+                    python_tag="py3",
+                    abi_tag="none",
+                    platform_tag="any",
+                )
+            )
             pkg = Path(converter.out_dir) / "simple-1.2.3-py_0.conda"
             pkg.parent.mkdir(parents=True, exist_ok=True)
             pkg.write_bytes(b"")
@@ -190,6 +211,85 @@ def test_build_modes(fake_build: tuple[FakeBuild, Path], tmp_path: Path) -> None
     main(["build", str(recipe_dir), "--croot", str(croot)])
     assert fake.install_calls[-1][2]["conda_bld_path"] == croot
 
+    # both spellings of the V2 package format
+    for fmt in ("2", "conda", ".conda"):
+        main(["build", str(recipe_dir), "-b", "--package-format", fmt])
+        assert fake.converter is not None
+        assert fake.converter.out_format is CondaPackageFormat.V2
+
+
+def test_build_verbosity(fake_build: tuple[FakeBuild, Path]) -> None:
+    """-q and --debug map onto root log levels"""
+    import logging
+
+    _fake, recipe_dir = fake_build
+    root = logging.getLogger()
+    original_level = root.level
+    try:
+        for args, level in [
+            ([], logging.INFO),
+            (["-q"], logging.WARNING),
+            (["-qq"], logging.ERROR),
+            (["--debug"], logging.DEBUG),
+        ]:
+            main(["build", str(recipe_dir), "-b", *args])
+            assert root.level == level, args
+    finally:
+        root.setLevel(original_level)
+
+
+def test_build_wheel_step(
+    fake_build: tuple[FakeBuild, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Whitebox test of the wheel build step"""
+    from whl2conda.cli.build import BuildArgs
+
+    _fake, recipe_dir = fake_build
+    # the FakeBuild harness patches _build_wheel on the class;
+    # recover the real implementation for this test
+    monkeypatch.undo()
+
+    commands: list[str] = []
+    dist_dir = tmp_path / "dist"
+    dist_dir.mkdir()
+
+    def fake_check_call(cmd, shell=False) -> None:
+        assert shell is True
+        commands.append(cmd)
+
+    monkeypatch.setattr("whl2conda.cli.build.subprocess.check_call", fake_check_call)
+
+    parser_defaults: dict[str, Any] = {
+        f.name: False for f in dataclasses.fields(BuildArgs)
+    }
+    parser_defaults.update({
+        "recipe_path": [recipe_dir],
+        "channels": [],
+        "croot": None,
+        "extra_deps": [],
+        "output_folder": None,
+        "package_format": None,
+        "python": "",
+        "quiet": 0,
+    })
+    builder = CondaBuild(BuildArgs(**parser_defaults))
+    builder.build_script = [f"pip wheel . -w {dist_dir}"]
+
+    # build script ran but produced no wheel
+    with pytest.raises(RecipeError, match="did not produce a wheel"):
+        builder._build_wheel(dist_dir)
+    assert commands == [f"pip wheel . -w {dist_dir}"]
+
+    wheel = dist_dir / "simple-1.2.3-py3-none-any.whl"
+    wheel.write_bytes(b"")
+    assert builder._build_wheel(dist_dir) == wheel
+
+    # cleanup tolerates a work dir that was never created
+    assert not builder.work_dir.exists()
+    builder._cleanup()
+
 
 def test_build_mode_conflicts(
     fake_build: tuple[FakeBuild, Path],
@@ -255,12 +355,14 @@ def test_build_ignored_options(
 ) -> None:
     """Ignored conda build options warn and proceed"""
     fake, recipe_dir = fake_build
+    # pass the option twice: only one warning is issued
     args = ["build", str(recipe_dir), flags[0]]
     if nargs:
         args.append("value")
+    args += args[2:]
     with caplog.at_level("WARNING"):
         main(args)
-    assert re.search(rf"ignoring.*{re.escape(flags[0])}", caplog.text)
+    assert len(re.findall(rf"ignoring.*{re.escape(flags[0])}", caplog.text)) == 1
     assert fake.install_calls  # build still completed
 
 
