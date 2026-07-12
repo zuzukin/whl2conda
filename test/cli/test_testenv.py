@@ -293,6 +293,7 @@ def test_build_test_adapter(
             "quiet": 0,
             "skip_existing": False,
             "test_only": False,
+            "use_mamba": True,
         }
         values.update(overrides)
         return BuildArgs(**values)
@@ -318,6 +319,7 @@ def test_build_test_adapter(
     assert call["spec"].imports == ("foo",)
     assert call["channels"] == ["chan"]
     assert call["keep_env"] is True
+    assert call["use_mamba"] is True
     # no conda-build work dir: source files resolve from the recipe dir
     assert call["source_root"] == tmp_path
     assert call["env_prefix"] == builder.work_dir / "test-env"

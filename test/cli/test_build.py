@@ -135,7 +135,7 @@ def test_build_default(fake_build: tuple[FakeBuild, Path]) -> None:
 
     assert len(fake.test_calls) == 1
     test_call = fake.test_calls[0]
-    assert test_call["spec"].imports == ["simple"]
+    assert test_call["spec"].imports == ("simple",)
     assert test_call["channels"] == []
     assert test_call["keep_env"] is False
     assert test_call["source_root"] == recipe_dir
@@ -170,6 +170,7 @@ def test_build_options(
         "-c",
         "my-channel",
         "--keep-test-env",
+        "--mamba",
     ])
 
     converter = fake.converter
@@ -182,6 +183,7 @@ def test_build_options(
     test_call = fake.test_calls[0]
     assert test_call["channels"] == ["my-channel"]
     assert test_call["keep_env"] is True
+    assert test_call["use_mamba"] is True
 
     # package written to --output-folder: no conda-bld install
     assert not fake.install_calls
