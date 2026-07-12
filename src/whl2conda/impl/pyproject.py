@@ -323,7 +323,9 @@ def read_pyproject(path: Path) -> PyProjInfo:
             _tests: list[Mapping[str, Any]] = []
             for entry in tests:
                 if isinstance(entry, Mapping):
-                    _tests.append(entry)
+                    # unwrap to plain python containers/strings, since
+                    # tomlkit str subclasses do not survive e.g. Path.glob
+                    _tests.append(entry.unwrap() if hasattr(entry, "unwrap") else entry)
                 else:
                     warn_ignored_value(
                         toml_file, "tests", f"Expected table but got '{entry}'"
@@ -341,7 +343,7 @@ def read_pyproject(path: Path) -> PyProjInfo:
         if isinstance(test_python, Sequence):
             for version in test_python:
                 if isinstance(version, str):
-                    _test_python.append(version)
+                    _test_python.append(str(version))
                 else:
                     warn_ignored_value(
                         toml_file,
