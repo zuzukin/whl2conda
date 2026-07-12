@@ -321,9 +321,9 @@ def test_build_v1_tests(fake_build: tuple[FakeBuild, Path]) -> None:
     main(["build", str(recipe_dir)])
     assert len(fake.test_calls) == 1
     spec = fake.test_calls[0]["spec"]
-    assert spec.imports == ["simple"]
-    assert spec.commands == ["pytest test"]
-    assert spec.requires == ["pytest"]
+    assert spec.imports == ("simple",)
+    assert spec.commands == ("pytest test",)
+    assert spec.requires == ("pytest",)
     assert not spec.pip_check
     assert fake.test_calls[0]["source_root"] == recipe_dir
 
