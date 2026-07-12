@@ -281,6 +281,24 @@ def read_pyproject(path: Path) -> PyProjInfo:
         warn_ignored_key(toml_file, key, f"value is not a string: {s}")
         return ""
 
+    def _read_str_list(key: str) -> tuple[str, ...]:
+        """Read a list of strings, dropping bad entries with a warning."""
+        values = whl2conda.get(key, ())
+        if isinstance(values, str):
+            values = [values]
+        if not isinstance(values, Sequence):
+            warn_ignored_key(toml_file, key, f"value is not a list: {values}")
+            return ()
+        result: list[str] = []
+        for value in values:
+            if isinstance(value, str):
+                result.append(str(value))
+            else:
+                warn_ignored_value(
+                    toml_file, key, f"Expected string but got '{value}'"
+                )
+        return tuple(result)
+
     pyproj.name = _read_str("name", project)
     if not pyproj.name and pyproj.build_backend == "poetry.core.masonry.api":
         pyproj.name = poetry.get("name")
@@ -310,16 +328,8 @@ def read_pyproject(path: Path) -> PyProjInfo:
             )
         pyproj.dependency_rename = tuple(_renames)
 
-    if extra_deps := whl2conda.get("extra-dependencies", ()):
-        _extra_deps: list[str] = []
-        for dep in extra_deps:
-            if isinstance(dep, str):
-                _extra_deps.append(dep)
-            else:
-                warn_ignored_value(
-                    toml_file, "extra-dependencies", f"Expected string but got '{dep}'"
-                )
-        pyproj.extra_dependencies = tuple(_extra_deps)
+    if "extra-dependencies" in whl2conda:
+        pyproj.extra_dependencies = _read_str_list("extra-dependencies")
 
     if tests := whl2conda.get("tests", ()):
         if isinstance(tests, Sequence) and not isinstance(tests, str):
@@ -342,25 +352,8 @@ def read_pyproject(path: Path) -> PyProjInfo:
                 toml_file, "tests", f"value is not a list of tables: {tests}"
             )
 
-    if test_python := whl2conda.get("test-python", ()):
-        if isinstance(test_python, str):
-            test_python = [test_python]
-        _test_python: list[str] = []
-        if isinstance(test_python, Sequence):
-            for version in test_python:
-                if isinstance(version, str):
-                    _test_python.append(str(version))
-                else:
-                    warn_ignored_value(
-                        toml_file,
-                        "test-python",
-                        f"Expected string (e.g. \"3.10\") but got '{version}'",
-                    )
-            pyproj.test_python = tuple(_test_python)
-        else:
-            warn_ignored_key(
-                toml_file, "test-python", f"value is not a list: {test_python}"
-            )
+    if "test-python" in whl2conda:
+        pyproj.test_python = _read_str_list("test-python")
 
     if conda_format := _read_str("conda-format", whl2conda):
         try:

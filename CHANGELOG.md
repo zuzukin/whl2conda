@@ -2,6 +2,16 @@
 
 ## [next] - *in progress*
 
+### Development
+
+* Code readability overhaul from an internal review: oriented and
+  reorganized the converter module, decomposed the convert command's
+  main flow, replaced sentinel values with a WheelChoice enum,
+  deduplicated CLI logging setup and pyproject list parsing,
+  centralized shared test fixtures in conftest files, split the
+  oversized converter test module, and removed stale comments and
+  dead code throughout.
+
 ### Changes
 
 * Dependency rename replacement strings are now validated to contain
