@@ -110,6 +110,7 @@ class BuildArgs:
     quiet: int
     skip_existing: bool
     test_only: bool
+    use_mamba: bool
 
 
 class _IgnoredOption(argparse.Action):
@@ -352,6 +353,12 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
         action="store_true",
         help="Do not delete the test environment (for debugging).",
     )
+    extension_opts.add_argument(
+        "--mamba",
+        dest="use_mamba",
+        action="store_true",
+        help="Use mamba instead of conda to create and run test environments.",
+    )
 
     ignored_opts = parser.add_argument_group(
         "ignored conda build options",
@@ -550,6 +557,7 @@ class CondaBuild:
             source_root=self._source_root(rendered),
             channels=self.args.channels,
             keep_env=self.args.keep_test_env,
+            use_mamba=self.args.use_mamba,
         )
 
     def _install_package(self, pkg: Path) -> None:
