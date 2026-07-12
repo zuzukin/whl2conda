@@ -17,9 +17,9 @@ and may change without notice.
 For the public API:
 
 * Backwards-incompatible changes will not be made without a
-  deprecation period of at least one release: the deprecated form
-  will continue to work and emit a `DeprecationWarning` before it
-  is removed.
+  deprecation period of at least one release *and* at least six
+  months: the deprecated form will continue to work and emit a
+  `DeprecationWarning` before it is removed.
 * All changes to the public API are recorded in the
   [changelog](../../about/changelog.md).
 * The package ships a `py.typed` marker, so the public API can be
