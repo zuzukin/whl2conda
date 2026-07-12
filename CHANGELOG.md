@@ -1,5 +1,12 @@
 # whl2conda changes
 
+## [next] - *in progress*
+
+### Changes
+
+* Dependency rename replacement strings are now validated to contain
+  only valid package name characters.
+
 ## [26.8.0] - *in progress*
 
 ### Features
@@ -43,9 +50,6 @@
   of a conda recipe, optionally against multiple python versions. (#83)
 
 ### Changes
-
-* Dependency rename replacement strings are now validated to contain
-  only valid package name characters.
 
 * `whl2conda build` renders recipes into its own temporary work
   directory (instead of scraping conda-build console output to locate
