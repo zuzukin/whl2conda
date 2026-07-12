@@ -137,7 +137,6 @@ def test_bld_install(
     assert matches[0]["channel"] == bld_path_noarch.as_uri()
 
 
-# TODO create faster monkeypatch version of this test
 @pytest.mark.slow
 def test_env_install(
     simple_conda_package: Path,
