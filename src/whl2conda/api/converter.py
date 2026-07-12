@@ -1281,7 +1281,19 @@ class Wheel2CondaConverter:
             return None
 
         norm_extra = normalize_pypi_name(extra)
-        if norm_extra not in (
+        entries = []
+        for raw in requires_dist:
+            try:
+                entry = RequiresDistEntry.parse(raw)
+            except SyntaxError:
+                continue
+            if normalize_pypi_name(entry.extra_marker_name) == norm_extra:
+                entries.append(_strip_extra_marker(entry))
+
+        if not entries and norm_extra not in (
+            # NOTE: provides_extra is often null in pypi metadata even
+            # when the extra exists, so it is only consulted to accept
+            # a declared-but-empty extra
             normalize_pypi_name(provided)
             for provided in info.get("provides_extra") or ()
         ):
@@ -1292,15 +1304,6 @@ class Wheel2CondaConverter:
                 extra,
             )
             return None
-
-        entries = []
-        for raw in requires_dist:
-            try:
-                entry = RequiresDistEntry.parse(raw)
-            except SyntaxError:
-                continue
-            if normalize_pypi_name(entry.extra_marker_name) == norm_extra:
-                entries.append(_strip_extra_marker(entry))
         self._info(
             "Resolved '%s[%s]' using version %s metadata: %s",
             package,
