@@ -5,12 +5,19 @@
 ### Features
 
 * `whl2conda build` now supports most applicable `conda build` options:
-  `--output-folder`, `--package-format`, `--croot`, `--python`,
-  `-b`/`--build-only`, `-q`/`--quiet`, `--debug`, and the whl2conda
-  extensions `--extra-deps` and `--keep-test-env`. Inapplicable
-  conda build options are accepted and ignored with a warning, except
-  upload/signing and non-python language options, which are rejected
-  with an error. (#110)
+  the build modes `--output` (print the predicted package path without
+  building), `-t`/`--test` (test the already-built package),
+  `-b`/`--build-only`, and `--skip-existing`, plus `--output-folder`,
+  `--package-format`, `--croot`, `--python`, `-q`/`--quiet`, and
+  `--debug`. Inapplicable conda build options are accepted and ignored
+  with a warning, except upload/signing and non-python language
+  options, which are rejected with an error. (#110)
+* New `whl2conda build` extension options: `--check` renders the recipe
+  and verifies whl2conda can build it, without building anything;
+  `--extra-deps` adds conda dependencies to the generated package;
+  `--keep-test-env` keeps the test environment for debugging; and
+  `--mamba` uses mamba to create test environments and to run
+  conda-build when it must be run in the base environment. (#110)
 
 ### Changes
 
@@ -19,6 +26,11 @@
   scratch space in conda-bld), checks the exit status of the render,
   uses conda-build in-process when it is importable, and reports
   build errors clearly. (#110)
+
+### Bug fixes
+
+* The build string of generated noarch packages now includes the build
+  number (e.g. `py_1`) instead of always being `py_0`. (#110)
 
 ### Development
 

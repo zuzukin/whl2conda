@@ -54,8 +54,14 @@ __all__ = [
     "DependencyRename",
     "Wheel2CondaConverter",
     "Wheel2CondaError",
+    "noarch_build_string",
     "normalize_pypi_name",
 ]
+
+
+def noarch_build_string(build_number: int = 0) -> str:
+    """Build string used for generated noarch python packages."""
+    return f"py_{build_number}"
 
 
 def __compile_requires_dist_re() -> re.Pattern:
@@ -310,7 +316,7 @@ class CondaTargetInfo:
                 subdir="noarch",
                 arch=None,
                 platform=None,
-                build_string="py_0",
+                build_string=noarch_build_string(build_number),
                 is_noarch=True,
                 site_packages_prefix="site-packages",
             )
