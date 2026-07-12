@@ -72,7 +72,7 @@ def main(args: Sequence[str] | None = None, prog: str | None = None) -> None:
         "whl2conda.cli.install.install_main",
         "install conda package file with dependencies",
     )
-    # TODO subcommand for clean/fixup of conda-bld or pkgs cache
+    # TODO - automatic eviction of stale package cache entries (#225)
 
     class ListSubcommands(argparse.Action):
         """Print out space separated list of command words and exit"""
