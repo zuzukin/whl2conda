@@ -69,9 +69,9 @@ class RenderedRecipe:
     name: str
     version: str
     build_number: int = 0
-    build_script: list[str] = field(default_factory=list)
+    build_script: tuple[str, ...] = ()
     noarch_python: bool = False
-    raw: dict[str, Any] = field(default_factory=dict)
+    raw: Mapping[str, Any] = field(default_factory=dict)
     """The full rendered recipe document."""
 
 
@@ -106,9 +106,10 @@ def find_recipe_file(recipe_dir: Path) -> tuple[Path, RecipeFormat]:
 
 def render_recipe(
     recipe_dir: Path,
-    work_dir: Path,
     *,
+    work_dir: Path,
     variant_config: Sequence[Path] = (),
+    use_mamba: bool = False,
 ) -> RenderedRecipe:
     """Render the recipe in the given directory.
 
@@ -116,6 +117,8 @@ def render_recipe(
         recipe_dir: directory containing the recipe file
         work_dir: scratch directory for rendering
         variant_config: variant configuration files, if any
+        use_mamba: use mamba instead of conda to run conda-build when
+            it cannot be imported into the current process
 
     Returns:
         The rendered recipe, normalized.
@@ -126,19 +129,19 @@ def render_recipe(
     """
     recipe_file, recipe_format = find_recipe_file(recipe_dir)
     if recipe_format is RecipeFormat.V1:
-        from .render_v1 import render_v1_yaml
+        from .render_v1 import render_v1_yaml  # noqa: PLC0415
 
         raw = render_v1_yaml(recipe_file)
         return _normalize_v1(raw, recipe_dir)
 
     # local import so that recipe.py has no yaml dependency at import time
-    from .render_meta import render_meta_yaml
+    from .render_meta import render_meta_yaml  # noqa: PLC0415
 
-    raw = render_meta_yaml(recipe_dir, work_dir)
+    raw = render_meta_yaml(recipe_dir, work_dir=work_dir, use_mamba=use_mamba)
     return _normalize_meta_yaml(raw, recipe_dir)
 
 
-def _normalize_meta_yaml(raw: dict[str, Any], recipe_dir: Path) -> RenderedRecipe:
+def _normalize_meta_yaml(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRecipe:
     """Normalize a rendered meta.yaml document."""
     package = raw.get("package") or {}
     build = raw.get("build") or {}
@@ -154,7 +157,7 @@ def _normalize_meta_yaml(raw: dict[str, Any], recipe_dir: Path) -> RenderedRecip
     )
 
 
-def _normalize_v1(raw: dict[str, Any], recipe_dir: Path) -> RenderedRecipe:
+def _normalize_v1(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRecipe:
     """Normalize a rendered v1 recipe.yaml document.
 
     Raises:
@@ -187,8 +190,8 @@ def _build_number(build: Mapping[str, Any]) -> int:
         return 0
 
 
-def _script_lines(script: Any) -> list[str]:
-    """Normalize a recipe build script into a list of lines.
+def _script_lines(script: Any) -> tuple[str, ...]:
+    """Normalize a recipe build script into a tuple of lines.
 
     Handles a single string, a list of lines, and the v1 object form
     with a `content` key.
@@ -199,7 +202,7 @@ def _script_lines(script: Any) -> list[str]:
         script = []
     elif isinstance(script, str):
         script = [script]
-    return [str(line) for line in script]
+    return tuple(str(line) for line in script)
 
 
 #: Matches a `pip install .` or `pip wheel .` line, possibly prefixed

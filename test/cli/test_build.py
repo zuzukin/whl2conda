@@ -58,10 +58,12 @@ class FakeBuild:
         self.install_calls: list[tuple[list[Path], str, dict[str, Any]]] = []
         self.rendered_raw: dict[str, Any] = dict(RENDERED_RAW)
         self.rendered_format = RecipeFormat.META_YAML
+        self.render_kwargs: dict[str, Any] = {}
 
         fake = self
 
-        def fake_render(recipe_dir: Path, work_dir: Path, **_kwargs) -> RenderedRecipe:
+        def fake_render(recipe_dir: Path, work_dir: Path, **kwargs) -> RenderedRecipe:
+            fake.render_kwargs = kwargs
             raw = dict(fake.rendered_raw)
             build = raw.get("build") or {}
             script = build.get("script") or []
@@ -73,7 +75,7 @@ class FakeBuild:
                 name=raw["package"]["name"],
                 version=raw["package"]["version"],
                 build_number=int(build.get("number") or 0),
-                build_script=script,
+                build_script=tuple(script),
                 noarch_python=build.get("noarch") == "python",
                 raw=raw,
             )
@@ -194,6 +196,7 @@ def test_build_options(
     assert test_call["channels"] == ["my-channel"]
     assert test_call["keep_env"] is True
     assert test_call["use_mamba"] is True
+    assert fake.render_kwargs["use_mamba"] is True
 
     # package written to --output-folder: no conda-bld install
     assert not fake.install_calls

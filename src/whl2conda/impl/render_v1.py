@@ -63,7 +63,7 @@ def _render_in_process(recipe_file: Path) -> dict[str, Any] | None:
     """Render using py-rattler-build, or return None if unavailable."""
     if importlib.util.find_spec("rattler_build") is None:
         return None
-    import rattler_build  # type: ignore[import-untyped,import-not-found]
+    import rattler_build  # type: ignore[import-untyped,import-not-found]  # noqa: PLC0415
 
     if not hasattr(rattler_build, "Stage0Recipe"):
         # unexpected python binding version - fall back to the executable

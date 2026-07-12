@@ -74,35 +74,35 @@ def test_render_recipe_meta(
     (recipe_dir / "meta.yaml").write_text("unrendered")
     monkeypatch.setattr(
         "whl2conda.impl.recipe.render_meta_yaml",
-        lambda _recipe_dir, _work_dir: dict(RENDERED_META),
+        lambda _recipe_dir, **_kwargs: dict(RENDERED_META),
         raising=False,
     )
     monkeypatch.setattr(
         "whl2conda.impl.render_meta.render_meta_yaml",
-        lambda _recipe_dir, _work_dir: dict(RENDERED_META),
+        lambda _recipe_dir, **_kwargs: dict(RENDERED_META),
     )
 
-    rendered = render_recipe(recipe_dir, tmp_path / "work")
+    rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
     assert rendered.format is RecipeFormat.META_YAML
     assert rendered.recipe_dir == recipe_dir
     assert rendered.name == "simple"
     assert rendered.version == "1.2.3"
     assert rendered.build_number == 2
-    assert rendered.build_script == ["pip install . -vv"]
+    assert rendered.build_script == ("pip install . -vv",)
     assert rendered.noarch_python
     assert rendered.raw == RENDERED_META
 
     # list-valued script and unparseable build number
     monkeypatch.setattr(
         "whl2conda.impl.render_meta.render_meta_yaml",
-        lambda _recipe_dir, _work_dir: {
+        lambda _recipe_dir, **_kwargs: {
             "package": {"name": "simple", "version": "1.2.3"},
             "build": {"number": "not-a-number", "script": ["pip install ."]},
         },
     )
-    rendered = render_recipe(recipe_dir, tmp_path / "work")
+    rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
     assert rendered.build_number == 0
-    assert rendered.build_script == ["pip install ."]
+    assert rendered.build_script == ("pip install .",)
     assert not rendered.noarch_python
 
 
@@ -136,13 +136,13 @@ def test_render_recipe_v1(
         lambda _recipe_file: dict(rendered_raw),
     )
 
-    rendered = render_recipe(recipe_dir, tmp_path / "work")
+    rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
     assert rendered.format is RecipeFormat.V1
     assert rendered.recipe_dir == recipe_dir
     assert rendered.name == "simple"
     assert rendered.version == "1.2.3"
     assert rendered.build_number == 2
-    assert rendered.build_script == ["pip install . -vv"]
+    assert rendered.build_script == ("pip install . -vv",)
     assert rendered.noarch_python
     assert rendered.raw == RENDERED_V1
 
@@ -151,19 +151,19 @@ def test_render_recipe_v1(
         "noarch": "python",
         "script": {"content": ["echo before", "pip install ."], "env": {"X": "1"}},
     }
-    rendered = render_recipe(recipe_dir, tmp_path / "work")
-    assert rendered.build_script == ["echo before", "pip install ."]
+    rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
+    assert rendered.build_script == ("echo before", "pip install .")
     assert rendered.build_number == 0
 
-    # a missing script is normalized to an empty list
+    # a missing script is normalized to an empty tuple
     rendered_raw["build"] = {"noarch": "python"}
-    rendered = render_recipe(recipe_dir, tmp_path / "work")
-    assert rendered.build_script == []
+    rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
+    assert rendered.build_script == ()
 
     # non-noarch v1 recipes are rejected
     rendered_raw["build"] = {"script": "pip install ."}
     with pytest.raises(RecipeError, match="noarch: python"):
-        render_recipe(recipe_dir, tmp_path / "work")
+        render_recipe(recipe_dir, work_dir=tmp_path / "work")
 
 
 def make_rendered(script: str | list[str]) -> RenderedRecipe:
@@ -175,7 +175,7 @@ def make_rendered(script: str | list[str]) -> RenderedRecipe:
         recipe_dir=Path("recipe"),
         name="simple",
         version="1.0",
-        build_script=script,
+        build_script=tuple(script),
     )
 
 
@@ -248,7 +248,7 @@ def test_render_meta_yaml_subprocess(
     monkeypatch.setattr("whl2conda.impl.render_meta.subprocess.run", fake_run)
 
     with caplog.at_level("WARNING"):
-        rendered = render_meta_yaml(recipe_dir, work_dir)
+        rendered = render_meta_yaml(recipe_dir, work_dir=work_dir)
     assert rendered["package"]["name"] == "simple"
     # stderr from a successful render is passed through as a warning
     assert "check your recipe" in caplog.text
@@ -258,6 +258,12 @@ def test_render_meta_yaml_subprocess(
     assert str(recipe_dir) in cmd[6]
     assert str(work_dir / "croot") in cmd[6]
     assert (work_dir / "croot").is_dir()
+    # the render script is dedented to column zero
+    assert cmd[6].lstrip("\n").startswith("import conda_build")
+
+    # use_mamba runs conda-build through mamba instead
+    render_meta_yaml(recipe_dir, work_dir=work_dir, use_mamba=True)
+    assert commands[1][:2] == ["mamba", "run"]
 
 
 def test_render_meta_yaml_in_process(
@@ -303,20 +309,20 @@ def test_render_meta_yaml_in_process(
         lambda _name: object(),
     )
 
-    rendered = render_meta_yaml(recipe_dir, work_dir)
+    rendered = render_meta_yaml(recipe_dir, work_dir=work_dir)
     assert rendered["package"]["name"] == "simple"
     assert FakeCondaBuildApi.croots == [str(work_dir / "croot")]
 
     # multiple variants only produce a warning
     FakeCondaBuildApi.variants = 2
     with caplog.at_level("WARNING"):
-        render_meta_yaml(recipe_dir, work_dir)
+        render_meta_yaml(recipe_dir, work_dir=work_dir)
     assert "multiple variants" in caplog.text
 
     # render errors are wrapped in RecipeRenderError
     FakeCondaBuildApi.fail = True
     with pytest.raises(RecipeRenderError, match="bad recipe"):
-        render_meta_yaml(recipe_dir, work_dir)
+        render_meta_yaml(recipe_dir, work_dir=work_dir)
 
 
 def test_render_meta_yaml_failure(
@@ -341,7 +347,7 @@ def test_render_meta_yaml_failure(
     monkeypatch.setattr("whl2conda.impl.render_meta.subprocess.run", fake_run_fail)
 
     with pytest.raises(RecipeRenderError, match="no such recipe"):
-        render_meta_yaml(recipe_dir, work_dir)
+        render_meta_yaml(recipe_dir, work_dir=work_dir)
 
     # zero exit but no output file also fails clearly
     def fake_run_noop(cmd, capture_output=False, encoding="", check=False):
@@ -349,7 +355,7 @@ def test_render_meta_yaml_failure(
 
     monkeypatch.setattr("whl2conda.impl.render_meta.subprocess.run", fake_run_noop)
     with pytest.raises(RecipeRenderError, match="did not produce"):
-        render_meta_yaml(recipe_dir, work_dir)
+        render_meta_yaml(recipe_dir, work_dir=work_dir)
 
 
 #

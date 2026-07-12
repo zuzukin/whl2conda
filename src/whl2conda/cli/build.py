@@ -142,14 +142,22 @@ class _UnsupportedOption(argparse.Action):
 
 
 # conda build options accepted and ignored, as (flags, nargs) pairs
-# where nargs 0 is a plain flag and 1 takes a value (see issue #110)
+# where nargs 0 is a plain flag and 1 takes a value (see issue #110).
+# These options do not apply to the whl2conda build model, so ignoring
+# them does not change the meaning of the build:
 _IGNORED_OPTIONS: list[tuple[tuple[str, ...], int]] = [
+    # whl2conda never uploads packages, so options suppressing or
+    # tuning uploads are already satisfied
     (("--no-anaconda-upload", "--no-binstar-upload"), 0),
     (("--no-force-upload",), 0),
+    # the recipe is not copied into the generated package anyway
     (("--no-include-recipe",), 0),
+    # conda-verify is no longer maintained and whl2conda does not run it
     (("--verify",), 0),
     (("--no-verify",), 0),
     (("--strict-verify",), 0),
+    # no build environments are created, so environment activation,
+    # build ids, prefix lengths, and prefix locking never come up
     (("--no-activate",), 0),
     (("--no-build-id",), 0),
     (("--build-id-pat",), 1),
@@ -157,14 +165,20 @@ _IGNORED_OPTIONS: list[tuple[tuple[str, ...], int]] = [
     (("--no-prefix-length-fallback",), 0),
     (("--prefix-length-fallback",), 0),
     (("--no-locking",), 0),
+    # overlinking/overdepending checks only apply to compiled artifacts
     (("--error-overlinking",), 0),
     (("--no-error-overlinking",), 0),
     (("--error-overdepending",), 0),
     (("--no-error-overdepending",), 0),
+    # test environments use paths in whl2conda's own work directory
     (("--long-test-prefix",), 0),
     (("--no-long-test-prefix",), 0),
+    # the build/host environment distinction requires build environments
     (("--merge-build-host",), 0),
+    # generated noarch packages always use the py_N build string
     (("--old-build-string",), 0),
+    # conda-build workspace/bookkeeping controls; whl2conda manages its
+    # own temporary work directory, which is always removed
     (("--bootstrap",), 1),
     (("--cache-dir",), 1),
     (("--stats-file",), 1),
@@ -174,17 +188,24 @@ _IGNORED_OPTIONS: list[tuple[tuple[str, ...], int]] = [
     (("--keep-old-work",), 0),
     (("--dirty",), 0),
     (("--no-remove-work-dir",), 0),
+    # packages are always written with the default compression
     (("--zstd-compression-level",), 1),
+    # variant matrices do not arise for a single noarch python output;
+    # variant config file options are accepted for CLI compatibility
     (("-m", "--variant-config-files"), 1),
     (("--variants",), 1),
     (("-e", "--exclusive-config-files", "--exclusive-config-file"), 1),
     (("--append-file",), 1),
     (("--clobber-file",), 1),
     (("--extra-meta",), 1),
+    # version pins for build environments that are never created
     (("--numpy",), 1),
 ]
 
-# conda build options that are rejected with an error (see issue #110)
+# conda build options that are rejected with an error (see issue #110):
+# ignoring these would silently change the meaning of a build pipeline
+# (skipping uploads/signing) or promise something whl2conda cannot do
+# (non-python languages, building without a source tree)
 _UNSUPPORTED_OPTIONS: list[tuple[tuple[str, ...], int]] = [
     (("-n", "--no-source"), 0),
     (("--token",), 1),
@@ -203,14 +224,15 @@ _UNSUPPORTED_OPTIONS: list[tuple[tuple[str, ...], int]] = [
 
 def _package_format(value: str) -> CondaPackageFormat:
     """argparse type for conda build --package-format values."""
-    val = value.lower().lstrip(".")
-    if val in ("1", "tar.bz2"):
-        return CondaPackageFormat.V1
-    if val in ("2", "conda"):
-        return CondaPackageFormat.V2
-    raise argparse.ArgumentTypeError(
-        f"invalid package format '{value}' - use 1/tar.bz2 or 2/conda"
-    )
+    match value.lower().lstrip("."):
+        case "1" | "tar.bz2":
+            return CondaPackageFormat.V1
+        case "2" | "conda":
+            return CondaPackageFormat.V2
+        case _:
+            raise argparse.ArgumentTypeError(
+                f"invalid package format '{value}' - use 1/tar.bz2 or 2/conda"
+            )
 
 
 def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
@@ -363,9 +385,10 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
     ignored_opts = parser.add_argument_group(
         "ignored conda build options",
         description=dedent("""
-            Other conda build options are accepted and ignored with a
-            warning, except for upload/signing and non-python language
-            options, which are rejected.
+            Other conda build options that do not apply to the
+            whl2conda build model (build environments, compiled
+            artifacts, variants, uploads) are accepted and ignored
+            with a warning.
             """),
     )
     for flags, nargs in _IGNORED_OPTIONS:
@@ -375,8 +398,18 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
             action=_IgnoredOption,
             help=argparse.SUPPRESS,
         )
+
+    unsupported_opts = parser.add_argument_group(
+        "unsupported conda build options",
+        description=dedent("""
+            conda build options that whl2conda build cannot honor are
+            rejected with an error rather than ignored: package upload
+            and signing options, non-python language options (--perl,
+            --R, --lua), and -n/--no-source.
+            """),
+    )
     for flags, nargs in _UNSUPPORTED_OPTIONS:
-        ignored_opts.add_argument(
+        unsupported_opts.add_argument(
             *flags,
             nargs=None if nargs else 0,
             action=_UnsupportedOption,
@@ -440,7 +473,11 @@ class CondaBuild:
         start = time.time()
         try:
             self.work_dir = Path(tempfile.mkdtemp(prefix="whl2conda-build-"))
-            rendered = render_recipe(self.recipe_path, self.work_dir)
+            rendered = render_recipe(
+                self.recipe_path,
+                work_dir=self.work_dir,
+                use_mamba=self.args.use_mamba,
+            )
 
             if self.args.output:
                 print(self._package_path(rendered))
