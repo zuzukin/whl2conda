@@ -216,3 +216,27 @@ def test_download(tmp_path: Path) -> None:
             pytest.skip("Cannot connect to pypi index ")
         else:
             raise
+
+
+def test_fetch_pypi_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Whitebox test of fetch_pypi_metadata"""
+    import io
+    import json
+    from contextlib import closing
+
+    from whl2conda.impl.download import fetch_pypi_metadata
+
+    urls: list[str] = []
+
+    def fake_urlopen(url: str, timeout: float = 0):
+        urls.append(url)
+        return closing(io.BytesIO(json.dumps({"info": {"name": "foo"}}).encode()))
+
+    monkeypatch.setattr("whl2conda.impl.download.urllib.request.urlopen", fake_urlopen)
+
+    data = fetch_pypi_metadata("foo")
+    assert data == {"info": {"name": "foo"}}
+    assert urls == ["https://pypi.org/pypi/foo/json"]
+
+    fetch_pypi_metadata("foo", "1.2.3")
+    assert urls[-1] == "https://pypi.org/pypi/foo/1.2.3/json"

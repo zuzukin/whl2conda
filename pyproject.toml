@@ -23,8 +23,11 @@ classifiers = [
 ]
 keywords = ["conda", "wheel", "build"]
 requires-python = ">=3.10"
+# NOTE: new runtime dependencies must also be added to the recipe in
+# the conda-forge whl2conda-feedstock when updating it for a release
 dependencies = [
     "conda-package-handling >=2.2",
+    "packaging >=23",
     "platformdirs >=3.10",
     "pyyaml >=6.0",
     "tomlkit >=0.12",
@@ -49,6 +52,7 @@ platforms = ["win-64", "linux-64", "osx-arm64"]
 python = ">=3.10,<3.15"
 # Use "*" to reference project dependencies without duplicating version specs
 conda-package-handling = "*"
+packaging = "*"
 platformdirs = "*"
 pyyaml = "*"
 tomlkit = "*"
