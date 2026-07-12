@@ -75,4 +75,38 @@ For example, to rename all `acme-<foo>` packages to `acme.<foo>`:
 
 An optional list of extra conda dependencies.
 
+### tests
+
+An optional list of package tests, using the
+[v1 recipe `tests` schema][v1-tests] used by rattler-build, so a test
+list can be copied verbatim between this section and a `recipe.yaml`
+file. For example:
+
+```toml
+[[tool.whl2conda.tests]]
+python = { imports = ["widget"], pip_check = true }
+
+[[tool.whl2conda.tests]]
+script = ["pytest test"]
+requirements = { run = ["pytest >=7"] }
+files = { source = ["test", "conftest.py"] }
+```
+
+The supported test elements are `python` tests (`imports` and
+`pip_check`) and `script` tests (commands with optional
+`requirements.run` dependencies and `files.source` files, which are
+resolved relative to the project directory). Unlike rattler-build,
+all test elements are run in a single shared test environment.
+
+These tests are run by the `whl2conda test` command against a
+generated conda package.
+
+### test-python
+
+An optional list of python versions (e.g. `["3.10", "3.14"]`) against
+which the package tests are run, once per version. If empty, a single
+test environment is created letting the solver choose the python
+version.
+
 [poetry-pyproject]: https://python-poetry.org/docs/pyproject/
+[v1-tests]: https://rattler-build.prefix.dev/latest/reference/recipe_file/#tests-section
