@@ -145,6 +145,12 @@ def test_resolve_extras_live(
     import logging
 
     from whl2conda.api.converter import RequiresDistEntry, Wheel2CondaConverter
+    from whl2conda.impl.download import fetch_pypi_metadata
+
+    try:
+        fetch_pypi_metadata("uvicorn", "0.30.0")
+    except OSError as ex:
+        pytest.skip(f"Cannot reach pypi.org: {ex}")
 
     converter = Wheel2CondaConverter(tmp_path / "fake.whl", tmp_path)
     converter.logger = logging.getLogger(__name__)
