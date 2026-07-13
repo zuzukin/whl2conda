@@ -2,6 +2,14 @@
 
 ## [26.7.2] - 2026-7-13
 
+### Bug fixes
+
+* `--resolve-extras` no longer fails to resolve extras of packages
+  whose pypi metadata does not populate `provides_extra` (which is
+  commonly null even when the extras exist); the extra's entries in
+  `Requires-Dist` are now authoritative. Found by a new external test
+  exercising the real pypi.org metadata API.
+
 ### Features
 
 * `whl2conda build` now supports v1 (`recipe.yaml`) recipes, as built
