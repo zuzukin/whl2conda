@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -49,13 +50,23 @@ def fetch_pypi_metadata(package: str, version: str = "") -> dict[str, Any]:
         The decoded JSON metadata dictionary.
 
     Raises:
-        urllib.error.URLError: if the metadata cannot be fetched.
+        OSError: if the metadata cannot be fetched after retries.
     """
     url = f"https://pypi.org/pypi/{package}/json"
     if version:
         url = f"https://pypi.org/pypi/{package}/{version}/json"
-    with urllib.request.urlopen(url, timeout=30) as response:
-        return json.load(response)
+    last_error: OSError | None = None
+    for attempt in range(3):
+        if attempt:
+            # brief backoff to ride out transient connection resets
+            time.sleep(2.0 * attempt)
+        try:
+            with urllib.request.urlopen(url, timeout=30) as response:
+                return json.load(response)
+        except OSError as ex:
+            last_error = ex
+    assert last_error is not None
+    raise last_error
 
 
 def lookup_pypi_index(index: str) -> str:

@@ -240,3 +240,42 @@ def test_fetch_pypi_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
 
     fetch_pypi_metadata("foo", "1.2.3")
     assert urls[-1] == "https://pypi.org/pypi/foo/1.2.3/json"
+
+
+def test_fetch_pypi_metadata_retries(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Transient fetch failures are retried with backoff"""
+    import io
+    import json
+    from contextlib import closing
+
+    from whl2conda.impl.download import fetch_pypi_metadata
+
+    sleeps: list[float] = []
+    monkeypatch.setattr("whl2conda.impl.download.time.sleep", sleeps.append)
+
+    attempts = 0
+
+    def flaky_urlopen(url: str, timeout: float = 0):
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise ConnectionResetError("connection reset by peer")
+        return closing(io.BytesIO(json.dumps({"info": {}}).encode()))
+
+    monkeypatch.setattr("whl2conda.impl.download.urllib.request.urlopen", flaky_urlopen)
+    assert fetch_pypi_metadata("foo") == {"info": {}}
+    assert attempts == 3
+    assert sleeps == [2.0, 4.0]
+
+    # persistent failure raises the last error after all retries
+    attempts = 0
+
+    def dead_urlopen(url: str, timeout: float = 0):
+        nonlocal attempts
+        attempts += 1
+        raise ConnectionResetError("connection reset by peer")
+
+    monkeypatch.setattr("whl2conda.impl.download.urllib.request.urlopen", dead_urlopen)
+    with pytest.raises(OSError, match="connection reset"):
+        fetch_pypi_metadata("foo")
+    assert attempts == 3
