@@ -2,6 +2,20 @@
 
 ## [next] - *in progress*
 
+### Features
+
+* `whl2conda build` now supports recipes for platform-specific binary
+  packages: when the recipe does not declare `noarch: python`, the
+  built wheel is converted with binary conversion enabled and the
+  package is written and installed into the target platform subdir.
+  The `--output`, `-t`/`--test`, and `--skip-existing` options remain
+  restricted to noarch recipes. (#216)
+* `whl2conda build` and `whl2conda test` now pass
+  `-m`/`--variant-config-files` through to the recipe renderer,
+  which is required by recipes using variant-dependent expressions
+  such as `stdlib('c')`; the unresolved `${{ PYTHON }}` template in
+  rendered v1 build scripts is now handled. (#216)
+
 ### Development
 
 * Code readability overhaul from an internal review: oriented and

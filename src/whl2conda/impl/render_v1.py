@@ -28,6 +28,7 @@ import json
 import logging
 import shutil
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -39,11 +40,16 @@ __all__ = ["render_v1_yaml"]
 logger = logging.getLogger(__name__)
 
 
-def render_v1_yaml(recipe_file: Path) -> dict[str, Any]:
+def render_v1_yaml(
+    recipe_file: Path,
+    variant_config: Sequence[Path] = (),
+) -> dict[str, Any]:
     """Render a v1 recipe.yaml recipe using rattler-build.
 
     Args:
         recipe_file: the recipe.yaml file
+        variant_config: variant configuration files, needed by recipes
+            using variant-dependent expressions like `stdlib('c')`
 
     Returns:
         The rendered recipe as a dictionary.
@@ -53,13 +59,16 @@ def render_v1_yaml(recipe_file: Path) -> dict[str, Any]:
             recipe renders to more than one output.
         RecipeRenderError: if rendering fails.
     """
-    raw = _render_in_process(recipe_file)
+    raw = _render_in_process(recipe_file, variant_config)
     if raw is None:
-        raw = _render_with_cli(recipe_file)
+        raw = _render_with_cli(recipe_file, variant_config)
     return raw
 
 
-def _render_in_process(recipe_file: Path) -> dict[str, Any] | None:
+def _render_in_process(
+    recipe_file: Path,
+    variant_config: Sequence[Path],
+) -> dict[str, Any] | None:
     """Render using py-rattler-build, or return None if unavailable."""
     if importlib.util.find_spec("rattler_build") is None:
         return None
@@ -81,7 +90,12 @@ def _render_in_process(recipe_file: Path) -> dict[str, Any] | None:
     except TypeError:
         raise _multiple_outputs_error(recipe_file) from None
     try:
-        variants = recipe.render()
+        config = None
+        if variant_config:
+            config = rattler_build.VariantConfig.from_files([
+                str(f) for f in variant_config
+            ])
+        variants = recipe.render(variant_config=config)
     except Exception as ex:
         raise RecipeRenderError(
             f"rattler-build failed to render {recipe_file}: {ex}"
@@ -91,7 +105,10 @@ def _render_in_process(recipe_file: Path) -> dict[str, Any] | None:
     return variants[0].recipe.to_dict()
 
 
-def _render_with_cli(recipe_file: Path) -> dict[str, Any]:
+def _render_with_cli(
+    recipe_file: Path,
+    variant_config: Sequence[Path],
+) -> dict[str, Any]:
     """Render by running the rattler-build executable."""
     exe = shutil.which("rattler-build")
     if exe is None:
@@ -103,6 +120,8 @@ def _render_with_cli(recipe_file: Path) -> dict[str, Any]:
     logger.debug("Rendering %s with %s", recipe_file, exe)
 
     cmd = [exe, "build", "--render-only", "--recipe", str(recipe_file)]
+    for config_file in variant_config:
+        cmd.extend(["-m", str(config_file)])
     result = subprocess.run(cmd, capture_output=True, encoding="utf8", check=False)
     if result.returncode != 0:
         stderr_tail = "\n".join(result.stderr.splitlines()[-15:])
