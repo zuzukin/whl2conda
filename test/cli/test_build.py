@@ -58,6 +58,8 @@ class FakeBuild:
         self.install_calls: list[tuple[list[Path], str, dict[str, Any]]] = []
         self.rendered_raw: dict[str, Any] = dict(RENDERED_RAW)
         self.rendered_format = RecipeFormat.META_YAML
+        self.binary_wheel = False
+        """Fake conversion produces a platform-specific package"""
         self.render_kwargs: dict[str, Any] = {}
 
         fake = self
@@ -90,6 +92,7 @@ class FakeBuild:
 
         def fake_convert(converter: Wheel2CondaConverter) -> Path:
             fake.converter = converter
+            binary = fake.binary_wheel
             converter.conda_target = CondaTargetInfo.from_wheel_metadata(
                 MetadataFromWheel(
                     md={},
@@ -99,13 +102,14 @@ class FakeBuild:
                     license=None,
                     dependencies=[],
                     wheel_info_dir=fake.tmp_path,
-                    is_pure_python=True,
-                    python_tag="py3",
-                    abi_tag="none",
-                    platform_tag="any",
+                    is_pure_python=not binary,
+                    python_tag="cp312" if binary else "py3",
+                    abi_tag="cp312" if binary else "none",
+                    platform_tag="manylinux2014_x86_64" if binary else "any",
                 )
             )
-            pkg = Path(converter.out_dir) / "simple-1.2.3-py_0.conda"
+            build = converter.conda_target.build_string
+            pkg = Path(converter.out_dir) / f"simple-1.2.3-{build}.conda"
             pkg.parent.mkdir(parents=True, exist_ok=True)
             pkg.write_bytes(b"")
             return pkg
@@ -166,6 +170,7 @@ def test_build_options(
     """Converter and test options are wired through"""
     fake, recipe_dir = fake_build
     out_folder = tmp_path / "out"
+    (tmp_path / "variants.yaml").write_text("c_stdlib: [sysroot]\n")
     main([
         "build",
         str(recipe_dir),
@@ -183,12 +188,15 @@ def test_build_options(
         "my-channel",
         "--keep-test-env",
         "--mamba",
+        "-m",
+        str(tmp_path / "variants.yaml"),
     ])
 
     converter = fake.converter
     assert converter is not None
     assert converter.out_format is CondaPackageFormat.V1
-    assert Path(converter.out_dir) == out_folder / "noarch"
+    # package is moved into the output folder's platform subdir
+    assert (out_folder / "noarch" / "simple-1.2.3-py_0.conda").is_file()
     assert converter.extra_dependencies == ["extra-one >=1", "extra-two"]
     assert converter.python_version == ">=3.10"
 
@@ -197,6 +205,7 @@ def test_build_options(
     assert test_call["keep_env"] is True
     assert test_call["use_mamba"] is True
     assert fake.render_kwargs["use_mamba"] is True
+    assert fake.render_kwargs["variant_config"] == [tmp_path / "variants.yaml"]
 
     # package written to --output-folder: no conda-bld install
     assert not fake.install_calls
@@ -289,6 +298,7 @@ def test_build_wheel_step(
         "package_format": None,
         "python": "",
         "quiet": 0,
+        "variant_config": [],
     })
     builder = CondaBuild(BuildArgs(**parser_defaults))
     builder.build_script = [f"pip wheel . -w {dist_dir}"]
@@ -420,8 +430,7 @@ def test_build_output_mode(
     # prediction matches where the actual build puts the package
     main(["build", str(recipe_dir), "--no-test", "--output-folder", str(out_folder)])
     assert fake.converter is not None
-    actual = Path(fake.converter.out_dir) / "simple-1.2.3-py_0.conda"
-    assert actual == out_folder / "noarch" / "simple-1.2.3-py_0.conda"
+    actual = out_folder / "noarch" / "simple-1.2.3-py_0.conda"
     assert actual.is_file()
 
 
@@ -719,3 +728,49 @@ def test_build_e2e_with_tests(
         "-c",
         "conda-forge",
     ])
+
+
+BINARY_RENDERED_RAW: dict[str, Any] = {
+    "package": {"name": "simple", "version": "1.2.3"},
+    "build": {"number": 0, "script": "pip install ."},
+    "test": {"imports": ["simple"]},
+}
+
+
+def test_build_binary_recipe(
+    fake_build: tuple[FakeBuild, Path],
+    tmp_path: Path,
+) -> None:
+    """Non-noarch recipes convert as binary packages (#216)"""
+    fake, recipe_dir = fake_build
+    fake.rendered_raw = dict(BINARY_RENDERED_RAW)
+    fake.binary_wheel = True
+
+    # conda-bld install goes into the target platform subdir
+    main(["build", str(recipe_dir), "--no-test"])
+    assert fake.converter is not None
+    assert fake.converter.allow_impure is True
+    files, subdir, _kwargs = fake.install_calls[0]
+    assert subdir == "linux-64"
+    assert files[0].name == "simple-1.2.3-py312_0.conda"
+
+    # --output-folder places the package in the platform subdir
+    out_folder = tmp_path / "out"
+    main(["build", str(recipe_dir), "--no-test", "--output-folder", str(out_folder)])
+    assert (out_folder / "linux-64" / "simple-1.2.3-py312_0.conda").is_file()
+
+    # render-only modes remain restricted to noarch recipes
+    for mode in (["--output"], ["-t"], ["--skip-existing"]):
+        with pytest.raises(SystemExit):
+            main(["build", str(recipe_dir), *mode])
+
+    # v1 binary recipes are likewise accepted
+    fake.rendered_format = RecipeFormat.V1
+    fake.rendered_raw = {
+        "package": {"name": "simple", "version": "1.2.3"},
+        "build": {"number": 0, "script": "pip install ."},
+        "tests": [],
+    }
+    fake.install_calls.clear()
+    main(["build", str(recipe_dir), "--no-test"])
+    assert fake.install_calls[0][1] == "linux-64"

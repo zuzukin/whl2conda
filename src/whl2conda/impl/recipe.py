@@ -132,13 +132,18 @@ def render_recipe(
     if recipe_format is RecipeFormat.V1:
         from .render_v1 import render_v1_yaml  # noqa: PLC0415
 
-        raw = render_v1_yaml(recipe_file)
+        raw = render_v1_yaml(recipe_file, variant_config)
         return _normalize_v1(raw, recipe_dir)
 
     # local import so that recipe.py has no yaml dependency at import time
     from .render_meta import render_meta_yaml  # noqa: PLC0415
 
-    raw = render_meta_yaml(recipe_dir, work_dir=work_dir, use_mamba=use_mamba)
+    raw = render_meta_yaml(
+        recipe_dir,
+        work_dir=work_dir,
+        use_mamba=use_mamba,
+        variant_config=variant_config,
+    )
     return _normalize_meta_yaml(raw, recipe_dir)
 
 
@@ -159,20 +164,9 @@ def _normalize_meta_yaml(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRe
 
 
 def _normalize_v1(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRecipe:
-    """Normalize a rendered v1 recipe.yaml document.
-
-    Raises:
-        RecipeError: if the recipe does not build a `noarch: python`
-            package.
-    """
+    """Normalize a rendered v1 recipe.yaml document."""
     package = raw.get("package") or {}
     build = raw.get("build") or {}
-    if build.get("noarch") != "python":
-        raise RecipeError(
-            f"Cannot build from v1 recipe in {recipe_dir}: whl2conda build"
-            " only supports v1 recipes with `noarch: python`"
-            " (see https://github.com/zuzukin/whl2conda/issues/216)"
-        )
     return RenderedRecipe(
         format=RecipeFormat.V1,
         recipe_dir=recipe_dir,
@@ -180,7 +174,7 @@ def _normalize_v1(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRecipe:
         version=str(package.get("version") or ""),
         build_number=_build_number(build),
         build_script=_script_lines(build.get("script")),
-        noarch_python=True,
+        noarch_python=build.get("noarch") == "python",
         raw=raw,
     )
 
@@ -208,10 +202,16 @@ def _script_lines(script: Any) -> tuple[str, ...]:
 
 
 #: Matches a `pip install .` or `pip wheel .` line, possibly prefixed
-#: with a python interpreter invocation and followed by extra options.
+#: with a python interpreter invocation - including the unresolved
+#: `${{ PYTHON }}` template that rattler-build leaves in rendered v1
+#: scripts - and followed by extra options. The interpreter prefix is
+#: dropped by the rewrite.
 _PIP_BUILD_RE = re.compile(
     r"(?P<pre>.*?)"
-    r"(?:python\d?(?:\.\d+)?\s+-m\s+)?"
+    r"(?:"
+    r"python\d?(?:\.\d+)?\s+-m\s+"
+    r"|(?:\$?\{\{\s*PYTHON\s*\}\}|\$PYTHON)\s+(?:-m\s+)?"
+    r")?"
     r"pip\s+(?P<cmd>install|wheel)\s+\.(?=\s|$)"
     r"(?P<post>.*)"
 )

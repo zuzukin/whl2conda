@@ -19,11 +19,26 @@ Instead of solving and creating build/host/test environments, whl2conda:
 Because there is no build environment, this is much faster than
 `conda build`, but it only works for recipes that:
 
-* build a pure python (`noarch: python`) package
-  (see [#216] for planned binary package support),
-* whose build script consists of a single `pip install .` or
+* have a build script consisting of a single `pip install .` or
   `pip wheel .` command (extra pip options are fine), and
 * produce a single output package.
+
+Both pure python (`noarch: python`) and platform-specific binary
+recipes are supported. For binary recipes, the wheel is built with
+your local toolchain via the project's build backend — not in the
+recipe's `build`/`host` conda environments — so this works for
+self-contained extension modules but not for recipes that require
+conda-provided compilers or libraries (see the
+[Binary Conversion](binary-conversion.md) guide for the conversion
+limitations), and the built wheel reflects your local toolchain
+settings (e.g. the macOS deployment target). Recipes that use
+variant-dependent expressions such as `${{ compiler('c') }}` or
+`${{ stdlib('c') }}` need a variant configuration file to render,
+which can be supplied with `-m`/`--variant-config-files`. Only the variant for the python version used in the
+build is produced, and the `--output`, `-t`/`--test`, and
+`--skip-existing` options remain restricted to noarch recipes, since
+a binary package's file name cannot be predicted before the wheel is
+built.
 
 ## Supported recipe formats
 
@@ -128,7 +143,6 @@ fresh conda environment created with `whl2conda install`:
   test environment, unlike rattler-build, which creates a separate
   environment per element.
 
-[#216]: https://github.com/zuzukin/whl2conda/issues/216
 [conda-build]: https://docs.conda.io/projects/conda-build/
 [rattler-build]: https://rattler.build/
 [py-rattler-build]: https://pypi.org/project/py-rattler-build/

@@ -28,6 +28,7 @@ import importlib.util
 import io
 import logging
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 from typing import Any
@@ -44,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 _RENDER_SCRIPT = dedent("""
     import conda_build.api as api
-    config = api.Config(croot=r"{croot}")
+    config = api.Config(croot=r"{croot}", variant_config_files={variant_files!r})
     mds = api.render(r"{recipe_dir}", config=config, bypass_env_check=True)
     if len(mds) > 1:
         import sys
@@ -59,6 +60,7 @@ def render_meta_yaml(
     *,
     work_dir: Path,
     use_mamba: bool = False,
+    variant_config: Sequence[Path] = (),
 ) -> dict[str, Any]:
     """Render a classic meta.yaml recipe using conda-build.
 
@@ -68,6 +70,7 @@ def render_meta_yaml(
             scratch files are redirected into `<work_dir>/croot`
         use_mamba: use mamba instead of conda to run conda-build in
             the base environment (ignored for the in-process path)
+        variant_config: variant configuration files, if any
 
     Returns:
         The rendered recipe as a dictionary.
@@ -80,9 +83,11 @@ def render_meta_yaml(
     croot.mkdir(parents=True, exist_ok=True)
 
     if importlib.util.find_spec("conda_build") is not None:
-        _render_in_process(recipe_dir, croot, out_file)
+        _render_in_process(recipe_dir, croot, out_file, variant_config)
     else:
-        _render_in_base_env(recipe_dir, croot, out_file, use_mamba=use_mamba)
+        _render_in_base_env(
+            recipe_dir, croot, out_file, variant_config, use_mamba=use_mamba
+        )
 
     if not out_file.is_file():
         raise RecipeRenderError(
@@ -91,7 +96,12 @@ def render_meta_yaml(
     return yaml.safe_load(out_file.read_text("utf8"))
 
 
-def _render_in_process(recipe_dir: Path, croot: Path, out_file: Path) -> None:
+def _render_in_process(
+    recipe_dir: Path,
+    croot: Path,
+    out_file: Path,
+    variant_config: Sequence[Path],
+) -> None:
     """Render using conda-build imported into this process."""
     logger.debug("Rendering %s with in-process conda-build", recipe_dir)
     # conda-build is an optional runtime dependency, not installed here
@@ -102,7 +112,10 @@ def _render_in_process(recipe_dir: Path, croot: Path, out_file: Path) -> None:
     chatter = io.StringIO()
     try:
         with contextlib.redirect_stdout(chatter):
-            config = api.Config(croot=str(croot))
+            config = api.Config(
+                croot=str(croot),
+                variant_config_files=[str(f) for f in variant_config],
+            )
             mds = api.render(str(recipe_dir), config=config, bypass_env_check=True)
             if len(mds) > 1:
                 logger.warning("Recipe has multiple variants; using the first")
@@ -120,13 +133,17 @@ def _render_in_base_env(
     recipe_dir: Path,
     croot: Path,
     out_file: Path,
+    variant_config: Sequence[Path],
     *,
     use_mamba: bool = False,
 ) -> None:
     """Render by running conda-build in the conda base environment."""
     logger.debug("Rendering %s with conda-build from base env", recipe_dir)
     script = _RENDER_SCRIPT.format(
-        croot=croot, recipe_dir=recipe_dir, out_file=out_file
+        croot=croot,
+        recipe_dir=recipe_dir,
+        out_file=out_file,
+        variant_files=[str(f) for f in variant_config],
     )
     conda = "mamba" if use_mamba else "conda"
     cmd = [conda, "run", "-n", "base", "python", "-c", script]

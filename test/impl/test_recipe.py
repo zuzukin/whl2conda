@@ -133,7 +133,7 @@ def test_render_recipe_v1(
     rendered_raw = dict(RENDERED_V1)
     monkeypatch.setattr(
         "whl2conda.impl.render_v1.render_v1_yaml",
-        lambda _recipe_file: dict(rendered_raw),
+        lambda _recipe_file, *_args: dict(rendered_raw),
     )
 
     rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
@@ -160,10 +160,10 @@ def test_render_recipe_v1(
     rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
     assert rendered.build_script == ()
 
-    # non-noarch v1 recipes are rejected
+    # non-noarch v1 recipes are accepted for binary conversion (#216)
     rendered_raw["build"] = {"script": "pip install ."}
-    with pytest.raises(RecipeError, match="noarch: python"):
-        render_recipe(recipe_dir, work_dir=tmp_path / "work")
+    rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
+    assert not rendered.noarch_python
 
 
 def make_rendered(script: str | list[str]) -> RenderedRecipe:
@@ -193,10 +193,14 @@ def test_rewrite_build_script(tmp_path: Path) -> None:
         ("python -m pip install .", f"pip wheel . -w {dist}"),
         ("python3 -m pip install .", f"pip wheel . -w {dist}"),
         ("python3.12 -m pip install .", f"pip wheel . -w {dist}"),
+        # interpreter templates are dropped, since they are not
+        # resolved in rendered v1 scripts
+        ("{{ PYTHON }} pip install . -vv", f"pip wheel . -w {dist} -vv"),
         (
-            '{{ PYTHON }} pip install . -vv',
-            f"{{{{ PYTHON }}}} pip wheel . -w {dist} -vv",
+            "${{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation",
+            f"pip wheel . -w {dist} -vv --no-deps --no-build-isolation",
         ),
+        ("$PYTHON -m pip install .", f"pip wheel . -w {dist}"),
     ]:
         assert rewrite_build_script(make_rendered(script), dist) == [expected]
 
@@ -281,12 +285,14 @@ def test_render_meta_yaml_in_process(
         """Stands in for conda_build.api"""
 
         croots: ClassVar[list[str]] = []
+        variant_files: ClassVar[list[str]] = []
         variants = 1
         fail = False
 
         @classmethod
-        def Config(cls, croot: str) -> str:
+        def Config(cls, croot: str, variant_config_files=()) -> str:
             cls.croots.append(croot)
+            cls.variant_files = list(variant_config_files)
             return croot
 
         @classmethod
@@ -389,12 +395,21 @@ def _fake_rattler_module(
             if multi:
                 raise TypeError("multi-output recipe")
 
-        def render(self) -> list:
+        def render(self, variant_config=None) -> list:
             if render_fail:
                 raise ValueError("render boom")
             return [FakeRendered() for _ in range(variants)]
 
+    class VariantConfig:
+        files: ClassVar[list[str]] = []
+
+        @classmethod
+        def from_files(cls, files: list) -> VariantConfig:
+            cls.files = list(files)
+            return cls()
+
     mod.Stage0Recipe = Stage0Recipe  # type: ignore[attr-defined]
+    mod.VariantConfig = VariantConfig  # type: ignore[attr-defined]
     return mod
 
 
