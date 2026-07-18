@@ -31,9 +31,10 @@ The core entry point is [Wheel2CondaConverter][(m).], whose
 6. write the `info/` metadata files (the `_write_*` methods) and pack
    the result in the requested [CondaPackageFormat][(m).]
 
-Supporting pieces: [RequiresDistEntry][(m).] parses Requires-Dist
-metadata entries, and module-level helpers translate wheel platform
-tags and version specifiers to their conda equivalents.
+Supporting pieces: the internal `RequiresDistEntry` class parses
+Requires-Dist metadata entries, and module-level helpers translate
+wheel platform tags and version specifiers to their conda
+equivalents.
 """
 # See https://docs.conda.io/projects/conda-build/en/stable/resources/package-spec.html
 
