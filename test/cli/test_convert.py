@@ -1027,3 +1027,26 @@ def test_stdrenames_update(
     ).run()
 
     settings.auto_update_std_renames = False
+
+
+def test_download_option_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+    tmp_path: Path,
+) -> None:
+    """Download option validation and download failure reporting"""
+    monkeypatch.chdir(tmp_path)
+
+    # download platform options require a download spec
+    with pytest.raises(SystemExit):
+        main(["convert", "--download-platform", "linux-64"])
+    assert "require --from-pypi" in capsys.readouterr().err
+
+    # download failures are reported as command line errors
+    def failing_download(*args, **kwargs):
+        raise RuntimeError("cannot download boom")
+
+    monkeypatch.setattr("whl2conda.cli.convert.download_wheel", failing_download)
+    with pytest.raises(SystemExit):
+        main(["convert", "--from-pypi", "nosuchpkg", "--yes"])
+    assert "cannot download boom" in capsys.readouterr().err

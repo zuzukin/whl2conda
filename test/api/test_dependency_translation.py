@@ -412,3 +412,11 @@ def test_compute_dependencies_resolve_extras(
     ])
     assert result == ["uvicorn-standard >=0.30"]
     assert not fetches
+
+
+def test_compute_deps_python_added() -> None:
+    """python_version is added when no python dependency is present"""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+    converter.python_version = ">=3.10"
+    assert converter._compute_conda_dependencies([]) == ["python >=3.10"]
