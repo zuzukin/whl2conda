@@ -430,6 +430,12 @@ def test_render_v1_yaml_in_process(
     assert render_v1_yaml(recipe_file) == RENDERED_V1
     assert fake.Stage0Recipe.paths == [str(recipe_file)]
 
+    # variant config files are loaded and passed to the renderer
+    variants_file = tmp_path / "variants.yaml"
+    variants_file.write_text("c_stdlib: [sysroot]\n")
+    assert render_v1_yaml(recipe_file, [variants_file]) == RENDERED_V1
+    assert fake.VariantConfig.files == [str(variants_file)]
+
     monkeypatch.setitem(sys.modules, "rattler_build", _fake_rattler_module(multi=True))
     with pytest.raises(RecipeError, match="multiple outputs"):
         render_v1_yaml(recipe_file)
@@ -502,6 +508,12 @@ def test_render_v1_yaml_cli(
     assert cmd[0] == "/bin/rattler-build"
     assert "--render-only" in cmd
     assert str(recipe_file) in cmd
+
+    # variant config files are passed with -m
+    variants_file = tmp_path / "variants.yaml"
+    variants_file.write_text("c_stdlib: [sysroot]\n")
+    render_v1_yaml(recipe_file, [variants_file])
+    assert commands[-1][commands[-1].index("-m") + 1] == str(variants_file)
 
     # multiple outputs are rejected
     stdout = json.dumps([{"recipe": RENDERED_V1}, {"recipe": RENDERED_V1}])
