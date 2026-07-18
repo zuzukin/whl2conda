@@ -30,11 +30,6 @@ from whl2conda.cli.install import InstallFileInfo, _prune_dependencies
 
 from ..test_conda import conda_config, conda_json, conda_output
 
-# pylint: disable=unused-import
-from ..test_packages import simple_conda_package, simple_wheel  # noqa: F401
-
-# pylint: disable=redefined-outer-name
-
 
 def test_errors(capsys: pytest.CaptureFixture, tmp_path: Path):
     """Test parser errors in whl2conda install"""
@@ -71,7 +66,6 @@ def test_errors(capsys: pytest.CaptureFixture, tmp_path: Path):
 # ignore redefinition of simple_conda_package
 
 
-# pylint: disable=too-many-locals
 def test_bld_install(
     simple_conda_package: Path,
     capsys: pytest.CaptureFixture,
@@ -137,7 +131,6 @@ def test_bld_install(
     assert matches[0]["channel"] == bld_path_noarch.as_uri()
 
 
-# TODO create faster monkeypatch version of this test
 @pytest.mark.slow
 def test_env_install(
     simple_conda_package: Path,

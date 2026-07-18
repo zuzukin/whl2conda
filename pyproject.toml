@@ -214,7 +214,6 @@ outputs = ["site/**/*"]
 depends-on = ["build-cli-docs"]
 cmd = "rm -rf .cache && zensical serve"
 description = "Serve documentation locally for development"
-inputs = ["zensical.toml", "doc/**/*.md", "src/whl2conda/api/**/*.py"]
 
 [tool.pixi.tasks.doc-strict]
 depends-on = ["doc"]

@@ -88,7 +88,7 @@ def lookup_pypi_index(index: str) -> str:
         pypirc.read(pypirc_path)
         try:
             return pypirc[index]["repository"]
-        except Exception:
+        except (KeyError, configparser.Error):
             pass
     return index
 

@@ -11,7 +11,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """
-whl2conda command line interface
+whl2conda convert subcommand implementation
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from ..api.converter import CondaPackageFormat, DependencyRename, Wheel2CondaCon
 
 # this project
 from ..impl.download import download_wheel
-from ..impl.prompt import choose_wheel, is_interactive
+from ..impl.prompt import WheelChoice, choose_wheel, is_interactive
 from ..impl.pyproject import PyProjInfo, read_pyproject
 from ..settings import settings
 from .common import (
@@ -40,12 +40,12 @@ from .common import (
     existing_dir,
     existing_path,
     maybe_existing_dir,
+    setup_logging,
 )
 
 __all__ = ["convert_main"]
 
 
-# pylint: disable=too-many-instance-attributes
 @dataclass(slots=True)
 class ConvertArgs:
     """
@@ -91,7 +91,7 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
     """Creates the argument parser
 
     The parser will return a namespace with attributes matching
-    Whl2CondaArgs
+    ConvertArgs
     """
     parser = argparse.ArgumentParser(
         usage=dedent("""
@@ -431,57 +431,54 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
     return parser
 
 
-def _parse_args(
-    parser: argparse.ArgumentParser, args: Sequence[str] | None
-) -> ConvertArgs:
-    """Parse and return arguments"""
-    return ConvertArgs(**vars(parser.parse_args(args)))
-
-
 def _is_project_root(path: Path) -> bool:
+    """True if the directory contains a pyproject.toml or setup.py."""
     return any(path.joinpath(f).is_file() for f in ["pyproject.toml", "setup.py"])
 
 
-# pylint: disable=too-many-statements,too-many-branches,too-many-locals
-def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
+def _resolve_download_request(
+    parsed: ConvertArgs, parser: argparse.ArgumentParser
+) -> tuple[str, str]:
+    """Resolve wheel download options into an (index, spec) pair.
+
+    Both strings are empty when no download was requested.
     """
-    Main command line interface
-    """
-
-    parser = _create_argparser(prog)
-    parsed = _parse_args(parser, args)
-
-    interactive = parsed.interactive
-    always_yes = parsed.yes
-
-    dry_run = parsed.dry_run
-    # dry_run implies at least verbosity of 1 unless turned off by quiet flag
-    verbosity = max(parsed.verbose, int(dry_run)) - parsed.quiet
-
-    project_root: Path | None = None
-    wheel_file: Path | None = None
-    wheel_dir: Path | None = parsed.wheel_dir
-
-    build_wheel = parsed.build_wheel
-    build_no_deps = True  # pylint: disable=unused-variable
-
-    download_index = ""
-    download_spec = ""
+    index = spec = ""
     if parsed.from_pypi:
-        download_spec = parsed.from_pypi
+        spec = parsed.from_pypi
     elif parsed.from_index:
-        download_index, download_spec = parsed.from_index
-
-    download_platform: str = parsed.download_platform or ""
-    download_python_version: str = parsed.download_python_version or ""
-    download_abi: str = parsed.download_abi or ""
-
-    if any([download_platform, download_python_version, download_abi]):
-        if not download_spec:
+        index, spec = parsed.from_index
+    if any([
+        parsed.download_platform,
+        parsed.download_python_version,
+        parsed.download_abi,
+    ]):
+        if not spec:
             parser.error(
                 "--download-platform, --download-python-version, and --download-abi "
                 "require --from-pypi or --from-index"
             )
+    return index, spec
+
+
+def _resolve_source(
+    parsed: ConvertArgs,
+    parser: argparse.ArgumentParser,
+    downloading: bool,
+) -> tuple[Path | None, Path | None, Path, PyProjInfo]:
+    """Resolve the input wheel and project directories.
+
+    Interprets the positional wheel-or-project-root argument together
+    with the --project-root and --wheel-dir options and the project's
+    pyproject.toml settings.
+
+    Returns:
+        Tuple of wheel file (if a wheel path was given), project root
+        (if any), the wheel directory, and parsed pyproject info.
+    """
+    project_root: Path | None = None
+    wheel_file: Path | None = None
+    wheel_dir: Path | None = parsed.wheel_dir
 
     wheel_or_root = parsed.wheel_or_root
     saw_positional_root = False
@@ -493,12 +490,13 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
     else:
         wheel_file = wheel_or_root
         if wheel_file.suffix != ".whl":
-            parser.error(f"Input file '{wheel_file} does not have .whl suffix")
+            parser.error(f"Input file '{wheel_file}' does not have .whl suffix")
         if not wheel_dir:
             wheel_dir = wheel_file.parent
         # Look for project root in wheel's parent directories
-        if any((pr := p) for p in wheel_file.parents if _is_project_root(p)):
-            project_root = pr
+        project_root = next(
+            (p for p in wheel_file.parents if _is_project_root(p)), None
+        )
 
     if parsed.project_root:
         if saw_positional_root:
@@ -516,7 +514,7 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
 
     if project_root:
         project_root = project_root.expanduser().absolute()
-        if not download_spec and not _is_project_root(project_root):
+        if not downloading and not _is_project_root(project_root):
             # Note: don't complain about missing project file if using
             #  a download spec.
             parser.error(
@@ -526,16 +524,18 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
             wheel_dir = pyproj_info.wheel_dir
             if not wheel_dir:
                 # Use dist directory of project
-                # TODO - check for build system specific alternate dist (#23)
                 wheel_dir = project_root.joinpath("dist")
 
-    # TODO - rearrange logic to make this more obvious?
     assert wheel_dir is not None
-    wheel_dir = wheel_dir.expanduser().absolute()
+    return wheel_file, project_root, wheel_dir.expanduser().absolute(), pyproj_info
 
-    can_build = project_root is not None
 
-    # assemble rename patterns and verify regular expression can be compiled
+def _build_renames(
+    parsed: ConvertArgs,
+    pyproj_info: PyProjInfo,
+    parser: argparse.ArgumentParser,
+) -> list[DependencyRename]:
+    """Assemble rename patterns, verifying they compile."""
     renames: list[DependencyRename] = []
     source = str(pyproj_info.toml_file)
     try:
@@ -551,6 +551,49 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
         )
     except ValueError as ex:
         parser.error(f"Bad rename pattern from {source}:\n{ex}")
+    return renames
+
+
+def _resolve_out_format(
+    parsed: ConvertArgs, pyproj_info: PyProjInfo
+) -> CondaPackageFormat:
+    """Output format from options, pyproject, or persistent settings."""
+    if fmtname := parsed.out_format:
+        match fmtname:
+            case "V1" | "tar.bz2":
+                return CondaPackageFormat.V1
+            case "V2" | "conda":
+                return CondaPackageFormat.V2
+            case _:
+                return CondaPackageFormat.TREE
+    if pyproj_info.conda_format:
+        return pyproj_info.conda_format
+    out_fmt = settings.conda_format
+    assert isinstance(out_fmt, CondaPackageFormat)
+    return out_fmt
+
+
+def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
+    """
+    Main command line interface
+    """
+
+    parser = _create_argparser(prog)
+    parsed = ConvertArgs(**vars(parser.parse_args(args)))
+
+    interactive = parsed.interactive
+    always_yes = parsed.yes
+
+    dry_run = parsed.dry_run
+    # dry_run implies at least verbosity of 1 unless turned off by quiet flag
+    verbosity = max(parsed.verbose, int(dry_run)) - parsed.quiet
+
+    download_index, download_spec = _resolve_download_request(parsed, parser)
+    wheel_file, project_root, wheel_dir, pyproj_info = _resolve_source(
+        parsed, parser, downloading=bool(download_spec)
+    )
+    renames = _build_renames(parsed, pyproj_info, parser)
+    out_fmt = _resolve_out_format(parsed, pyproj_info)
 
     out_dir: Path | None = None
     if parsed.out_dir:
@@ -560,57 +603,33 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
     else:
         out_dir = wheel_dir
 
-    if not wheel_file and wheel_dir and not build_wheel and not download_spec:
+    build_wheel = parsed.build_wheel
+    can_build = project_root is not None
+
+    if not wheel_file and not build_wheel and not download_spec:
         # find wheel in directory
         try:
-            wheel_file = choose_wheel(
+            choice = choose_wheel(
                 wheel_dir,
                 interactive=interactive,
                 choose_first=always_yes,
                 can_build=can_build,
             )
-            if wheel_file == Path('build'):
+            if isinstance(choice, WheelChoice):
+                # NOTE: both build choices currently build with
+                # --no-deps --no-build-isolation, like --build-wheel
                 build_wheel = True
-                wheel_file = None
-            elif wheel_file == Path("build-no-dep"):
-                build_wheel = True
-                build_no_deps = True
-                wheel_file = None
+            else:
+                wheel_file = choice
         except FileNotFoundError as ex:
             if always_yes and can_build:
                 build_wheel = True
             else:
                 parser.error(str(ex))
-        except Exception as ex:  # pylint: disable=broad-except
+        except Exception as ex:
             parser.error(str(ex))
 
-    if fmtname := parsed.out_format:
-        match fmtname:
-            case "V1" | "tar.bz2":
-                out_fmt = CondaPackageFormat.V1
-            case "V2" | "conda":
-                out_fmt = CondaPackageFormat.V2
-            case _:
-                out_fmt = CondaPackageFormat.TREE
-    elif pyproj_info.conda_format:
-        out_fmt = pyproj_info.conda_format
-    else:
-        out_fmt = settings.conda_format  # pyright: ignore[reportAssignmentType]
-        assert isinstance(out_fmt, CondaPackageFormat)
-
-    if verbosity < -1:
-        level = logging.ERROR
-    elif verbosity < 0:
-        level = logging.WARNING
-    elif verbosity == 0:
-        level = logging.INFO
-    elif verbosity == 1:
-        level = logging.DEBUG
-    else:  # verbosity >= 2:
-        level = logging.DEBUG - 5
-
-    logging.getLogger().setLevel(level)
-    logging.basicConfig(level=level, format="%(message)s")
+    level = setup_logging(verbosity)
 
     with tempfile.TemporaryDirectory(
         dir=Path.cwd(), prefix="whl2conda-convert-"
@@ -622,9 +641,9 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
                         download_spec,
                         into=Path(tmpdirname),
                         index=download_index,
-                        platform=download_platform,
-                        python_version=download_python_version,
-                        abi=download_abi,
+                        platform=parsed.download_platform or "",
+                        python_version=parsed.download_python_version or "",
+                        abi=parsed.download_abi or "",
                     )
                 except RuntimeError as ex:
                     parser.error(str(ex))
@@ -634,7 +653,7 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
                 wheel_file = do_build_wheel(
                     project_root,
                     wheel_dir,
-                    no_deps=build_no_deps,
+                    no_deps=True,
                     dry_run=dry_run,
                     capture_output=level > logging.INFO,
                 )
@@ -660,7 +679,7 @@ def convert_main(args: Sequence[str] | None = None, prog: str | None = None):
         converter.python_version = parsed.python
         converter.interactive = interactive
         converter.build_number = parsed.build_number
-        converter.allow_impure = parsed.allow_impure or bool(download_platform)
+        converter.allow_impure = parsed.allow_impure or bool(parsed.download_platform)
         converter.for_conda_forge = parsed.for_conda_forge
         converter.platform_tag = parsed.platform_tag
         if parsed.allow_metadata_version:

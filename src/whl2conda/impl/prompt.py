@@ -18,16 +18,17 @@ Interactive prompt utilities.
 
 from __future__ import annotations
 
+import enum
 import io
 import sys
+from pathlib import Path
 
 __all__ = [
+    "WheelChoice",
     "bool_input",
     "choose_wheel",
     "is_interactive",
 ]
-
-from pathlib import Path
 
 
 def is_interactive() -> bool:
@@ -51,13 +52,20 @@ def bool_input(prompt: str) -> bool:
             return False
 
 
+class WheelChoice(enum.Enum):
+    """Non-file result of [choose_wheel][(m).]: build the wheel instead."""
+
+    BUILD = "build"
+    BUILD_NO_DEPS = "build-no-dep"
+
+
 def choose_wheel(
     wheel_dir: Path,
     *,
     interactive: bool = False,
     choose_first: bool = False,
     can_build: bool = False,
-) -> Path:
+) -> Path | WheelChoice:
     """
     Choose wheel from available wheels in distribution directory.
 
@@ -69,7 +77,7 @@ def choose_wheel(
         can_build: show build options when interactive
 
     Returns:
-        Path object of wheel, or else Path('build') or Path('build-no-dep')
+        Path of the chosen wheel, or a [WheelChoice][(m).] build action.
 
     Raises:
         FileNotFoundError: no wheels in directory and not interactive
@@ -94,28 +102,28 @@ def choose_wheel(
             f"Cannot choose from multiple wheels in directory '{wheel_dir}'"
         )
 
-    # key -> (label,Path)
-    options: dict[str, tuple[str, Path]] = {
+    # key -> (label, chosen wheel or build action or None for quit)
+    options: dict[str, tuple[str, Path | WheelChoice | None]] = {
         str(i): (wheel.name, wheel) for i, wheel in enumerate(wheels)
     }
     if can_build:
-        options['build'] = ('build wheel', Path('build'))
+        options['build'] = ('build wheel', WheelChoice.BUILD)
         options['no-dep'] = (
             'build wheel with --no-deps --no-build-isolation',
-            Path('build-no-dep'),
+            WheelChoice.BUILD_NO_DEPS,
         )
-    options['quit'] = ("quit program", Path('quit'))
+    options['quit'] = ("quit program", None)
 
     while True:
         with io.StringIO() as out:
-            for k, (label, path) in options.items():
+            for k, (label, _choice) in options.items():
                 key = f"[{k}]"
                 print(f"{key:>8s} {label}", file=out)
             print(f"Choose wheel ({','.join(options)}): ")
             prompt = out.getvalue()
         option = input(prompt)
         if t := options.get(option):
-            path = t[1]
-            if path == Path('quit'):
+            choice = t[1]
+            if choice is None:
                 sys.exit(2)
-            return path
+            return choice

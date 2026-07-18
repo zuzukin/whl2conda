@@ -1,5 +1,26 @@
 # whl2conda changes
 
+## [next] - *in progress*
+
+### Development
+
+* Code readability overhaul from an internal review: oriented and
+  reorganized the converter module, decomposed the convert command's
+  main flow, replaced sentinel values with a WheelChoice enum,
+  deduplicated CLI logging setup and pyproject list parsing,
+  centralized shared test fixtures in conftest files, split the
+  oversized converter test module, and removed stale comments and
+  dead code throughout.
+
+### Changes
+
+* Dependency rename replacement strings are now validated to contain
+  only valid package name characters.
+* The documented python API has been narrowed to the intended stable
+  surface, with an explicit stability policy: see the new Python API
+  overview page in the reference documentation. The `noarch_build_string`
+  helper is no longer exported from `whl2conda.api.converter`.
+
 ## [26.7.2] - 2026-7-13
 
 ### Bug fixes

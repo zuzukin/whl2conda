@@ -25,12 +25,7 @@ import pytest
 
 from whl2conda.api.converter import Wheel2CondaError
 
-from .converter import (
-    ConverterTestCaseFactory,  # pylint: disable=unused-import
-    test_case,  # noqa: F401
-)
-
-# pylint: disable=redefined-outer-name
+from .converter_support import ConverterTestCaseFactory
 
 #
 # External pypi tests

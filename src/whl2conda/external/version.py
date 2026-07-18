@@ -632,10 +632,6 @@ class VersionSpec(BaseSpec, metaclass=SingleStrArgCachingType):
         return "|".join(sorted(options))
 
 
-# TODO: someday switch out these class names for consistency
-VersionMatch = VersionSpec
-
-
 class BuildNumberMatch(BaseSpec, metaclass=SingleStrArgCachingType):
     _cache_ = {}
 

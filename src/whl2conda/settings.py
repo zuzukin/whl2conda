@@ -62,6 +62,13 @@ class _FieldDefault(NamedTuple):
     factory: Callable
 
 
+# NOTE on the machinery below: settings are declared as dataclass
+# fields whose *defaults* are _SettingsField descriptor instances.
+# The descriptors provide string-to-value coercion on assignment
+# (needed by `whl2conda config --set`), reset-on-delete semantics,
+# and per-field defaults via the _FieldDefault sentinel. The
+# annotations name the descriptor types, but the runtime attribute
+# values are plain bool/str/dict values.
 class _SettingsField:
     """
     Base class for Whl2CondaSettings dataclass
@@ -149,7 +156,7 @@ def _toidentifier(name: str) -> str:
     return name.replace("-", "_")
 
 
-def _fromidentifier(name: str) -> str:
+def fromidentifier(name: str) -> str:
     """
     Convert name from identifier (underscores to dashes)
     """
@@ -178,10 +185,6 @@ class Whl2CondaSettings:
         user_config_path("whl2conda") / SETTINGS_FILENAME
     )
     """Default filepath for saved settings."""
-
-    # TODO:
-    #   - difftool
-    #   - pyproject defaults
 
     auto_update_std_renames: _BoolField = _BoolField()
     """
@@ -256,7 +259,7 @@ class Whl2CondaSettings:
                     f"Bad settings key '{key}': '{name}' is not a dictionary"
                 )
             if subkey not in value:
-                raise KeyError(f"'{key}' is not set'")
+                raise KeyError(f"'{key}' is not set")
             value = value[subkey]
 
         return value
@@ -384,10 +387,14 @@ class Whl2CondaSettings:
         return name, parts[1] if len(parts) > 1 else ""
 
 
+# set here rather than in the class body, since the dataclass
+# fields are not known until the class is fully constructed
 Whl2CondaSettings._fieldnames = frozenset(
     f.name for f in dataclasses.fields(Whl2CondaSettings) if not f.name.startswith("_")
 )
 
+# loaded at import time; unit tests reset this via the `clear_settings`
+# fixture in test/conftest.py
 settings = Whl2CondaSettings.from_file()
 """
 User settings.

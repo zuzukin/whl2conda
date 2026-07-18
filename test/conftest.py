@@ -19,8 +19,6 @@ Don't run tests marked with @pytest.mark.external unless --run-external
 is given.
 """
 
-# content of conftest.py
-
 import pytest
 
 from whl2conda.settings import settings
@@ -75,3 +73,13 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "slow" in item.keywords:
                 item.add_marker(skip_slow)
+
+
+# Shared session-scoped wheel/package fixtures, made available to the
+# whole suite here so that individual test modules need not import them.
+from .package_fixtures import (  # noqa: F401
+    markers_wheel,
+    setup_wheel,
+    simple_conda_package,
+    simple_wheel,
+)

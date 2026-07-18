@@ -224,10 +224,7 @@ def _extract_package(package: Path, dest_dir: Path) -> None:
     site_packages = dest_dir / "site-packages"
     dest_info = next(site_packages.glob("*.dist-info"))
     assert dest_info.is_dir()
-    # TODO strip __pycache__ entries from RECORD
     _sort_lines(dest_info / "RECORD")
-
-    # remove __pycache__ dirs?
 
 
 def _normalize_json(file: Path) -> None:

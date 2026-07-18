@@ -28,11 +28,6 @@ import pytest
 
 from whl2conda.cli import main
 
-# pylint: disable=unused-import
-from ..test_packages import simple_conda_package, simple_wheel  # noqa: F401
-
-# pylint: disable=redefined-outer-name
-
 # ignore redefinition of simple_conda_package
 
 
@@ -69,7 +64,7 @@ def test_diff_errors(
 
 
 def test_diff(
-    capsys: pytest.CaptureFixture,  # pylint: disable=unused-argument
+    capsys: pytest.CaptureFixture,
     tmp_path: Path,
     simple_conda_package: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -93,13 +88,11 @@ def test_diff(
         parser.add_argument("-r", action="store_true")
         parsed = parser.parse_args(cmd[1:])
 
-        # TODO: Use Path.is_relative method introduced in Python 3.9
-
         assert parsed.r == expected_r
         for d in [parsed.dir1, parsed.dir2]:
             dirpath = Path(d)
             assert dirpath.is_dir()
-            dirpath.relative_to(tmp_path)
+            assert dirpath.is_relative_to(tmp_path)
             info = dirpath / "info"
             assert info.is_dir()
 

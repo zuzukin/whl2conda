@@ -77,10 +77,13 @@ def main(args: Sequence[str] | None = None, prog: str | None = None) -> None:
         "whl2conda.cli.test.test_main",
         "test conda package file in a fresh environment",
     )
-    # TODO subcommand for clean/fixup of conda-bld or pkgs cache
+    # TODO - automatic eviction of stale package cache entries (#225)
 
     class ListSubcommands(argparse.Action):
-        """Print out space separated list of command words and exit"""
+        """Print space separated list of command words and exit.
+
+        Defined locally since it closes over `subcmds`.
+        """
 
         def __call__(self, *args, **kwargs):
             print(" ".join(subcmds.subcommands))

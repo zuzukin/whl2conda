@@ -37,7 +37,8 @@ nav = [
       { "whl2conda install" = "reference/cli/whl2conda-install.md" },
       { "whl2conda test" = "reference/cli/whl2conda-test.md" },
     ] },
-    { "API (not stable!)" = [
+    { "Python API" = [
+      { "Overview" = "reference/api/index.md" },
       { "compare" = "reference/api/compare.md" },
       { "converter" = "reference/api/converter.md" },
       { "settings" = "reference/api/settings.md" },

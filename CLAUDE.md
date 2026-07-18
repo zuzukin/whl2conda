@@ -55,7 +55,8 @@ The package is layered: `cli/` → `api/` → `impl/`.
 - **`src/whl2conda/impl/`** — Internal helpers: wheel unpacking (`wheel.py`), `pyproject.toml`
   parsing (`pyproject.py`), interactive prompts (`prompt.py`), file downloads (`download.py`).
 - **`src/whl2conda/settings.py`** — Global `Whl2CondaSettings` singleton loaded from a
-  platform-specific JSON file. Tests auto-reset it via the `clear_settings` fixture in
+  platform-specific JSON file. A layer-zero module that any layer may import. Tests
+  auto-reset it via the `clear_settings` fixture in
   `test/conftest.py`.
 - **`src/whl2conda/external/`** — Vendored third-party code. Excluded from linting, type
   checking, and coverage — don't modify to satisfy lint.

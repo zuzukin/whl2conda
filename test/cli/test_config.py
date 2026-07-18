@@ -36,7 +36,6 @@ from whl2conda.impl.pyproject import CondaPackageFormat
 from whl2conda.settings import Whl2CondaSettings, settings
 
 
-# pylint: disable=too-many-statements
 def test_update_std_renames(
     capsys: pytest.CaptureFixture,
     tmp_path: Path,
@@ -48,7 +47,6 @@ def test_update_std_renames(
     expected_dry_run = True
     fake_exception: Exception | None = None
 
-    # pylint: disable=unused-argument
     def _fake_update(
         renames_file: Path, *, url: str = "", dry_run: bool = False
     ) -> bool:

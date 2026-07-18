@@ -12,7 +12,29 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """
-Converter API
+Converter API: turn a python wheel into an equivalent conda package.
+
+The core entry point is [Wheel2CondaConverter][(m).], whose
+`convert()` method runs the following pipeline:
+
+1. extract the wheel into a temporary directory
+2. parse the wheel metadata (`_parse_wheel_metadata`): WHEEL tags,
+   METADATA fields, and Requires-Dist dependencies
+3. derive the conda target ([CondaTargetInfo][(m).]): noarch python
+   for pure wheels, a platform subdir (and CEP-20 layout for abi3)
+   for binary wheels
+4. copy the wheel files into the conda layout (`_copy_wheel_files`)
+5. translate pip dependencies to conda dependencies
+   (`_compute_conda_dependencies`), applying rename rules
+   ([DependencyRename][(m).]), the standard rename table, and the
+   extras handling options
+6. write the `info/` metadata files (the `_write_*` methods) and pack
+   the result in the requested [CondaPackageFormat][(m).]
+
+Supporting pieces: the internal `RequiresDistEntry` class parses
+Requires-Dist metadata entries, and module-level helpers translate
+wheel platform tags and version specifiers to their conda
+equivalents.
 """
 # See https://docs.conda.io/projects/conda-build/en/stable/resources/package-spec.html
 
@@ -58,7 +80,6 @@ __all__ = [
     "DependencyRename",
     "Wheel2CondaConverter",
     "Wheel2CondaError",
-    "noarch_build_string",
     "normalize_pypi_name",
 ]
 
@@ -68,7 +89,7 @@ def noarch_build_string(build_number: int = 0) -> str:
     return f"py_{build_number}"
 
 
-def __compile_requires_dist_re() -> re.Pattern:
+def _compile_requires_dist_re() -> re.Pattern:
     # NOTE: these are currently fairly forgiving and will accept bad syntax
     name_re = r"(?P<name>[a-zA-Z0-9_.-]+)"
     extra_re = r"(?:\[(?P<extra>.+?)\])?"
@@ -80,7 +101,7 @@ def __compile_requires_dist_re() -> re.Pattern:
     )
 
 
-requires_dist_re = __compile_requires_dist_re()
+requires_dist_re = _compile_requires_dist_re()
 
 _extra_marker_re = [
     re.compile(r"""\bextra\s*==\s*(['"])(?P<name>\w+)\1"""),
@@ -502,7 +523,14 @@ class DependencyRename(NamedTuple):
             raise ValueError(f"Bad dependency rename pattern '{pattern}': {err}")
         repl = re.sub(r"\$(\d+)", r"\\\1", replacement)
         repl = re.sub(r"\$\{(\w+)}", r"\\g<\1>", repl)
-        # TODO also verify replacement does not contain invalid package chars
+        # apart from group references, the replacement must only contain
+        # valid conda package name characters (or be empty, meaning drop)
+        literal = re.sub(r"\\g<\w+>|\\\d+", "", repl)
+        if not re.fullmatch(r"[A-Za-z0-9._-]*", literal):
+            raise ValueError(
+                f"Bad dependency replacement '{replacement}' for pattern"
+                f" '{pattern}': contains invalid package name characters"
+            )
         try:
             pat.sub(repl, "")
         except Exception as ex:
@@ -548,8 +576,12 @@ def load_known_extras() -> dict[str, dict[str, str]]:
 
 class Wheel2CondaConverter:
     """
-    Converter supports generation of a conda package from a python wheel.
+    Converts a python wheel into an equivalent conda package.
 
+    Usage protocol: construct with the wheel path and output
+    directory, assign any of the configuration attributes below, then
+    call `convert()` (or `convert_all()` for multi-platform wheels).
+    The result attributes are populated during conversion.
     """
 
     SUPPORTED_WHEEL_VERSIONS = ("1.0",)
@@ -580,7 +612,11 @@ class Wheel2CondaConverter:
         "Supported-Platform",
     })
 
+    #
+    # configuration - set before calling convert()
+    #
     package_name: str = ""
+    """Conda package name override; normalized name is stored back here."""
     logger: logging.Logger
     wheel_path: Path
     out_dir: Path
@@ -595,17 +631,21 @@ class Wheel2CondaConverter:
     resolve_extras: bool = False
     """Resolve remaining extras from pypi metadata (best effort)"""
     python_version: str = ""
+    """Python dependency override: a version *spec*, e.g. '>=3.10'."""
     interactive: bool = False
     build_number: int | None = None
     allow_impure: bool = False
     for_conda_forge: bool = False
     platform_tag: str = ""
     """Wheel platform tag to convert for, when the wheel supports several."""
+    std_renames: dict[str, str]
 
+    #
+    # results - populated by convert()
+    #
     wheel_md: MetadataFromWheel | None = None
     conda_target: CondaTargetInfo | None = None
     conda_pkg_path: Path | None = None
-    std_renames: dict[str, str]
 
     def __init__(
         self,
@@ -620,7 +660,6 @@ class Wheel2CondaConverter:
         self.dependency_rename = []
         self.extra_dependencies = []
         self._pypi_metadata_cache: dict[tuple[str, str], dict[str, Any]] = {}
-        # TODO - option to ignore this
         self.std_renames = load_std_renames(update=update_std_renames)
 
     def convert_all(self) -> list[Path]:
@@ -699,14 +738,7 @@ class Wheel2CondaConverter:
 
             wheel_md = self._parse_wheel_metadata(extracted_wheel_dir)
 
-            if self.build_number is not None:
-                build_number = self.build_number
-            else:
-                try:
-                    build_number = int(wheel_md.wheel_build_number)
-                except ValueError:
-                    build_number = 0
-
+            build_number = self._resolve_build_number(wheel_md)
             conda_target = CondaTargetInfo.from_wheel_metadata(
                 wheel_md, build_number=build_number
             )
@@ -720,7 +752,9 @@ class Wheel2CondaConverter:
             conda_dir.mkdir()
 
             # Copy files into conda package
-            self._copy_wheel_files(extracted_wheel_dir, conda_dir)
+            self._copy_wheel_files(
+                extracted_wheel_dir, conda_dir, wheel_md, conda_target
+            )
 
             # collect relative paths before constructing info/ directory
             # (posix style - conda package paths always use forward slashes)
@@ -749,14 +783,16 @@ class Wheel2CondaConverter:
                 )
 
             # Write conda info files
-            # TODO - copy readme file into info
-            #  must be one of README, README.md or README.rst
             self._copy_licenses(conda_info_dir, wheel_md)
             self._write_about(conda_info_dir, wheel_md.md)
             self._write_hash_input(conda_info_dir)
             self._write_files_list(conda_info_dir, rel_files)
             self._write_index(
-                conda_info_dir, wheel_md, conda_dependencies, conda_target
+                conda_info_dir,
+                wheel_md,
+                conda_dependencies,
+                conda_target,
+                build_number,
             )
             self._write_link_file(conda_info_dir, wheel_md, conda_target)
             self._write_paths_file(conda_dir, rel_files)
@@ -768,6 +804,19 @@ class Wheel2CondaConverter:
             self._write_conda_package(conda_dir, conda_pkg_path)
 
             return conda_pkg_path
+
+    def _resolve_build_number(self, wheel_md: MetadataFromWheel) -> int:
+        """Build number override, or else the wheel's build number."""
+        if self.build_number is not None:
+            return self.build_number
+        try:
+            return int(wheel_md.wheel_build_number)
+        except ValueError:
+            return 0
+
+    #
+    # output: package writing
+    #
 
     @classmethod
     def read_metadata_file(cls, file: Path) -> email.message.Message:
@@ -811,6 +860,7 @@ class Wheel2CondaConverter:
                     print(msg)
                     overwrite = bool_input("Overwrite? ")
                 if not overwrite:
+                    # builtin exception type kept for backward compatibility
                     raise FileExistsError(msg)
             self._info("Removing existing %s%s", conda_pkg_path, dry_run_suffix)
             if not self.dry_run:
@@ -895,17 +945,10 @@ class Wheel2CondaConverter:
         wheel_md: MetadataFromWheel,
         conda_dependencies: Sequence[str],
         conda_target: CondaTargetInfo,
+        build_number: int,
     ) -> None:
         # info/index.json
         conda_index_file = conda_info_dir.joinpath("index.json")
-
-        if self.build_number is not None:
-            build_number = self.build_number
-        else:
-            try:
-                build_number = int(wheel_md.wheel_build_number)
-            except ValueError:
-                build_number = 0
 
         index_dict: dict[str, Any] = {
             "arch": conda_target.arch,
@@ -928,9 +971,6 @@ class Wheel2CondaConverter:
             json.dumps(index_dict, indent=2),
             encoding="utf8",
         )
-
-    # Platform tag mapping is now handled by _WHEEL_PLATFORM_MAP and
-    # CondaTargetInfo.from_wheel_metadata()
 
     def _write_files_list(self, conda_info_dir: Path, rel_files: Sequence[str]) -> None:
         # * info/files - list of relative paths of files not including info/
@@ -959,10 +999,6 @@ class Wheel2CondaConverter:
         #   Paths in source tree: license-file, prelink_message, readme
         #
         # conda-build also adds conda-build-version and conda-version fields.
-
-        # TODO description can come from METADATA message body
-        #   then need to also use content type. It doesn't seem
-        #   that conda-forge packages include this in the info/
 
         conda_about_file = conda_info_dir.joinpath("about.json")
 
@@ -1019,6 +1055,10 @@ class Wheel2CondaConverter:
             encoding="utf8",
         )
 
+    #
+    # dependency translation
+    #
+
     def _compute_conda_dependencies(
         self,
         dependencies: Sequence[RequiresDistEntry],
@@ -1047,13 +1087,18 @@ class Wheel2CondaConverter:
                         "Including marker dependency for target platform: %s", entry
                     )
                 else:
-                    # TODO - support non-generic packages
+                    # noarch packages cannot express conditional
+                    # dependencies, since conda metadata has no
+                    # equivalent of environment markers; such
+                    # dependencies can be added manually with
+                    # --add-dependency if needed
                     self._warn("Skipping dependency with environment marker: %s", entry)
                     continue
 
-            conda_name = pip_name = entry.name
+            pip_name = entry.name
             version = self.translate_version_spec(entry.version)
-            if saw_python := normalize_pypi_name(conda_name) == "python":
+            if normalize_pypi_name(pip_name) == "python":
+                saw_python = True
                 if self.python_version and version != self.python_version:
                     self._info(
                         "Overriding python version '%s' with '%s'",
@@ -1062,102 +1107,11 @@ class Wheel2CondaConverter:
                     )
                     version = self.python_version
 
-            # check manual renames first
-            renamed = False
-            dropped_extras = list(entry.extras)
-            extras_name = pip_name
-            if entry.extras:
-                # a rule matching the bracketed name[extra,...] form maps
-                # the dependency with its extras to a conda equivalent,
-                # e.g. 'dask[complete]' -> 'dask' (#217)
-                extras_name = f"{pip_name}[{','.join(entry.extras)}]"
-                for renamer in self.dependency_rename:
-                    conda_name, renamed = renamer.rename(extras_name)
-                    if renamed:
-                        dropped_extras = []
-                        break
-
-            # extras with known corresponding conda packages (#217)
-            known_extras: dict[str, str] = {}
-            if dropped_extras:
-                known = load_known_extras().get(normalize_pypi_name(pip_name), {})
-                known_extras = {
-                    extra: known[normalize_pypi_name(extra)]
-                    for extra in dropped_extras
-                    if normalize_pypi_name(extra) in known
-                }
-            if known_extras and self.use_known_extras:
-                dropped_extras = [
-                    extra for extra in dropped_extras if extra not in known_extras
-                ]
-                for mapped in dict.fromkeys(known_extras.values()):
-                    conda_dep = f"{mapped} {version}"
-                    self._info(
-                        "Replaced extras dependency: '%s' -> '%s'",
-                        entry,
-                        conda_dep,
-                    )
-                    conda_dependencies.append(conda_dep)
-                known_extras = {}
-                if not dropped_extras:
-                    # the mapped conda packages subsume the base package
-                    continue
-
-            # resolve remaining extras from pypi metadata (#36)
-            if dropped_extras and self.resolve_extras and not renamed:
-                remaining: list[str] = []
-                for extra in dropped_extras:
-                    key = (
-                        normalize_pypi_name(pip_name),
-                        normalize_pypi_name(extra),
-                    )
-                    if key in resolved_extras:
-                        continue  # already expanded (or cyclic)
-                    resolved_extras.add(key)
-                    expansion = self._resolve_extra(pip_name, entry.version, extra)
-                    if expansion is None:
-                        remaining.append(extra)
-                    else:
-                        queue.extend(expansion)
-                dropped_extras = remaining
-                known_extras = {}
-
-            if not renamed:
-                conda_name = pip_name
-                for renamer in self.dependency_rename:
-                    conda_name, renamed = renamer.rename(pip_name)
-                    if renamed:
-                        break
-            if not renamed:
-                conda_name = self.std_renames.get(
-                    normalize_pypi_name(pip_name), pip_name
-                )
-
-            if conda_name and dropped_extras:
-                # TODO - optionally resolve extras from pypi metadata (#36)
-                if known_extras:
-                    known_names = ", ".join(
-                        f"'{conda_pkg}' for [{extra}]"
-                        for extra, conda_pkg in known_extras.items()
-                    )
-                    hint = (
-                        f" Note: conda-forge provides {known_names}; use the"
-                        " --known-extras option to apply this automatically."
-                    )
-                else:
-                    hint = (
-                        " Add the extra's dependencies with --extra-dep, map"
-                        f" '{extras_name}' to a conda equivalent with a"
-                        " dependency rename rule, or use the --resolve-extras"
-                        " option to resolve them from pypi metadata."
-                    )
-                self._warn(
-                    "Dropping extras [%s] from dependency '%s': conda"
-                    " packages cannot express extras.%s",
-                    ",".join(dropped_extras),
-                    entry,
-                    hint,
-                )
+            conda_name = self._translate_dependency_name(
+                entry, version, queue, resolved_extras, conda_dependencies
+            )
+            if conda_name is None:
+                continue
 
             if conda_name:
                 conda_dep = f"{conda_name} {version}"
@@ -1177,6 +1131,128 @@ class Wheel2CondaConverter:
             self._debug("Dependency added:  '%s'", dep)
             conda_dependencies.append(dep)
         return conda_dependencies
+
+    def _translate_dependency_name(
+        self,
+        entry: RequiresDistEntry,
+        version: str,
+        queue: deque[RequiresDistEntry],
+        resolved_extras: set[tuple[str, str]],
+        conda_dependencies: list[str],
+    ) -> str | None:
+        """Resolve the conda package name for one dependency entry.
+
+        Applies, in order of precedence: manual rename rules matched
+        against the bracketed `name[extra,...]` form, the known extras
+        table (when `use_known_extras`, appending replacements directly
+        to `conda_dependencies`), pypi extras resolution (when
+        `resolve_extras`, appending the extras' entries to `queue`),
+        manual rename rules against the bare name, and the standard
+        rename table. Extras that remain unhandled are dropped with a
+        warning naming the available remedies.
+
+        Returns:
+            The conda package name, `""` to drop the dependency
+            entirely (from an explicit drop rule), or None when extras
+            handling fully replaced the entry.
+        """
+        pip_name = entry.name
+        conda_name = pip_name
+
+        # check manual renames first
+        renamed = False
+        dropped_extras = list(entry.extras)
+        extras_name = pip_name
+        if entry.extras:
+            # a rule matching the bracketed name[extra,...] form maps
+            # the dependency with its extras to a conda equivalent,
+            # e.g. 'dask[complete]' -> 'dask' (#217)
+            extras_name = f"{pip_name}[{','.join(entry.extras)}]"
+            for renamer in self.dependency_rename:
+                conda_name, renamed = renamer.rename(extras_name)
+                if renamed:
+                    dropped_extras = []
+                    break
+
+        # extras with known corresponding conda packages (#217)
+        known_extras: dict[str, str] = {}
+        if dropped_extras:
+            known = load_known_extras().get(normalize_pypi_name(pip_name), {})
+            known_extras = {
+                extra: known[normalize_pypi_name(extra)]
+                for extra in dropped_extras
+                if normalize_pypi_name(extra) in known
+            }
+        if known_extras and self.use_known_extras:
+            dropped_extras = [
+                extra for extra in dropped_extras if extra not in known_extras
+            ]
+            for mapped in dict.fromkeys(known_extras.values()):
+                conda_dep = f"{mapped} {version}"
+                self._info(
+                    "Replaced extras dependency: '%s' -> '%s'",
+                    entry,
+                    conda_dep,
+                )
+                conda_dependencies.append(conda_dep)
+            known_extras = {}
+            if not dropped_extras:
+                # the mapped conda packages subsume the base package
+                return None
+
+        # resolve remaining extras from pypi metadata (#36)
+        if dropped_extras and self.resolve_extras and not renamed:
+            remaining: list[str] = []
+            for extra in dropped_extras:
+                key = (
+                    normalize_pypi_name(pip_name),
+                    normalize_pypi_name(extra),
+                )
+                if key in resolved_extras:
+                    continue  # already expanded (or cyclic)
+                resolved_extras.add(key)
+                expansion = self._resolve_extra(pip_name, entry.version, extra)
+                if expansion is None:
+                    remaining.append(extra)
+                else:
+                    queue.extend(expansion)
+            dropped_extras = remaining
+            known_extras = {}
+
+        if not renamed:
+            conda_name = pip_name
+            for renamer in self.dependency_rename:
+                conda_name, renamed = renamer.rename(pip_name)
+                if renamed:
+                    break
+        if not renamed:
+            conda_name = self.std_renames.get(normalize_pypi_name(pip_name), pip_name)
+
+        if conda_name and dropped_extras:
+            if known_extras:
+                known_names = ", ".join(
+                    f"'{conda_pkg}' for [{extra}]"
+                    for extra, conda_pkg in known_extras.items()
+                )
+                hint = (
+                    f" Note: conda-forge provides {known_names}; use the"
+                    " --known-extras option to apply this automatically."
+                )
+            else:
+                hint = (
+                    " Add the extra's dependencies with --extra-dep, map"
+                    f" '{extras_name}' to a conda equivalent with a"
+                    " dependency rename rule, or use the --resolve-extras"
+                    " option to resolve them from pypi metadata."
+                )
+            self._warn(
+                "Dropping extras [%s] from dependency '%s': conda"
+                " packages cannot express extras.%s",
+                ",".join(dropped_extras),
+                entry,
+                hint,
+            )
+        return conda_name
 
     def _resolve_extra(
         self,
@@ -1201,7 +1277,7 @@ class Wheel2CondaConverter:
             data = self._get_pypi_metadata(package, version_spec)
             info = data.get("info") or {}
             requires_dist = info.get("requires_dist") or []
-        except Exception as ex:  # pylint: disable=broad-exception-caught
+        except Exception as ex:
             self._warn("Cannot fetch pypi metadata for '%s': %s", package, ex)
             return None
 
@@ -1342,8 +1418,6 @@ class Wheel2CondaConverter:
 
         return result
 
-    # Known package prefixes that are unlikely to work as binary conversions
-    # due to bundled GPU libraries, complex runtime dependencies, etc.
     # directories used by wheel repair tools (auditwheel, delocate,
     # delvewheel) to vendor shared libraries into the wheel
     _VENDORED_LIB_DIR_RE = re.compile(r"(?:^|/)(?P<dir>[^/]+\.libs|\.dylibs)/")
@@ -1371,7 +1445,7 @@ class Wheel2CondaConverter:
             )
 
     def _check_binary_conversion(self, wheel_md: MetadataFromWheel) -> None:
-        """Check for conditions that make binary conversion unlikely to succeed.
+        """Check that binary conversion of this wheel is supported.
 
         Raises:
             Wheel2CondaError: if conversion is blocked due to known-bad patterns
@@ -1388,7 +1462,17 @@ class Wheel2CondaConverter:
                 f"to work correctly as conda packages. Use conda-forge packages instead."
             )
 
-    def _copy_wheel_files(self, wheel_dir: Path, conda_dir: Path) -> None:
+    #
+    # file copying
+    #
+
+    def _copy_wheel_files(
+        self,
+        wheel_dir: Path,
+        conda_dir: Path,
+        wheel_md: MetadataFromWheel,
+        conda_target: CondaTargetInfo,
+    ) -> None:
         """
         Copies files from wheels to corresponding location in conda package:
 
@@ -1407,8 +1491,7 @@ class Wheel2CondaConverter:
         Platform-specific abi3 packages use the noarch layout, since they
         are installed using the noarch python machinery (CEP-20).
         """
-        assert self.conda_target is not None
-        target = self.conda_target
+        target = conda_target
 
         conda_site_packages = conda_dir.joinpath(target.site_packages_prefix)
         conda_site_packages.mkdir(parents=True)
@@ -1451,8 +1534,7 @@ class Wheel2CondaConverter:
                         continue
                     shutil.copytree(datapath, data_dest, dirs_exist_ok=True)
 
-        assert self.wheel_md is not None
-        dist_info_dir = conda_site_packages / self.wheel_md.wheel_info_dir.name
+        dist_info_dir = conda_site_packages / wheel_md.wheel_info_dir.name
         installer_file = dist_info_dir / "INSTALLER"
         installer_file.write_text("whl2conda", encoding="utf8")
         requested_file = dist_info_dir / "REQUESTED"
@@ -1490,6 +1572,10 @@ class Wheel2CondaConverter:
                         shutil.copyfile(from_file, to_file)
                         break
 
+    #
+    # wheel metadata parsing
+    #
+
     def _parse_wheel_metadata(self, wheel_dir: Path) -> MetadataFromWheel:
         """Parse all metadata from an extracted wheel directory."""
         wheel_info_dir = next(wheel_dir.glob("*.dist-info"))
@@ -1499,16 +1585,10 @@ class Wheel2CondaConverter:
         md, requires = self._parse_dist_metadata(wheel_info_dir)
 
         package_name = self.package_name or str(md.get("name"))
-        # Conda package names are lowercase with hyphens
-        package_name = re.sub(r"[-_.]+", "-", package_name).lower()
+        # conda package names use the PEP 503 normalized form
+        package_name = normalize_pypi_name(package_name)
         self.package_name = package_name
         version = md.get("version")
-
-        # RECORD_file = wheel_info_dir / "RECORD"
-        # TODO: strip __pycache__ entries from RECORD
-        # TODO: add INSTALLER and REQUESTED to RECORD
-        # TODO: add direct_url to wheel and to RECORD
-        # RECORD line format: <path>,sha256=<hash>,<len>
 
         python_version: str = str(md.get("requires-python", ""))
         if python_version:
@@ -1661,10 +1741,12 @@ class Wheel2CondaConverter:
     def _parse_dist_metadata(
         self, wheel_info_dir: Path
     ) -> tuple[dict[str, Any], list[RequiresDistEntry]]:
-        """Parse the METADATA file and optionally rewrite pip dependencies.
+        """Parse the METADATA file from the extracted wheel.
 
         Returns:
-            Tuple of (metadata_dict, requires_list)
+            Tuple of (metadata_dict, requires_list). The keys of the
+            metadata dict are always lowercase; multi-use keys hold
+            lists of values.
         """
         wheel_md_file = wheel_info_dir.joinpath("METADATA")
         md: dict[str, str | list[Any]] = {}
@@ -1674,14 +1756,13 @@ class Wheel2CondaConverter:
         md_version_str = md_msg.get("Metadata-Version")
         if md_version_str not in self.SUPPORTED_METADATA_VERSIONS:
             msg = f"Wheel {self.wheel_path} has unsupported metadata version {md_version_str}"
-            # TODO - perhaps just warn about this if not in "strict" mode
+            # TODO - perhaps only warn when not in strict mode (#224)
             raise Wheel2CondaError(msg)
+        # NOTE: md keys are stored lowercase; MULTI_USE_METADATA_KEYS
+        # holds the original-case spellings from the metadata spec
         for mdkey, mdval in md_msg.items():
             mdkey = mdkey.strip()
             if mdkey in self.MULTI_USE_METADATA_KEYS:
-                if curmdval := md.get(mdkey):
-                    if isinstance(curmdval, str):
-                        md[mdkey] = [curmdval]
                 md.setdefault(mdkey.lower(), []).append(mdval)  # type: ignore
             else:
                 md[mdkey.lower()] = mdval
@@ -1693,21 +1774,36 @@ class Wheel2CondaConverter:
                 entry = RequiresDistEntry.parse(raw_entry)
                 requires.append(entry)
             except SyntaxError as err:
-                # TODO: error in strict mode?
+                # TODO - error in strict mode (#224)
                 self._warn(str(err))
 
         if not self.keep_pip_dependencies:
-            # Turn requirements into optional extra requirements
-            del md_msg["Requires"]
-            del md_msg["Requires-Dist"]
-            for entry in requires:
-                if not entry.extra_marker_name:
-                    entry = entry.with_extra('original')
-                md_msg.add_header("Requires-Dist", str(entry))
-            md_msg.add_header("Provides-Extra", "original")
-            wheel_md_file.write_text(md_msg.as_string(), encoding="utf8")
+            self._hide_pip_dependencies(wheel_md_file, md_msg, requires)
 
         return md, requires
+
+    def _hide_pip_dependencies(
+        self,
+        wheel_md_file: Path,
+        md_msg: email.message.Message,
+        requires: Sequence[RequiresDistEntry],
+    ) -> None:
+        """Rewrite METADATA in the extracted wheel to hide pip dependencies.
+
+        Turns the regular requirements into optional `original` extra
+        requirements so that pip tooling in the target environment does
+        not try to check or reinstall them (the conda package metadata
+        carries the real dependencies). The rewritten file is what
+        `_copy_wheel_files` later copies into the package.
+        """
+        del md_msg["Requires"]
+        del md_msg["Requires-Dist"]
+        for entry in requires:
+            if not entry.extra_marker_name:
+                entry = entry.with_extra("original")
+            md_msg.add_header("Requires-Dist", str(entry))
+        md_msg.add_header("Provides-Extra", "original")
+        wheel_md_file.write_text(md_msg.as_string(), encoding="utf8")
 
     def translate_version_spec(self, pip_version: str) -> str:
         """
@@ -1745,7 +1841,7 @@ class Wheel2CondaConverter:
                         v += f",=={'.'.join(rv_parts[:-1])}.*"
                 elif operator == "===":
                     operator = "=="
-                    # TODO perhaps treat as an error in "strict" mode
+                    # TODO - error in strict mode (#224)
                     self._warn(
                         "Converted arbitrary equality clause %s to ==%s - may not match!",
                         spec,

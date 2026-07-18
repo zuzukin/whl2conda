@@ -41,6 +41,14 @@ class PackageValidator:
     """
     Conda package validator.
 
+    Validates a generated conda package against the wheel it was
+    converted from. This class deliberately re-derives the expected
+    package contents from the wheel metadata itself — mirroring (not
+    reusing) the converter's own logic — so that it serves as an
+    independent oracle: a bug in the converter cannot silently
+    propagate into the expectations. When converter behavior changes,
+    the corresponding logic here must be updated to agree.
+
     You can either call the `validate` method or call
     this object as a function.
     """
@@ -120,7 +128,9 @@ class PackageValidator:
 
         self._validate_unpacked()
 
-    # pylint: disable=too-many-locals
+    # allow the validator object to be used as a function
+    __call__ = validate
+
     @classmethod
     def _parse_wheel_metadata(cls, wheel_dir: Path) -> dict[str, Any]:
         dist_info_dir = next(wheel_dir.glob("*.dist-info"))
@@ -190,11 +200,10 @@ class PackageValidator:
         self._validate_file_copy()
         self._validate_hash_input(info_dir)
 
-        # TODO - validate *.data/ files
+        # TODO - validate *.data/ files (#227)
 
         self._validate_dist_info()
 
-    # pylint: disable=too-many-locals,too-many-branches
     def _validate_about(self, info_dir: Path) -> None:
         about_file = info_dir.joinpath("about.json")
         assert about_file.is_file()
@@ -251,7 +260,7 @@ class PackageValidator:
 
         for key in ["author", "maintainer"]:
             assert extra.get(key) == md.get(key)
-        # TODO : check author-email, maintainer-email
+        # TODO - check author-email, maintainer-email (#227)
 
     def _validate_dist_info(self) -> None:
         site_packages = self._unpacked_conda / self._site_packages_prefix
@@ -572,8 +581,6 @@ class PackageValidator:
             #  specify the same file path with different contents, but in practice we do not
             #  expect that to ever happen.
             assert wheel_file.read_bytes() == conda_file.read_bytes()
-
-    __call__ = validate
 
 
 @pytest.fixture
