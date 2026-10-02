@@ -46,6 +46,8 @@ from whl2conda.api.compare import (
     CompareOptions,
     ComparisonResult,
     DiffCategory,
+    Difference,
+    Severity,
     compare_conda_packages,
 )
 from whl2conda.api.converter import Wheel2CondaConverter
@@ -58,6 +60,7 @@ from .compare_support import (
     _select_conda_build,
     _wheel_is_abi3,
     find_common_version,
+    ignore_paths,
 )
 
 _PY_MAJOR, _PY_MINOR = sys.version_info[:2]
@@ -110,6 +113,28 @@ def test_select_conda_build() -> None:
     assert select(freethreaded, exact, abi3, abi3=True) is abi3
     assert select(freethreaded, exact, abi3_too_new, abi3=True) is exact
     assert select(freethreaded, other_py, abi3_too_new, abi3=True) is None
+
+
+def test_ignore_paths() -> None:
+    """Unit test for ignore_paths"""
+
+    def diff(key: str, severity: Severity = Severity.ERROR) -> Difference:
+        return Difference(DiffCategory.FILE_EXTRA, severity, key, "")
+
+    result = ComparisonResult(
+        Path("a.conda"),
+        Path("b.conda"),
+        [diff("site-packages/foo/__init__.py"), diff("site-packages/bar.py")],
+    )
+    ignore_paths(result, ())
+    assert len(result.errors) == 2
+
+    ignore_paths(result, ("site-packages/foo/*",))
+    assert [d.key for d in result.errors] == ["site-packages/bar.py"]
+    assert result.differences[0].severity == Severity.EXPECTED
+
+    ignore_paths(result, ("*/bar.py",))
+    assert result.ok
 
 
 @dataclass

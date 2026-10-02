@@ -21,15 +21,18 @@ binary wheel on PyPI and a matching conda-forge build.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 import sys
 import urllib.request
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from typing import NamedTuple
 
 from packaging.version import InvalidVersion, Version
 
+from whl2conda.api.compare import ComparisonResult, Severity
 from whl2conda.api.stdrename import load_std_renames
 from whl2conda.impl.conda_forge import (
     CondaForgeBuild,
@@ -43,6 +46,7 @@ __all__ = [
     "ComparisonPackage",
     "NoCommonVersion",
     "find_common_version",
+    "ignore_paths",
 ]
 
 
@@ -69,6 +73,9 @@ class ComparisonPackage:
     ignore: tuple[str, ...] = ()
     """Difference categories to ignore for this package."""
 
+    ignore_paths: tuple[str, ...] = ()
+    """Glob patterns for difference keys (e.g. file paths) to ignore."""
+
     notes: str = ""
 
     def resolve_conda_name(self) -> str:
@@ -84,7 +91,13 @@ class ComparisonPackage:
 COMPARISON_PACKAGES: tuple[ComparisonPackage, ...] = (
     ComparisonPackage("markupsafe", "c-ext"),
     ComparisonPackage("wrapt", "c-ext"),
-    ComparisonPackage("ujson", "c-ext"),
+    ComparisonPackage(
+        "ujson",
+        "c-ext",
+        ignore_paths=("site-packages/ujson-stubs/__init__.py",),
+        notes="the win_amd64 wheels ship a ujson-stubs/__init__.py"
+        " that is not in the sdist-based conda-forge build",
+    ),
     ComparisonPackage(
         "psutil",
         "c-ext",
@@ -118,6 +131,18 @@ COMPARISON_PACKAGES: tuple[ComparisonPackage, ...] = (
         xfail_reason="bundles image libraries; conda-forge links shared libs",
     ),
 )
+
+
+def ignore_paths(result: ComparisonResult, patterns: tuple[str, ...]) -> None:
+    """Demote differences whose key matches a pattern to EXPECTED."""
+    if not patterns:
+        return
+    result.differences = [
+        dataclasses.replace(d, severity=Severity.EXPECTED)
+        if any(fnmatchcase(d.key, pattern) for pattern in patterns)
+        else d
+        for d in result.differences
+    ]
 
 
 class PyPIWheel(NamedTuple):
