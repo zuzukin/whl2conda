@@ -49,6 +49,8 @@ class CondaForgeBuild:
     subdir: str
     filename: str
     url: str
+    depends: tuple[str, ...] = ()
+    """Run dependency specs of the build, e.g. `python_abi 3.12.* *_cp312`."""
 
 
 def query_conda_forge_builds(
@@ -91,6 +93,7 @@ def query_conda_forge_builds(
                 subdir=subdir,
                 filename=basename.rpartition("/")[2],
                 url=download_url,
+                depends=tuple(str(dep) for dep in attrs.get("depends", ())),
             )
         )
     return builds

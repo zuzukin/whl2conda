@@ -200,21 +200,58 @@ def _pypi_wheels(pypi_name: str, subdir: str, timeout: float) -> dict[str, PyPIW
     return result
 
 
-def _select_conda_build(
-    builds: list[CondaForgeBuild], version: str, subdir: str
-) -> CondaForgeBuild | None:
-    """Best conda-forge build of the given version for the subdir."""
-    candidates = [b for b in builds if b.version == version and b.subdir == subdir]
-    if not candidates:
+def _wheel_is_abi3(filename: str) -> bool:
+    """True if the wheel targets the stable ABI."""
+    m = _WHEEL_FNAME_RE.fullmatch(filename)
+    return m is not None and "abi3" in m.group("abi").split(".")
+
+
+def _dep_spec(build: CondaForgeBuild, name: str) -> str | None:
+    """Version/build part of the build's dependency on `name`, if any."""
+    for dep in build.depends:
+        dep_name, _, spec = dep.partition(" ")
+        if dep_name == name:
+            return spec
+    return None
+
+
+def _python_abi_tag(build: CondaForgeBuild) -> str | None:
+    """The python_abi build tag of a build, e.g. `cp312` or `cp314t`."""
+    spec = _dep_spec(build, "python_abi")
+    if spec is None:
         return None
-    # prefer a build for the running python version (non-abi3 packages
-    # have per-python builds); fall back to the highest build number,
-    # which covers abi3/python-version-independent builds
-    py_tag = "py{}{}".format(*sys.version_info[:2])
-    py_matches = [b for b in candidates if py_tag in b.build]
-    if py_matches:
-        candidates = py_matches
-    return max(candidates, key=lambda b: b.build_number)
+    return spec.rpartition("_")[2] or None
+
+
+def _is_compatible_abi3_build(build: CondaForgeBuild) -> bool:
+    """True for a CEP-20 abi3 build installable on the running python."""
+    if _dep_spec(build, "_python_abi3_support") is None:
+        return False
+    cpython = _dep_spec(build, "cpython") or ""
+    if m := re.search(r">=\s*(\d+)\.(\d+)", cpython):
+        return (int(m.group(1)), int(m.group(2))) <= sys.version_info[:2]
+    return True
+
+
+def _select_conda_build(
+    builds: list[CondaForgeBuild], version: str, subdir: str, *, abi3: bool = False
+) -> CondaForgeBuild | None:
+    """Best conda-forge build of the given version for the subdir.
+
+    Only builds for the running python are considered: for regular wheels
+    the build's python_abi must match the running (non-free-threaded)
+    interpreter exactly. For abi3 wheels, CEP-20 abi3 builds installable
+    on the running python are preferred, falling back to an exact
+    python_abi match for packages built per python version.
+    """
+    candidates = [b for b in builds if b.version == version and b.subdir == subdir]
+    py_abi = "cp{}{}".format(*sys.version_info[:2])
+    matches = [b for b in candidates if _python_abi_tag(b) == py_abi]
+    if abi3:
+        matches = [b for b in candidates if _is_compatible_abi3_build(b)] or matches
+    if not matches:
+        return None
+    return max(matches, key=lambda b: (b.build_number, b.filename))
 
 
 def find_common_version(
@@ -255,11 +292,16 @@ def find_common_version(
 
     for version in versions:
         wheel = wheels.get(version)
-        conda_build = _select_conda_build(builds, version, subdir)
-        if wheel and conda_build:
+        if not wheel:
+            continue
+        conda_build = _select_conda_build(
+            builds, version, subdir, abi3=_wheel_is_abi3(wheel.filename)
+        )
+        if conda_build:
             return CommonVersion(version, wheel, conda_build)
 
     raise NoCommonVersion(
         f"no common {entry.pypi_name}/{conda_name} version with a"
         f" compatible wheel and a conda-forge build for {subdir}"
+        " and python {}.{}".format(*sys.version_info[:2])
     )

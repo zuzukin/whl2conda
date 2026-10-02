@@ -95,9 +95,21 @@ mkdocstrings-python-xref = ">=2.1.0"
 # (it builds via zensical, not mkdocs); it is not on PyPI.
 mike = { git = "https://github.com/squidfunk/mike.git" }
 
-# Single default environment that combines all features
+# conda-forge comparison suite: needs a python that conda-forge still builds
+# packages for, since references must match the running python's ABI
+[tool.pixi.feature.compare.dependencies]
+pip = ">=23.2.1"
+python = "3.13.*"
+
+[tool.pixi.feature.compare.tasks.compare-conda-forge]
+cmd = "pytest -s test/api/test_compare_conda_forge.py --run-external --run-slow"
+depends-on = [{ task = "dev-install", environment = "compare" }]
+description = "Compare binary wheel conversions against real conda-forge packages (network)"
+
+# Default environment combines all general features
 [tool.pixi.environments]
 default = ["build", "test", "docs"]
+compare = ["build", "test", "compare"]
 
 # Development environment setup
 [tool.pixi.tasks.dev-install]
@@ -106,7 +118,7 @@ description = "Install the package in development mode"
 inputs = ["pyproject.toml", "src/**/*.py"]
 
 [tool.pixi.tasks.install]
-depends-on = ["dev-install"]
+depends-on = [{ task = "dev-install", environment = "compare" }]
 description = "Set up the complete development environment"
 
 # Testing tasks
@@ -155,10 +167,6 @@ cmd = "pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term --run-e
 description = "Run tests with coverage including external tests"
 inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
 outputs = ["coverage.json", ".coverage"]
-
-[tool.pixi.tasks.compare-conda-forge]
-cmd = "pytest -s test/api/test_compare_conda_forge.py --run-external --run-slow"
-description = "Compare binary wheel conversions against real conda-forge packages (network)"
 
 # Platform-specific tasks for external coverage that include conda in PATH
 [tool.pixi.tasks.external-coverage-win]
