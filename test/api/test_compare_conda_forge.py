@@ -264,6 +264,7 @@ def test_compare_with_conda_forge(
         extra_run_exports=set(entry.extra_run_exports),
     )
     result = compare_conda_packages(converted, conda_file, options=options)
+    ignore_paths(result, entry.ignore_paths)
     status = "ok" if result.ok else "unexpected-differences"
     compare_report.add(entry, status=status, version=common.version, result=result)
 
