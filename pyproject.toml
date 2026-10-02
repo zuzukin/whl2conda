@@ -50,6 +50,10 @@ platforms = ["win-64", "linux-64", "osx-arm64"]
 
 [tool.pixi.dependencies]
 python = ">=3.10,<3.15"
+
+# Runtime dependencies, in a feature so that environments with their own
+# python pin (and no default feature) can share them.
+[tool.pixi.feature.runtime.dependencies]
 # Use "*" to reference project dependencies without duplicating version specs
 conda-package-handling = "*"
 packaging = "*"
@@ -96,20 +100,24 @@ mkdocstrings-python-xref = ">=2.1.0"
 mike = { git = "https://github.com/squidfunk/mike.git" }
 
 # conda-forge comparison suite: needs a python that conda-forge still builds
-# packages for, since references must match the running python's ABI
+# packages for, since references must match the running python's ABI.
+# The compare environment excludes the default feature so that CI's
+# `pixi add python=...` override does not conflict with this pin.
 [tool.pixi.feature.compare.dependencies]
 pip = ">=23.2.1"
 python = "3.13.*"
 
 [tool.pixi.feature.compare.tasks.compare-conda-forge]
-cmd = "pytest -s test/api/test_compare_conda_forge.py --run-external --run-slow"
-depends-on = [{ task = "dev-install", environment = "compare" }]
+cmd = """
+pip install -e . --no-deps --no-build-isolation
+pytest -s test/api/test_compare_conda_forge.py --run-external --run-slow
+"""
 description = "Compare binary wheel conversions against real conda-forge packages (network)"
 
 # Default environment combines all general features
 [tool.pixi.environments]
-default = ["build", "test", "docs"]
-compare = ["build", "test", "compare"]
+default = ["runtime", "build", "test", "docs"]
+compare = { features = ["runtime", "build", "test", "compare"], no-default-feature = true }
 
 # Development environment setup
 [tool.pixi.tasks.dev-install]
