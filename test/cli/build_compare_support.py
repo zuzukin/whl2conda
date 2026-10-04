@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """
-Support for the real-world `whl2conda build` comparison test suite.
+Support for the external `whl2conda build` comparison test suite.
 
 Provides the manifest of open-source projects whose conda-forge
 feedstock recipes are built with `whl2conda build`, and the logic for
@@ -50,7 +50,7 @@ BuildCategory = Literal["c-ext", "c++", "cython"]
 
 @dataclass(frozen=True)
 class BuildProject:
-    """A project in the real-world build comparison manifest."""
+    """A project in the external build comparison manifest."""
 
     feedstock: str
     """Feedstock name: the recipe comes from conda-forge/<feedstock>-feedstock."""

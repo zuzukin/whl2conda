@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """
-Real-world test suite building conda-forge feedstock recipes.
+External build test suite building conda-forge feedstock recipes.
 
 For each project in the manifest, this downloads the project's
 conda-forge feedstock recipe and source, builds the package with
@@ -88,7 +88,7 @@ def _select_reference(
     return select_conda_build(builds, version, subdir, abi3="_abi3_" in pkg.name)
 
 
-@pytest.mark.realworld
+@pytest.mark.external_build
 @pytest.mark.parametrize("project", BUILD_PROJECTS, ids=lambda p: p.feedstock)
 def test_build_conda_forge_feedstock(
     project: BuildProject,

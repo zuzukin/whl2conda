@@ -1,4 +1,4 @@
-# Runs the real-world build comparison suite: builds a sample of
+# Runs the external build comparison suite: builds a sample of
 # conda-forge feedstock recipes with `whl2conda build` using the runner's
 # toolchain and semantically compares the results against the
 # corresponding conda-forge packages (see doc/guide/building.md).

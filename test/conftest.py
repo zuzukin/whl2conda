@@ -45,10 +45,10 @@ def pytest_addoption(parser):
         "--run-slow", action="store_true", default=False, help="run slow tests"
     )
     parser.addoption(
-        "--run-realworld",
+        "--run-external-build",
         action="store_true",
         default=False,
-        help="run real-world tests that build external projects",
+        help="run tests that build external projects",
     )
 
 
@@ -62,14 +62,14 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "slow: mark test as slow to run")
     config.addinivalue_line(
         "markers",
-        "realworld: mark test as building a real external project (on demand only)",
+        "external_build: mark test as building an external project (on demand only)",
     )
 
 
 def pytest_collection_modifyitems(config, items):
     """
-    Skip external/slow/realworld tests unless the corresponding
-    --run-external/--run-slow/--run-realworld option is given
+    Skip external/slow/external_build tests unless the corresponding
+    --run-external/--run-slow/--run-external-build option is given
     """
     if not config.getoption("--run-external"):
         # --run-external not given in cli
@@ -85,11 +85,13 @@ def pytest_collection_modifyitems(config, items):
             if "slow" in item.keywords:
                 item.add_marker(skip_slow)
 
-    if not config.getoption("--run-realworld"):
-        skip_realworld = pytest.mark.skip(reason="need --run-realworld option to run")
+    if not config.getoption("--run-external-build"):
+        skip_external_build = pytest.mark.skip(
+            reason="need --run-external-build option to run"
+        )
         for item in items:
-            if "realworld" in item.keywords:
-                item.add_marker(skip_realworld)
+            if "external_build" in item.keywords:
+                item.add_marker(skip_external_build)
 
 
 # Shared session-scoped wheel/package fixtures, made available to the

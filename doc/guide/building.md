@@ -60,7 +60,7 @@ cannot be predicted before the wheel is built.
 
 ### Validation against conda-forge
 
-The whl2conda test suite includes a real-world suite that builds a
+The whl2conda test suite includes an external build suite that builds a
 sample of conda-forge feedstock recipes for binary packages with
 `whl2conda build`, using the local toolchain, and semantically compares
 each result against the real conda-forge package of the same version

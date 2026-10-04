@@ -106,7 +106,7 @@ mike = { git = "https://github.com/squidfunk/mike.git" }
 [tool.pixi.feature.compare.dependencies]
 pip = ">=23.2.1"
 python = "3.13.*"
-# common build backends for the real-world build suite: feedstock build
+# common build backends for the external build suite: feedstock build
 # scripts typically use --no-build-isolation, and there is no host environment
 cython = ">=3.1"
 setuptools = ">=77"
@@ -122,7 +122,7 @@ description = "Compare binary wheel conversions against real conda-forge package
 [tool.pixi.feature.compare.tasks.build-compare]
 cmd = """
 pip install -e . --no-deps --no-build-isolation
-pytest -s test/cli/test_build_conda_forge.py --run-realworld
+pytest -s test/cli/test_build_conda_forge.py --run-external-build
 """
 description = "Build real conda-forge feedstock recipes and compare against conda-forge packages (network, on demand)"
 
