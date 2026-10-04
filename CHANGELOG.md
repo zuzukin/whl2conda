@@ -16,6 +16,10 @@
   which is required by recipes using variant-dependent expressions
   such as `stdlib('c')`; the unresolved `${{ PYTHON }}` template in
   rendered v1 build scripts is now handled. (#216)
+* New `whl2conda build --build-isolation` option removes
+  `--no-build-isolation` from the recipe's pip command, so that pip
+  installs the project's build requirements itself rather than
+  requiring them in the current environment.
 * When a recipe renders to a variant per python version, `whl2conda
   build` now uses the variant for the python that builds the wheel
   instead of rejecting v1 recipes or using the first variant of

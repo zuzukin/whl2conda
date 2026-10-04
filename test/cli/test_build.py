@@ -799,6 +799,38 @@ def test_build_e2e_binary_with_tests(tmp_path: Path, recipe_name: str) -> None:
     assert list((out_folder / native_conda_subdir()).glob("hello-ext-1.0.0-*.conda"))
 
 
+def test_build_isolation(
+    fake_build: tuple[FakeBuild, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--build-isolation removes --no-build-isolation from the pip command"""
+    fake, recipe_dir = fake_build
+    fake.rendered_raw = dict(
+        RENDERED_RAW,
+        build={
+            "noarch": "python",
+            "script": "pip install . --no-deps --no-build-isolation",
+        },
+    )
+    scripts: list[list[str]] = []
+
+    def fake_build_wheel(builder: CondaBuild, dist_dir: Path, source_root: Path):
+        scripts.append(builder.build_script)
+        wheel = dist_dir / "simple-1.2.3-py3-none-any.whl"
+        wheel.write_bytes(b"")
+        return wheel
+
+    monkeypatch.setattr(CondaBuild, "_build_wheel", fake_build_wheel)
+
+    main(["build", str(recipe_dir), "--no-test"])
+    main(["build", str(recipe_dir), "--no-test", "--build-isolation"])
+    assert [script[0].endswith("--no-build-isolation") for script in scripts] == [
+        True,
+        False,
+    ]
+    assert scripts[1][0].endswith("--no-deps")
+
+
 def test_build_run_requirements(fake_build: tuple[FakeBuild, Path]) -> None:
     """Recipe run requirements become dependencies of the package"""
     fake, recipe_dir = fake_build

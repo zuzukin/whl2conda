@@ -122,8 +122,17 @@ dropped into existing scripts:
 
 There are also a few whl2conda extensions: `--check` (validate the
 recipe without building), `--extra-deps` (additional conda
-dependencies), and `--keep-test-env` (keep the test environment for
-debugging).
+dependencies), `--keep-test-env` (keep the test environment for
+debugging), and `--build-isolation`.
+
+Recipes usually pass `--no-build-isolation` to pip, because the
+project's build requirements are installed in the recipe's host
+environment. Since whl2conda does not create that environment, the
+build requirements must instead be installed in the environment that
+`whl2conda build` is run from. Alternatively, the `--build-isolation`
+option removes `--no-build-isolation` from the pip command, so that pip
+downloads and installs the build requirements declared by the project
+into an isolated build environment.
 
 ## Evaluating whl2conda against your recipe
 

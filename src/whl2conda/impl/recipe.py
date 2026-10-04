@@ -289,6 +289,9 @@ _PIP_INSTALL_ONLY_RE = re.compile(
 )
 
 
+_NO_BUILD_ISOLATION_RE = re.compile(r"(?<!\S)--no-build-isolation(?!\S)\s*")
+
+
 def recipe_source_root(rendered: RenderedRecipe, work_dir: Path) -> Path:
     """Directory containing the project source for a rendered recipe.
 
@@ -312,7 +315,9 @@ def recipe_source_root(rendered: RenderedRecipe, work_dir: Path) -> Path:
     return Path.cwd()
 
 
-def rewrite_build_script(recipe: RenderedRecipe, dist_dir: Path) -> list[str]:
+def rewrite_build_script(
+    recipe: RenderedRecipe, dist_dir: Path, *, build_isolation: bool = False
+) -> list[str]:
     """Rewrite the recipe build script to build a wheel.
 
     Rewrites the (single) `pip install .` or `pip wheel .` line in the
@@ -323,6 +328,10 @@ def rewrite_build_script(recipe: RenderedRecipe, dist_dir: Path) -> list[str]:
     Args:
         recipe: the rendered recipe
         dist_dir: directory into which the wheel should be built
+        build_isolation: remove pip's `--no-build-isolation` option, so
+            that pip installs the project's build requirements into an
+            isolated build environment instead of requiring them to be
+            installed in the current environment
 
     Returns:
         The rewritten script lines.
@@ -337,8 +346,11 @@ def rewrite_build_script(recipe: RenderedRecipe, dist_dir: Path) -> list[str]:
             matched += 1
             post = m.group("post")
             if m.group("cmd").lower() == "install":
-                post = _PIP_INSTALL_ONLY_RE.sub("", post).rstrip()
-                post = post and f" {post.lstrip()}"
+                post = _PIP_INSTALL_ONLY_RE.sub("", post)
+            if build_isolation:
+                post = _NO_BUILD_ISOLATION_RE.sub("", post)
+            post = post.strip()
+            post = post and f" {post}"
             line = f"{m.group('pre')}pip wheel . -w {dist_dir}{post}"
         rewritten.append(line)
     if matched != 1:

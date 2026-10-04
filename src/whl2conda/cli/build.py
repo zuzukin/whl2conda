@@ -100,6 +100,7 @@ class BuildArgs:
     """Parsed arguments for whl2conda build"""
 
     recipe_path: list[Path]
+    build_isolation: bool
     build_only: bool
     channels: list[str]
     check: bool
@@ -384,6 +385,17 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
 
     extension_opts = parser.add_argument_group("whl2conda extensions")
     extension_opts.add_argument(
+        "--build-isolation",
+        action="store_true",
+        help=dedent("""
+            Remove --no-build-isolation from the recipe's pip command,
+            so that pip installs the project's build requirements into
+            an isolated build environment. Otherwise they must already
+            be installed in the current environment, since the recipe's
+            host environment is not created.
+            """),
+    )
+    extension_opts.add_argument(
         "--extra-deps",
         metavar="<conda-dep>",
         action="append",
@@ -511,7 +523,9 @@ class CondaBuild:
 
             dist_dir = self.work_dir / "dist"
             dist_dir.mkdir()
-            self.build_script = rewrite_build_script(rendered, dist_dir)
+            self.build_script = rewrite_build_script(
+                rendered, dist_dir, build_isolation=self.args.build_isolation
+            )
             if self.args.check:
                 logger.info("whl2conda can build the recipe in %s", self.recipe_path)
                 return

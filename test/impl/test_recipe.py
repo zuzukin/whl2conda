@@ -268,6 +268,24 @@ def test_rewrite_build_script(tmp_path: Path) -> None:
     ]:
         assert rewrite_build_script(make_rendered(script), dist) == [expected]
 
+    # build_isolation removes --no-build-isolation
+    for script, expected in [
+        (
+            "pip install . -vv --no-deps --no-build-isolation",
+            f"pip wheel . -w {dist} -vv --no-deps",
+        ),
+        (
+            "pip wheel . --no-build-isolation --no-deps",
+            f"pip wheel . -w {dist} --no-deps",
+        ),
+        ("pip install . --no-build-isolation", f"pip wheel . -w {dist}"),
+        ("pip install . -vv", f"pip wheel . -w {dist} -vv"),
+    ]:
+        rewritten = rewrite_build_script(
+            make_rendered(script), dist, build_isolation=True
+        )
+        assert rewritten == [expected]
+
     # multi-line scripts: only the pip line is rewritten
     rewritten = rewrite_build_script(
         make_rendered(["echo before", "pip install .", "echo after"]), dist
