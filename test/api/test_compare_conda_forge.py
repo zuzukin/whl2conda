@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -45,17 +46,95 @@ from whl2conda.api.compare import (
     CompareOptions,
     ComparisonResult,
     DiffCategory,
+    Difference,
+    Severity,
     compare_conda_packages,
 )
 from whl2conda.api.converter import Wheel2CondaConverter
-from whl2conda.impl.conda_forge import download_conda_forge_package
+from whl2conda.impl.conda_forge import CondaForgeBuild, download_conda_forge_package
 
 from .compare_support import (
     COMPARISON_PACKAGES,
     ComparisonPackage,
     NoCommonVersion,
+    _select_conda_build,
+    _wheel_is_abi3,
     find_common_version,
+    ignore_paths,
 )
+
+_PY_MAJOR, _PY_MINOR = sys.version_info[:2]
+_CP = f"cp{_PY_MAJOR}{_PY_MINOR}"
+_PY_ABI = f"python_abi {_PY_MAJOR}.{_PY_MINOR}.* *_{_CP}"
+
+
+def _build(build: str, *depends: str, build_number: int = 0) -> CondaForgeBuild:
+    return CondaForgeBuild(
+        name="foo",
+        version="1.0",
+        build=build,
+        build_number=build_number,
+        subdir="linux-64",
+        filename=f"foo-1.0-{build}.conda",
+        url="",
+        depends=("python", *depends),
+    )
+
+
+def test_wheel_is_abi3() -> None:
+    """Unit test for _wheel_is_abi3"""
+    assert _wheel_is_abi3("foo-1.0-cp39-abi3-manylinux_2_28_x86_64.whl")
+    assert not _wheel_is_abi3("foo-1.0-cp312-cp312-manylinux_2_28_x86_64.whl")
+    assert not _wheel_is_abi3("not-a-wheel.txt")
+
+
+def test_select_conda_build() -> None:
+    """Unit test for _select_conda_build"""
+    exact = _build("py_exact_0", _PY_ABI)
+    exact2 = _build("py_exact_1", _PY_ABI, build_number=1)
+    freethreaded = _build("py_ft_0", f"{_PY_ABI}t")
+    other_py = _build("py_other_0", "python_abi 2.7.* *_cp27")
+    abi3 = _build("py_abi3_0", "_python_abi3_support 1.*", "cpython >=3.0")
+    abi3_too_new = _build(
+        "py_abi3_new_0", "_python_abi3_support 1.*", "cpython >=3.999"
+    )
+
+    def select(*builds: CondaForgeBuild, abi3: bool = False):
+        return _select_conda_build(list(builds), "1.0", "linux-64", abi3=abi3)
+
+    # regular wheels need an exact, non-free-threaded python match
+    assert select(other_py, freethreaded, exact) is exact
+    assert select(exact, exact2, other_py) is exact2
+    assert select(other_py, freethreaded, abi3) is None
+    assert _select_conda_build([exact], "2.0", "linux-64") is None
+    assert _select_conda_build([exact], "1.0", "osx-arm64") is None
+
+    # abi3 wheels prefer compatible CEP-20 abi3 builds
+    assert select(freethreaded, exact, abi3, abi3=True) is abi3
+    assert select(freethreaded, exact, abi3_too_new, abi3=True) is exact
+    assert select(freethreaded, other_py, abi3_too_new, abi3=True) is None
+
+
+def test_ignore_paths() -> None:
+    """Unit test for ignore_paths"""
+
+    def diff(key: str, severity: Severity = Severity.ERROR) -> Difference:
+        return Difference(DiffCategory.FILE_EXTRA, severity, key, "")
+
+    result = ComparisonResult(
+        Path("a.conda"),
+        Path("b.conda"),
+        [diff("site-packages/foo/__init__.py"), diff("site-packages/bar.py")],
+    )
+    ignore_paths(result, ())
+    assert len(result.errors) == 2
+
+    ignore_paths(result, ("site-packages/foo/*",))
+    assert [d.key for d in result.errors] == ["site-packages/bar.py"]
+    assert result.differences[0].severity == Severity.EXPECTED
+
+    ignore_paths(result, ("*/bar.py",))
+    assert result.ok
 
 
 @dataclass
@@ -185,6 +264,7 @@ def test_compare_with_conda_forge(
         extra_run_exports=set(entry.extra_run_exports),
     )
     result = compare_conda_packages(converted, conda_file, options=options)
+    ignore_paths(result, entry.ignore_paths)
     status = "ok" if result.ok else "unexpected-differences"
     compare_report.add(entry, status=status, version=common.version, result=result)
 

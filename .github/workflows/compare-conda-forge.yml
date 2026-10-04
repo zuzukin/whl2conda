@@ -33,8 +33,7 @@ jobs:
         with:
           pixi-version: v0.69.0
           cache: true
-      - name: Install dependencies
-        run: pixi run dev-install
+          environments: compare
       - name: Run comparison suite
         run: pixi run compare-conda-forge
       - name: Upload comparison report
