@@ -44,6 +44,12 @@ def pytest_addoption(parser):
     parser.addoption(
         "--run-slow", action="store_true", default=False, help="run slow tests"
     )
+    parser.addoption(
+        "--run-realworld",
+        action="store_true",
+        default=False,
+        help="run real-world tests that build external projects",
+    )
 
 
 def pytest_configure(config):
@@ -54,11 +60,16 @@ def pytest_configure(config):
         "markers", "external: mark test as depending on external pypi package to run"
     )
     config.addinivalue_line("markers", "slow: mark test as slow to run")
+    config.addinivalue_line(
+        "markers",
+        "realworld: mark test as building a real external project (on demand only)",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
     """
-    Skip external/slow tests unless --run-external/--run-slow
+    Skip external/slow/realworld tests unless the corresponding
+    --run-external/--run-slow/--run-realworld option is given
     """
     if not config.getoption("--run-external"):
         # --run-external not given in cli
@@ -73,6 +84,12 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "slow" in item.keywords:
                 item.add_marker(skip_slow)
+
+    if not config.getoption("--run-realworld"):
+        skip_realworld = pytest.mark.skip(reason="need --run-realworld option to run")
+        for item in items:
+            if "realworld" in item.keywords:
+                item.add_marker(skip_realworld)
 
 
 # Shared session-scoped wheel/package fixtures, made available to the
