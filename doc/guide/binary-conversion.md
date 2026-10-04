@@ -157,7 +157,10 @@ pixi run compare-conda-forge
 
 This requires network access, downloads packages from PyPI and
 anaconda.org (cached across runs), and writes a summary report to
-`compare-report.md` / `compare-report.json`.
+`compare-report.md` / `compare-report.json`. It runs in a dedicated
+`compare` pixi environment whose python version conda-forge still
+builds for, since each wheel is only compared against a conda-forge
+build for the same python ABI (or a stable-ABI build for abi3 wheels).
 
 To vet your own conversion, compare it against a reference package
 built from a recipe (if one exists) using

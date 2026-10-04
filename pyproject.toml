@@ -50,6 +50,10 @@ platforms = ["win-64", "linux-64", "osx-arm64"]
 
 [tool.pixi.dependencies]
 python = ">=3.10,<3.15"
+
+# Runtime dependencies, in a feature so that environments with their own
+# python pin (and no default feature) can share them.
+[tool.pixi.feature.runtime.dependencies]
 # Use "*" to reference project dependencies without duplicating version specs
 conda-package-handling = "*"
 packaging = "*"
@@ -95,9 +99,25 @@ mkdocstrings-python-xref = ">=2.1.0"
 # (it builds via zensical, not mkdocs); it is not on PyPI.
 mike = { git = "https://github.com/squidfunk/mike.git" }
 
-# Single default environment that combines all features
+# conda-forge comparison suite: needs a python that conda-forge still builds
+# packages for, since references must match the running python's ABI.
+# The compare environment excludes the default feature so that CI's
+# `pixi add python=...` override does not conflict with this pin.
+[tool.pixi.feature.compare.dependencies]
+pip = ">=23.2.1"
+python = "3.13.*"
+
+[tool.pixi.feature.compare.tasks.compare-conda-forge]
+cmd = """
+pip install -e . --no-deps --no-build-isolation
+pytest -s test/api/test_compare_conda_forge.py --run-external --run-slow
+"""
+description = "Compare binary wheel conversions against real conda-forge packages (network)"
+
+# Default environment combines all general features
 [tool.pixi.environments]
-default = ["build", "test", "docs"]
+default = ["runtime", "build", "test", "docs"]
+compare = { features = ["runtime", "build", "test", "compare"], no-default-feature = true }
 
 # Development environment setup
 [tool.pixi.tasks.dev-install]
@@ -106,7 +126,7 @@ description = "Install the package in development mode"
 inputs = ["pyproject.toml", "src/**/*.py"]
 
 [tool.pixi.tasks.install]
-depends-on = ["dev-install"]
+depends-on = [{ task = "dev-install", environment = "compare" }]
 description = "Set up the complete development environment"
 
 # Testing tasks
@@ -155,10 +175,6 @@ cmd = "pytest -s --cov=src/whl2conda --cov-report=json --cov-report=term --run-e
 description = "Run tests with coverage including external tests"
 inputs = ["src/**/*.py", "test/**/*.py", "pyproject.toml"]
 outputs = ["coverage.json", ".coverage"]
-
-[tool.pixi.tasks.compare-conda-forge]
-cmd = "pytest -s test/api/test_compare_conda_forge.py --run-external --run-slow"
-description = "Compare binary wheel conversions against real conda-forge packages (network)"
 
 # Platform-specific tasks for external coverage that include conda in PATH
 [tool.pixi.tasks.external-coverage-win]

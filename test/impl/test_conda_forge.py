@@ -47,6 +47,7 @@ FAKE_FILES = [
             "build": "py312h1234567_2",
             "build_number": 2,
             "subdir": "osx-arm64",
+            "depends": ["python", "python_abi 3.12.* *_cp312"],
         },
     },
 ]
@@ -78,6 +79,7 @@ def test_query_conda_forge_builds(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     assert arm64.subdir == "osx-arm64"
     assert arm64.build_number == 2
+    assert arm64.depends == ("python", "python_abi 3.12.* *_cp312")
     assert arm64.url.startswith("https://example.com/")
 
 
