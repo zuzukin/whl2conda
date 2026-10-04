@@ -15,6 +15,20 @@
   which is required by recipes using variant-dependent expressions
   such as `stdlib('c')`; the unresolved `${{ PYTHON }}` template in
   rendered v1 build scripts is now handled. (#216)
+* When a recipe renders to a variant per python version, `whl2conda
+  build` now uses the variant for the python that builds the wheel
+  instead of rejecting v1 recipes or using the first variant of
+  classic recipes. Variant files in the directory of a v1 recipe are
+  now also loaded when rendering with py-rattler-build.
+
+### Bug fixes
+
+* `whl2conda build` no longer fails on recipe build scripts that
+  invoke pip through `{{ PYTHON }}` in classic recipes, `%PYTHON%`,
+  or `${PYTHON}`.
+* `whl2conda install` no longer corrupts dependencies that have a
+  build string (e.g. `python_abi 3.12.* *_cp312`), which prevented
+  installing and testing binary packages.
 
 ### Development
 

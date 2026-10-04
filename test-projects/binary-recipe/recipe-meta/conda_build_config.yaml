@@ -1,0 +1,8 @@
+# One variant per python version, as in a typical binary recipe.
+# whl2conda build uses the variant for the python that builds the wheel.
+python:
+  - "3.10"
+  - "3.11"
+  - "3.12"
+  - "3.13"
+  - "3.14"

@@ -31,14 +31,20 @@ self-contained extension modules but not for recipes that require
 conda-provided compilers or libraries (see the
 [Binary Conversion](binary-conversion.md) guide for the conversion
 limitations), and the built wheel reflects your local toolchain
-settings (e.g. the macOS deployment target). Recipes that use
-variant-dependent expressions such as `${{ compiler('c') }}` or
-`${{ stdlib('c') }}` need a variant configuration file to render,
-which can be supplied with `-m`/`--variant-config-files`. Only the variant for the python version used in the
-build is produced, and the `--output`, `-t`/`--test`, and
-`--skip-existing` options remain restricted to noarch recipes, since
-a binary package's file name cannot be predicted before the wheel is
-built.
+settings (e.g. the macOS deployment target).
+
+Recipes that use variant-dependent expressions such as
+`${{ compiler('c') }}` or `${{ stdlib('c') }}` need a variant
+configuration file to render. Variant files in the recipe directory
+(`conda_build_config.yaml`, and for v1 recipes also `variants.yaml`)
+are loaded automatically, and others can be supplied with
+`-m`/`--variant-config-files`. When the recipe renders to a variant
+for each of several python versions, only the variant for the python
+version used in the build - the one running whl2conda - is produced.
+
+The `--output`, `-t`/`--test`, and `--skip-existing` options remain
+restricted to noarch recipes, since a binary package's file name
+cannot be predicted before the wheel is built.
 
 ## Supported recipe formats
 

@@ -26,6 +26,7 @@ from __future__ import annotations
 # standard
 import enum
 import re
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -36,7 +37,9 @@ __all__ = [
     "RecipeFormat",
     "RecipeRenderError",
     "RenderedRecipe",
+    "build_python_version",
     "find_recipe_file",
+    "python_variant_indices",
     "recipe_source_root",
     "render_recipe",
     "rewrite_build_script",
@@ -103,6 +106,38 @@ def find_recipe_file(recipe_dir: Path) -> tuple[Path, RecipeFormat]:
     raise RecipeError(
         f"Recipe directory {recipe_dir} contains no meta.yaml or recipe.yaml"
     )
+
+
+def build_python_version() -> str:
+    """The `<major>.<minor>` version of the python used to build wheels.
+
+    The recipe's build script is run in the current environment, so
+    this is the version of the running interpreter.
+    """
+    return "{}.{}".format(*sys.version_info[:2])
+
+
+def python_variant_indices(
+    pythons: Sequence[Any], python_version: str = ""
+) -> list[int]:
+    """Indices of the recipe variants built for the given python version.
+
+    Args:
+        pythons: the `python` variant value of each rendered variant,
+            e.g. `3.12` or `3.13.* *_cp313`; values that are not for
+            a specific python version never match
+        python_version: `<major>.<minor>` python version, by default
+            the [build_python_version][(m).]
+
+    Returns:
+        Indices into `pythons` of the matching variants.
+    """
+    version_re = re.compile(
+        rf"\s*{re.escape(python_version or build_python_version())}(?!\d)"
+    )
+    return [
+        i for i, python in enumerate(pythons) if version_re.match(str(python or ""))
+    ]
 
 
 def render_recipe(
@@ -202,18 +237,23 @@ def _script_lines(script: Any) -> tuple[str, ...]:
 
 
 #: Matches a `pip install .` or `pip wheel .` line, possibly prefixed
-#: with a python interpreter invocation - including the unresolved
+#: with a python interpreter invocation and followed by extra options.
+#: The interpreter may be a (possibly quoted) path to a python
+#: executable - conda-build renders `{{ PYTHON }}` in meta.yaml scripts
+#: to the path of the python in the not yet existing host environment -
+#: or a `PYTHON` variable reference, including the unresolved
 #: `${{ PYTHON }}` template that rattler-build leaves in rendered v1
-#: scripts - and followed by extra options. The interpreter prefix is
-#: dropped by the rewrite.
+#: scripts. The interpreter prefix is dropped by the rewrite.
 _PIP_BUILD_RE = re.compile(
     r"(?P<pre>.*?)"
     r"(?:"
-    r"python\d?(?:\.\d+)?\s+-m\s+"
-    r"|(?:\$?\{\{\s*PYTHON\s*\}\}|\$PYTHON)\s+(?:-m\s+)?"
+    r"(?:\"[^\"]*python[\d.]*(?:\.exe)?\"|[^\s\"]*python[\d.]*(?:\.exe)?)\s+-m\s+"
+    r"|\"?(?:\$?\{\{\s*PYTHON\s*\}\}|\$PYTHON|\$\{PYTHON\}|%PYTHON%)\"?"
+    r"\s+(?:-m\s+)?"
     r")?"
     r"pip\s+(?P<cmd>install|wheel)\s+\.(?=\s|$)"
-    r"(?P<post>.*)"
+    r"(?P<post>.*)",
+    re.IGNORECASE,
 )
 
 

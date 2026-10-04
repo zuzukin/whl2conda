@@ -18,10 +18,13 @@ Unit tests for `whl2conda build` subcommand
 from __future__ import annotations
 
 import dataclasses
+import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
+import conda_package_handling.api
 import pytest
 
 from whl2conda.api.converter import (
@@ -38,6 +41,7 @@ from whl2conda.cli.build import (
     CondaBuild,
     predict_package_path,
 )
+from whl2conda.impl.conda_forge import native_conda_subdir
 from whl2conda.impl.recipe import RecipeError, RecipeFormat, RenderedRecipe
 
 RENDERED_RAW: dict[str, Any] = {
@@ -728,6 +732,67 @@ def test_build_e2e_with_tests(
         "-c",
         "conda-forge",
     ])
+
+
+BINARY_FIXTURE_PROJECT = root_dir / "test-projects" / "binary-recipe"
+
+
+@pytest.mark.external
+@pytest.mark.parametrize("recipe_name", ["recipe-meta", "recipe-v1"])
+def test_build_e2e_binary(tmp_path: Path, recipe_name: str) -> None:
+    """End-to-end build of the binary fixture recipes (no test env)
+
+    The recipes build a C extension module using `PYTHON` to invoke
+    pip, and render to a variant per python version using a variant
+    config file in the recipe directory.
+    """
+    if recipe_name == "recipe-meta":
+        pytest.importorskip("conda_build", reason="requires conda-build")
+    else:
+        pytest.importorskip("rattler_build", reason="requires py-rattler-build")
+    recipe_dir = BINARY_FIXTURE_PROJECT / recipe_name
+
+    out_folder = tmp_path / "out"
+    main(["build", str(recipe_dir), "--output-folder", str(out_folder), "--no-test"])
+
+    # package is built for the running python in the native platform subdir
+    py_tag = "py{}{}".format(*sys.version_info[:2])
+    subdir = native_conda_subdir()
+    pkg = out_folder / subdir / f"hello-ext-1.0.0-{py_tag}_1.conda"
+    assert pkg.is_file()
+
+    extract_dir = tmp_path / "extracted"
+    conda_package_handling.api.extract(str(pkg), str(extract_dir))
+    index = json.loads((extract_dir / "info" / "index.json").read_text("utf8"))
+    assert index["subdir"] == subdir
+    assert index["build_number"] == 1
+    assert any(
+        f.name.startswith("hello_ext.") and f.suffix in (".so", ".pyd")
+        for f in extract_dir.rglob("hello_ext.*")
+    )
+
+
+@pytest.mark.external
+@pytest.mark.slow
+@pytest.mark.parametrize("recipe_name", ["recipe-meta", "recipe-v1"])
+def test_build_e2e_binary_with_tests(tmp_path: Path, recipe_name: str) -> None:
+    """End-to-end build of binary fixture recipes including the package tests"""
+    if recipe_name == "recipe-meta":
+        pytest.importorskip("conda_build", reason="requires conda-build")
+    else:
+        pytest.importorskip("rattler_build", reason="requires py-rattler-build")
+    recipe_dir = BINARY_FIXTURE_PROJECT / recipe_name
+
+    out_folder = tmp_path / "out"
+    main([
+        "build",
+        str(recipe_dir),
+        "--output-folder",
+        str(out_folder),
+        "-c",
+        "conda-forge",
+    ])
+    assert list((out_folder / native_conda_subdir()).glob("hello-ext-1.0.0-*.conda"))
 
 
 BINARY_RENDERED_RAW: dict[str, Any] = {

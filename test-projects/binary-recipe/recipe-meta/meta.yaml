@@ -1,0 +1,33 @@
+# Classic conda recipe for the whl2conda build binary test fixture.
+# Equivalent to the v1 recipe in ../recipe-v1/recipe.yaml.
+
+{% set version = "1.0.0" %}
+
+package:
+  name: hello-ext
+  version: {{ version }}
+
+source:
+  path: ../
+
+build:
+  number: 1
+  script: {{ PYTHON }} -m pip install . -vv --no-deps
+
+requirements:
+  build:
+    - {{ compiler('c') }}
+  host:
+    - python
+    - pip
+    - setuptools
+  run:
+    - python
+
+test:
+  imports:
+    - hello_ext
+
+about:
+  summary: whl2conda build binary recipe test fixture
+  license: MIT

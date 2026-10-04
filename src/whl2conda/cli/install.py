@@ -331,9 +331,14 @@ def _prune_dependencies(
             name = m.group("name")
             version = m.group("version")
             if version:
-                version = version.replace(" ", "")  # remove spaces from version spec
+                # remove spaces within the version spec, but keep the one
+                # separating it from a build string, if any
+                # (e.g. `python_abi 3.12.* *_cp312`)
+                version = re.sub(r"\s*([,|])\s*", r"\1", version.strip())
+                version = re.sub(r"([<>=!~])\s+", r"\1", version)
+                version = " ".join(version.split())
             if exclude := exclude_packages.get(name):
-                if not ver_eval(exclude.version, version):
+                if not ver_eval(exclude.version, version.partition(" ")[0]):
                     raise ValueError(
                         f"{exclude.path} does not match dependency '{dep}'"
                     )

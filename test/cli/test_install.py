@@ -297,6 +297,17 @@ def test_prune_dependencies() -> None:
         ],
     ) == ["baz 1.5.*", "foo"]
 
+    # build strings are kept separate from the version spec,
+    # as in the dependencies of binary packages
+    assert _prune_dependencies(
+        [
+            "python_abi 3.12.*  *_cp312",
+            "python >= 3.12 , < 3.13.0a0",
+            "bar >=1.2 | <1  h123_0",
+        ],
+        [InstallFileInfo(Path("bar-1.2.3.conda"), "bar", "1.2.3")],
+    ) == ["python >=3.12,<3.13.0a0", "python_abi 3.12.* *_cp312"]
+
     with pytest.raises(ValueError, match="does not match dependency"):
         _prune_dependencies(
             [" foo ", "bar >= 1.2.4", "baz   1.5.*"],

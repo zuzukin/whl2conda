@@ -37,20 +37,28 @@ from typing import Any
 import yaml
 
 # this project
-from .recipe import RecipeRenderError
+from .recipe import RecipeRenderError, build_python_version, python_variant_indices
 
 __all__ = ["render_meta_yaml"]
 
 logger = logging.getLogger(__name__)
 
-_RENDER_SCRIPT = dedent("""
+_RENDER_SCRIPT = dedent(r"""
     import conda_build.api as api
     config = api.Config(croot=r"{croot}", variant_config_files={variant_files!r})
     mds = api.render(r"{recipe_dir}", config=config, bypass_env_check=True)
     if len(mds) > 1:
-        import sys
-        print("WARNING: recipe has multiple variants; using the first",
-              file=sys.stderr)
+        # prefer the variant for the python that builds the wheel
+        import re, sys
+        python_re = re.compile(r"\s*" + re.escape("{python_version}") + r"(?!\d)")
+        matches = [
+            md for md in mds
+            if python_re.match(str(md[0].config.variant.get("python") or ""))
+        ]
+        if len(matches) != 1:
+            print("WARNING: recipe has multiple variants; using the first",
+                  file=sys.stderr)
+        mds = matches or mds
     api.output_yaml(mds[0][0], file_path=r"{out_file}")
     """)
 
@@ -118,7 +126,13 @@ def _render_in_process(
             )
             mds = api.render(str(recipe_dir), config=config, bypass_env_check=True)
             if len(mds) > 1:
-                logger.warning("Recipe has multiple variants; using the first")
+                # prefer the variant for the python that builds the wheel
+                indices = python_variant_indices([
+                    md[0].config.variant.get("python") for md in mds
+                ])
+                if len(indices) != 1:
+                    logger.warning("Recipe has multiple variants; using the first")
+                mds = [mds[i] for i in indices] or mds
             api.output_yaml(mds[0][0], file_path=str(out_file))
     except Exception as ex:
         raise RecipeRenderError(
@@ -144,6 +158,7 @@ def _render_in_base_env(
         recipe_dir=recipe_dir,
         out_file=out_file,
         variant_files=[str(f) for f in variant_config],
+        python_version=build_python_version(),
     )
     conda = "mamba" if use_mamba else "conda"
     cmd = [conda, "run", "-n", "base", "python", "-c", script]

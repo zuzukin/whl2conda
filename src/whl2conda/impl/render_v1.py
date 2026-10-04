@@ -33,7 +33,12 @@ from pathlib import Path
 from typing import Any
 
 # this project
-from .recipe import RecipeError, RecipeRenderError
+from .recipe import (
+    RecipeError,
+    RecipeRenderError,
+    build_python_version,
+    python_variant_indices,
+)
 
 __all__ = ["render_v1_yaml"]
 
@@ -65,6 +70,46 @@ def render_v1_yaml(
     return raw
 
 
+#: Variant configuration files that rattler-build loads automatically
+#: from the recipe directory, in order of increasing precedence.
+_AUTO_VARIANT_FILES = ("conda_build_config.yaml", "variants.yaml")
+
+
+def _variant_files(
+    recipe_file: Path, variant_config: Sequence[Path]
+) -> list[str | Path]:
+    """Variant files to render with, including automatically loaded ones.
+
+    The rattler-build executable loads these from the recipe directory
+    itself, but the python bindings do not.
+    """
+    explicit = {f.resolve() for f in variant_config}
+    auto = (recipe_file.parent / name for name in _AUTO_VARIANT_FILES)
+    files = [f for f in auto if f.is_file() and f.resolve() not in explicit]
+    return [str(f) for f in (*files, *variant_config)]
+
+
+def _select_variant(recipe_file: Path, pythons: Sequence[Any]) -> int:
+    """Index of the variant to build, given each variant's python.
+
+    When a recipe renders to a variant per python version, the variant
+    for the python that builds the wheel is used.
+
+    Raises:
+        RecipeError: if there is not exactly one such variant.
+    """
+    if len(pythons) == 1:
+        return 0
+    python_version = build_python_version()
+    indices = python_variant_indices(pythons, python_version)
+    if len(indices) != 1:
+        raise _multiple_outputs_error(recipe_file)
+    logger.info(
+        "Recipe has multiple variants; using the one for python %s", python_version
+    )
+    return indices[0]
+
+
 def _render_in_process(
     recipe_file: Path,
     variant_config: Sequence[Path],
@@ -91,18 +136,17 @@ def _render_in_process(
         raise _multiple_outputs_error(recipe_file) from None
     try:
         config = None
-        if variant_config:
-            config = rattler_build.VariantConfig.from_files([
-                str(f) for f in variant_config
-            ])
+        if variant_files := _variant_files(recipe_file, variant_config):
+            config = rattler_build.VariantConfig.from_files(variant_files)
         variants = recipe.render(variant_config=config)
     except Exception as ex:
         raise RecipeRenderError(
             f"rattler-build failed to render {recipe_file}: {ex}"
         ) from ex
-    if len(variants) != 1:
-        raise _multiple_outputs_error(recipe_file)
-    return variants[0].recipe.to_dict()
+    index = _select_variant(
+        recipe_file, [(variant.variant or {}).get("python") for variant in variants]
+    )
+    return variants[index].recipe.to_dict()
 
 
 def _render_with_cli(
@@ -135,13 +179,28 @@ def _render_with_cli(
         raise RecipeRenderError(
             f"Cannot parse rattler-build render output for {recipe_file}: {ex}"
         ) from ex
-    if not isinstance(outputs, list) or len(outputs) != 1:
+    if not isinstance(outputs, list) or not outputs:
         raise _multiple_outputs_error(recipe_file)
-    return outputs[0]["recipe"]
+    if len({_output_name(output) for output in outputs}) > 1:
+        raise _multiple_outputs_error(recipe_file)
+    index = _select_variant(recipe_file, [_output_python(o) for o in outputs])
+    return outputs[index]["recipe"]
+
+
+def _output_name(output: dict[str, Any]) -> str:
+    """Package name of an output rendered by the rattler-build executable."""
+    return str((output["recipe"].get("package") or {}).get("name"))
+
+
+def _output_python(output: dict[str, Any]) -> Any:
+    """The python variant of an output rendered by the rattler-build executable."""
+    variant = (output.get("build_configuration") or {}).get("variant") or {}
+    return variant.get("python")
 
 
 def _multiple_outputs_error(recipe_file: Path) -> RecipeError:
     return RecipeError(
-        f"Recipe {recipe_file} renders to multiple outputs or variants,"
+        f"Recipe {recipe_file} renders to multiple outputs, or to multiple"
+        f" variants without a single one for python {build_python_version()},"
         " which is not supported by whl2conda build"
     )
