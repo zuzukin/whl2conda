@@ -257,6 +257,19 @@ _PIP_BUILD_RE = re.compile(
 )
 
 
+#: Matches the options of `pip install` that `pip wheel` does not accept,
+#: with their value if they take one.
+_PIP_INSTALL_ONLY_RE = re.compile(
+    r"(?<!\S)(?:"
+    r"(?:--ignore-installed|-I|--upgrade|-U|--force-reinstall|--compile"
+    r"|--no-compile|--no-warn-script-location|--no-warn-conflicts|--user"
+    r"|--break-system-packages|--dry-run)"
+    r"|(?:--prefix|--target|-t|--root|--upgrade-strategy|--root-user-action"
+    r"|--report)(?:=\S+|\s+\S+)"
+    r")(?!\S)\s*"
+)
+
+
 def recipe_source_root(rendered: RenderedRecipe, work_dir: Path) -> Path:
     """Directory containing the project source for a rendered recipe.
 
@@ -285,7 +298,8 @@ def rewrite_build_script(recipe: RenderedRecipe, dist_dir: Path) -> list[str]:
 
     Rewrites the (single) `pip install .` or `pip wheel .` line in the
     recipe's build script into `pip wheel . -w <dist_dir>`, preserving
-    any trailing pip options.
+    any trailing pip options other than those of `pip install` that
+    `pip wheel` does not support (e.g. `--ignore-installed`).
 
     Args:
         recipe: the rendered recipe
@@ -302,7 +316,11 @@ def rewrite_build_script(recipe: RenderedRecipe, dist_dir: Path) -> list[str]:
     for line in recipe.build_script:
         if m := _PIP_BUILD_RE.fullmatch(line):
             matched += 1
-            line = f"{m.group('pre')}pip wheel . -w {dist_dir}{m.group('post')}"
+            post = m.group("post")
+            if m.group("cmd").lower() == "install":
+                post = _PIP_INSTALL_ONLY_RE.sub("", post).rstrip()
+                post = post and f" {post.lstrip()}"
+            line = f"{m.group('pre')}pip wheel . -w {dist_dir}{post}"
         rewritten.append(line)
     if matched != 1:
         detail = "does not use" if matched == 0 else "uses more than one"

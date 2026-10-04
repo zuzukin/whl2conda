@@ -152,6 +152,8 @@ def test_build_default(fake_build: tuple[FakeBuild, Path]) -> None:
     assert fake.converter.extra_dependencies == []
     assert fake.converter.python_version == ""
     assert fake.converter.build_number == 0
+    # the package is named by the recipe, not the wheel
+    assert fake.converter.package_name == "simple"
 
     assert len(fake.test_calls) == 1
     test_call = fake.test_calls[0]
@@ -361,13 +363,14 @@ def test_predict_package_path(tmp_path: Path) -> None:
         build_number=5,
         noarch_python=True,
     )
+    # the recipe's package name is used as is, apart from its case
     assert (
         predict_package_path(rendered, tmp_path, CondaPackageFormat.V2)
-        == tmp_path / "noarch" / "my-package-name-1.2.3-py_5.conda"
+        == tmp_path / "noarch" / "my_package.name-1.2.3-py_5.conda"
     )
     assert (
         predict_package_path(rendered, tmp_path, CondaPackageFormat.V1)
-        == tmp_path / "noarch" / "my-package-name-1.2.3-py_5.tar.bz2"
+        == tmp_path / "noarch" / "my_package.name-1.2.3-py_5.tar.bz2"
     )
 
     # the build string comes from the same helper the converter uses

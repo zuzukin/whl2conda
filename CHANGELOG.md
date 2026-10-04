@@ -27,6 +27,12 @@
 * `whl2conda build` no longer fails on recipe build scripts that
   invoke pip through `{{ PYTHON }}` in classic recipes, `%PYTHON%`,
   or `${PYTHON}`.
+* `whl2conda build` now names the package after the recipe rather
+  than the built wheel, which differ for packages such as
+  `msgpack-python`.
+* `whl2conda build` no longer fails on recipe build scripts that pass
+  options of `pip install` not supported by `pip wheel`, such as
+  `--ignore-installed` or `--prefix`.
 * `whl2conda install` no longer corrupts dependencies that have a
   build string (e.g. `python_abi 3.12.* *_cp312`), which prevented
   installing and testing binary packages.
@@ -46,6 +52,10 @@
 
 ### Changes
 
+* An explicit package name (`whl2conda convert --name`, or the
+  converter's `package_name`) is now only converted to lower case and
+  no longer normalized like a pypi name, so that conda package names
+  such as `zope.interface` can be produced.
 * Dependency rename replacement strings are now validated to contain
   only valid package name characters.
 * The documented python API has been narrowed to the intended stable

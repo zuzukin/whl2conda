@@ -201,6 +201,22 @@ def test_rewrite_build_script(tmp_path: Path) -> None:
             f"pip wheel . -w {dist} -vv --no-deps --no-build-isolation",
         ),
         ("pip wheel . --no-deps", f"pip wheel . -w {dist} --no-deps"),
+        # options of pip install that pip wheel does not accept are dropped
+        (
+            "pip install . --no-deps --ignore-installed --no-cache-dir -vvv"
+            ' --config-settings="--build-option=--with-cython"',
+            f"pip wheel . -w {dist} --no-deps --no-cache-dir -vvv"
+            ' --config-settings="--build-option=--with-cython"',
+        ),
+        (
+            "pip install . -I --prefix=$PREFIX --no-deps --target /some/dir -U",
+            f"pip wheel . -w {dist} --no-deps",
+        ),
+        ("pip install . --no-compile", f"pip wheel . -w {dist}"),
+        ("pip install . --upgrade-strategy eager -vv", f"pip wheel . -w {dist} -vv"),
+        # but not similarly named options, or when already using pip wheel
+        ("pip install . --prefer-binary", f"pip wheel . -w {dist} --prefer-binary"),
+        ("pip wheel . --no-deps -vv", f"pip wheel . -w {dist} --no-deps -vv"),
         ("python -m pip install .", f"pip wheel . -w {dist}"),
         ("python3 -m pip install .", f"pip wheel . -w {dist}"),
         ("python3.12 -m pip install .", f"pip wheel . -w {dist}"),

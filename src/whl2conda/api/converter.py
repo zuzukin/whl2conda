@@ -1630,9 +1630,13 @@ class Wheel2CondaConverter:
         )
         md, requires = self._parse_dist_metadata(wheel_info_dir)
 
-        package_name = self.package_name or str(md.get("name"))
-        # conda package names use the PEP 503 normalized form
-        package_name = normalize_pypi_name(package_name)
+        if self.package_name:
+            # an explicit name is used as is: conda package names are not
+            # limited to the normalized form (e.g. `zope.interface`)
+            package_name = self.package_name.lower()
+        else:
+            # by default, use the PEP 503 normalized form of the wheel's name
+            package_name = normalize_pypi_name(str(md.get("name")))
         self.package_name = package_name
         version = md.get("version")
 

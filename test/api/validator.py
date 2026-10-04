@@ -326,7 +326,7 @@ class PackageValidator:
         version = str(index["version"])
 
         if self._override_name:
-            assert name == self._override_name
+            assert name == self._override_name.lower()
         else:
             assert name == re.sub(r"[-_.]+", "-", wheel_md["name"]).lower()
         assert version == wheel_md["version"]

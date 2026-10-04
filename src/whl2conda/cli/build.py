@@ -32,7 +32,6 @@ from ..api.converter import (
     CondaPackageFormat,
     Wheel2CondaConverter,
     noarch_build_string,
-    normalize_pypi_name,
 )
 
 # this project
@@ -68,8 +67,8 @@ def predict_package_path(
 ) -> Path:
     """Predict the file path of the package built from a rendered recipe.
 
-    Uses the same name normalization and build string generation as the
-    wheel converter, so the prediction matches the actual output.
+    Uses the recipe's package name and the same build string generation
+    as the wheel converter, so the prediction matches the actual output.
 
     Args:
         rendered: the rendered recipe
@@ -88,7 +87,7 @@ def predict_package_path(
             " wheel. The --output, -t/--test and --skip-existing options"
             " therefore only support noarch python recipes."
         )
-    name = normalize_pypi_name(rendered.name)
+    name = rendered.name.lower()
     build_string = noarch_build_string(rendered.build_number)
     suffix = str(package_format.value)
     return (
@@ -563,6 +562,8 @@ class CondaBuild:
             converter.out_format = self.args.package_format
         converter.extra_dependencies.extend(self.args.extra_deps)
         converter.python_version = self.args.python
+        # the recipe, not the wheel, names the conda package
+        converter.package_name = rendered.name
         converter.build_number = rendered.build_number
         converter.overwrite = True
         if not rendered.noarch_python:
