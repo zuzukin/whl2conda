@@ -25,6 +25,9 @@
   centralized shared test fixtures in conftest files, split the
   oversized converter test module, and removed stale comments and
   dead code throughout.
+* The conda-forge comparison suite now selects reference builds
+  matching the running python ABI (or CEP-20 abi3 builds for abi3
+  wheels) and runs in a dedicated Python 3.13 pixi environment. (#231)
 
 ### Changes
 
