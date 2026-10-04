@@ -92,7 +92,15 @@ BUILD_PROJECTS: tuple[BuildProject, ...] = (
     # classic meta.yaml feedstocks
     BuildProject("regex", "c-ext"),
     BuildProject("tornado", "c-ext"),
-    BuildProject("pyrsistent", "c-ext"),
+    BuildProject(
+        "pyrsistent",
+        "c-ext",
+        ignore_paths=("site-packages/pvectorc.*",),
+        notes="the optional C extension uses a private function that"
+        " python 3.13 does not declare: compilers that only warn about"
+        " that build it, but those that reject it, like conda-forge's,"
+        " leave it out",
+    ),
     BuildProject("cytoolz", "cython"),
     BuildProject("multidict", "c-ext"),
     BuildProject("frozenlist", "cython"),
@@ -152,33 +160,39 @@ def _is_free_threaded(python: str) -> bool:
 def select_variant_file(feedstock_dir: Path, subdir: str) -> Path | None:
     """Select the feedstock's variant config file for this build.
 
-    conda-forge feedstocks have a variant config file in `.ci_support`
-    for each platform and, for python version specific packages, each
-    python version.
+    conda-forge feedstocks have variant config files in `.ci_support`
+    for each platform. Python version specific packages either have a
+    file for each python version, or a single file listing all of them.
 
     Args:
         feedstock_dir: root directory of the feedstock
         subdir: conda subdir to build for, e.g. `linux-64`
 
     Returns:
-        The variant file for the subdir and the python version that
-        builds the wheel, or None if there is no such file.
+        The variant file for the subdir that includes the python version
+        that builds the wheel, or is python version independent, or None
+        if there is no such file. Files that select a noarch build of the
+        package (`use_noarch`) are only used if there is no other.
     """
     prefix = subdir.replace("-", "_") + "_"
-    candidates: list[tuple[Path, str]] = []
+    candidates: list[tuple[bool, Path]] = []
     for config_file in sorted(feedstock_dir.joinpath(".ci_support").glob("*.yaml")):
         if not config_file.name.startswith(prefix) or "python_rc" in config_file.name:
             continue
         config = yaml.safe_load(config_file.read_text("utf8")) or {}
-        pythons = config.get("python") or [""]
-        python = str(pythons[0])
-        if not _is_free_threaded(python):
-            candidates.append((config_file, python))
-    if len(candidates) == 1 and not candidates[0][1]:
-        # python version independent
-        return candidates[0][0]
-    indices = python_variant_indices([python for _file, python in candidates])
-    return candidates[indices[0]][0] if indices else None
+        pythons = [
+            python
+            for python in map(str, config.get("python") or ())
+            if not _is_free_threaded(python)
+        ]
+        if config.get("python") and not python_variant_indices(pythons):
+            continue
+        use_noarch = any(
+            str(value).lower() == "true" for value in config.get("use_noarch") or ()
+        )
+        candidates.append((use_noarch, config_file))
+    # sorts files that do not select a noarch build first
+    return min(candidates, default=(False, None))[1]
 
 
 def _recipe_sources(rendered: RenderedRecipe) -> list[dict[str, Any]]:
