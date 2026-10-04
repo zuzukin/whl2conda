@@ -605,10 +605,10 @@ class CondaBuild:
     def _add_run_requirements(
         converter: Wheel2CondaConverter, rendered: RenderedRecipe
     ) -> None:
-        """Use the recipe's run requirements as dependencies of the package.
+        """Use the recipe's run requirements and constraints for the package.
 
-        These take precedence over dependencies on the same packages in
-        the wheel's metadata. The python dependency of a binary package
+        Run requirements take precedence over dependencies on the same
+        packages in the wheel's metadata. The python dependency of a binary package
         always comes from the wheel, since it depends on how the wheel
         was built.
         """
@@ -619,6 +619,7 @@ class CondaBuild:
                     converter.python_version = spec
             elif name.lower() != "python_abi":
                 converter.override_dependencies.append(requirement)
+        converter.constrains.extend(rendered.run_constraints)
 
     def _run_package_tests(self, pkg: Path, rendered: RenderedRecipe) -> None:
         if rendered.format is RecipeFormat.V1:

@@ -654,6 +654,9 @@ class Wheel2CondaConverter:
     override_dependencies: list[str]
     """Conda dependencies to add to the package in place of any dependencies
     on the same packages derived from the wheel."""
+    constrains: list[str]
+    """Conda run constraints for the package: specs that restrict the
+    versions of packages that are not dependencies, if they are installed."""
     use_known_extras: bool = False
     """Replace known pypi extras with corresponding conda packages"""
     resolve_extras: bool = False
@@ -691,6 +694,7 @@ class Wheel2CondaConverter:
         self.dependency_rename = []
         self.extra_dependencies = []
         self.override_dependencies = []
+        self.constrains = []
         self._pypi_metadata_cache: dict[tuple[str, str], dict[str, Any]] = {}
         self.std_renames = load_std_renames(update=update_std_renames)
 
@@ -996,6 +1000,8 @@ class Wheel2CondaConverter:
             "timestamp": int(time.time() * 1000),  # milliseconds since epoch
             "version": wheel_md.version,
         }
+        if self.constrains:
+            index_dict["constrains"] = list(self.constrains)
         if conda_target.uses_noarch_python:
             # Set for abi3 packages too, which keep their platform subdir
             # but use the noarch python install machinery (CEP-20)

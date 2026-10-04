@@ -77,6 +77,8 @@ class RenderedRecipe:
     noarch_python: bool = False
     run_requirements: tuple[str, ...] = ()
     """The recipe's run requirements, as conda dependency specs."""
+    run_constraints: tuple[str, ...] = ()
+    """The recipe's run constraints, as conda dependency specs."""
     raw: Mapping[str, Any] = field(default_factory=dict)
     """The full rendered recipe document."""
 
@@ -196,7 +198,8 @@ def _normalize_meta_yaml(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRe
         build_number=_build_number(build),
         build_script=_script_lines(build.get("script")),
         noarch_python=build.get("noarch") == "python",
-        run_requirements=_run_requirements(raw),
+        run_requirements=_requirement_specs(raw, "run"),
+        run_constraints=_requirement_specs(raw, "run_constrained"),
         raw=raw,
     )
 
@@ -213,22 +216,27 @@ def _normalize_v1(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRecipe:
         build_number=_build_number(build),
         build_script=_script_lines(build.get("script")),
         noarch_python=build.get("noarch") == "python",
-        run_requirements=_run_requirements(raw),
+        run_requirements=_requirement_specs(raw, "run"),
+        run_constraints=_requirement_specs(raw, "run_constraints"),
         raw=raw,
     )
 
 
-def _run_requirements(raw: Mapping[str, Any]) -> tuple[str, ...]:
-    """The run requirements of a rendered recipe document.
+def _requirement_specs(raw: Mapping[str, Any], key: str) -> tuple[str, ...]:
+    """The requirements of the given kind in a rendered recipe document.
 
     Entries that are not plain dependency specs, such as the unresolved
     pin expressions of rendered v1 recipes, are left out.
+
+    Args:
+        raw: the rendered recipe document
+        key: key in the `requirements` section, e.g. `run`
     """
     requirements = raw.get("requirements") or {}
-    run = requirements.get("run") if isinstance(requirements, Mapping) else None
+    specs = requirements.get(key) if isinstance(requirements, Mapping) else None
     return tuple(
         " ".join(entry.split())
-        for entry in run or ()
+        for entry in specs or ()
         if isinstance(entry, str) and entry.strip()
     )
 
@@ -256,7 +264,8 @@ def _script_lines(script: Any) -> tuple[str, ...]:
 
 
 #: Matches a `pip install .` or `pip wheel .` line, possibly prefixed
-#: with a python interpreter invocation and followed by extra options.
+#: with a python interpreter invocation and with extra options before
+#: or after the project directory.
 #: The interpreter may be a (possibly quoted) path to a python
 #: executable - conda-build renders `{{ PYTHON }}` in meta.yaml scripts
 #: to the path of the python in the not yet existing host environment -
@@ -270,7 +279,10 @@ _PIP_BUILD_RE = re.compile(
     r"|\"?(?:\$?\{\{\s*PYTHON\s*\}\}|\$PYTHON|\$\{PYTHON\}|%PYTHON%)\"?"
     r"\s+(?:-m\s+)?"
     r")?"
-    r"pip\s+(?P<cmd>install|wheel)\s+\.(?=\s|$)"
+    r"pip\s+(?P<cmd>install|wheel)"
+    # options, with any separate values, preceding the project directory
+    r"(?P<opts>(?:\s+-\S+(?:\s+(?:[^-\s.]\S*|\.\S+))?)*)"
+    r"\s+\.(?=\s|$)"
     r"(?P<post>.*)",
     re.IGNORECASE,
 )
@@ -288,6 +300,8 @@ _PIP_INSTALL_ONLY_RE = re.compile(
     r")(?!\S)\s*"
 )
 
+
+_PIP_EDITABLE_RE = re.compile(r"(?<!\S)(?:-e|--editable)(?!\S)")
 
 _NO_BUILD_ISOLATION_RE = re.compile(r"(?<!\S)--no-build-isolation(?!\S)\s*")
 
@@ -322,8 +336,9 @@ def rewrite_build_script(
 
     Rewrites the (single) `pip install .` or `pip wheel .` line in the
     recipe's build script into `pip wheel . -w <dist_dir>`, preserving
-    any trailing pip options other than those of `pip install` that
-    `pip wheel` does not support (e.g. `--ignore-installed`).
+    any pip options, whether before or after the project directory,
+    other than those of `pip install` that `pip wheel` does not support
+    (e.g. `--ignore-installed`).
 
     Args:
         recipe: the rendered recipe
@@ -342,9 +357,11 @@ def rewrite_build_script(
     rewritten: list[str] = []
     matched = 0
     for line in recipe.build_script:
-        if m := _PIP_BUILD_RE.fullmatch(line):
+        m = _PIP_BUILD_RE.fullmatch(line)
+        if m and not _PIP_EDITABLE_RE.search(m.group("opts")):
             matched += 1
-            post = m.group("post")
+            # pip options may come before and after the project directory
+            post = m.group("opts") + m.group("post")
             if m.group("cmd").lower() == "install":
                 post = _PIP_INSTALL_ONLY_RE.sub("", post)
             if build_isolation:

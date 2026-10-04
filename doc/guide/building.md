@@ -20,13 +20,16 @@ The package is named by the recipe, and its dependencies are those of
 the wheel together with the recipe's run requirements, which take
 precedence over the wheel's dependencies on the same packages. The
 python dependency of a binary package always comes from the wheel,
-since it depends on how the wheel was built.
+since it depends on how the wheel was built. The recipe's run
+constraints (`run_constrained`, or `run_constraints` in v1 recipes)
+become the run constraints of the package.
 
 Because there is no build environment, this is much faster than
 `conda build`, but it only works for recipes that:
 
 * have a build script consisting of a single `pip install .` or
-  `pip wheel .` command (extra pip options are fine), and
+  `pip wheel .` command (extra pip options before or after the
+  project directory are fine), and
 * produce a single output package.
 
 Both pure python (`noarch: python`) and platform-specific binary

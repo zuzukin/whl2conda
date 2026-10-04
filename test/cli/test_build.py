@@ -84,6 +84,9 @@ class FakeBuild:
                 build_script=tuple(script),
                 noarch_python=build.get("noarch") == "python",
                 run_requirements=tuple((raw.get("requirements") or {}).get("run", ())),
+                run_constraints=tuple(
+                    (raw.get("requirements") or {}).get("run_constrained", ())
+                ),
                 raw=raw,
             )
 
@@ -835,11 +838,14 @@ def test_build_run_requirements(fake_build: tuple[FakeBuild, Path]) -> None:
     """Recipe run requirements become dependencies of the package"""
     fake, recipe_dir = fake_build
     run = ["python >=3.10", "setuptools", "numpy >=2", "python_abi 3.12.* *_cp312"]
-    fake.rendered_raw = dict(RENDERED_RAW, requirements={"run": run})
+    requirements = {"run": run, "run_constrained": ["jinja2 >=3"]}
+    fake.rendered_raw = dict(RENDERED_RAW, requirements=requirements)
 
     main(["build", str(recipe_dir), "--no-test"])
     assert fake.converter is not None
     assert fake.converter.override_dependencies == ["setuptools", "numpy >=2"]
+    # run constraints become constraints of the package
+    assert fake.converter.constrains == ["jinja2 >=3"]
     # a noarch recipe's python requirement overrides the wheel's
     assert fake.converter.python_version == ">=3.10"
 

@@ -35,6 +35,11 @@
   dependencies of the package, in place of any dependencies on the
   same packages from the wheel's metadata. Previously only the
   wheel's dependencies were used.
+* `whl2conda build` now adds the recipe's run constraints
+  (`run_constrained`, or `run_constraints` in v1 recipes) to the
+  package. The converter has a new `constrains` option for this.
+* `whl2conda build` now recognizes pip commands with options before
+  the project directory, such as `pip install --no-deps .`.
 * `whl2conda build` now names the package after the recipe rather
   than the built wheel, which differ for packages such as
   `msgpack-python`.

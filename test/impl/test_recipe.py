@@ -116,11 +116,13 @@ def test_render_recipe_meta(
             "requirements": {
                 "host": ["python", "pip"],
                 "run": ["python  >=3.9", " setuptools ", "", {"pin_subpackage": {}}],
+                "run_constrained": ["jinja2  >=3.0.0"],
             },
         },
     )
     rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
     assert rendered.run_requirements == ("python >=3.9", "setuptools")
+    assert rendered.run_constraints == ("jinja2 >=3.0.0",)
 
 
 RENDERED_V1 = {
@@ -162,6 +164,18 @@ def test_render_recipe_v1(
     assert rendered.build_script == ("pip install . -vv",)
     assert rendered.noarch_python
     assert rendered.raw == RENDERED_V1
+    assert rendered.run_requirements == ()
+    assert rendered.run_constraints == ()
+
+    # run requirements and constraints
+    rendered_raw["requirements"] = {
+        "run": ["python >=3.9", "numpy"],
+        "run_constraints": ["jinja2 >=3.0.0"],
+    }
+    rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
+    assert rendered.run_requirements == ("python >=3.9", "numpy")
+    assert rendered.run_constraints == ("jinja2 >=3.0.0",)
+    del rendered_raw["requirements"]
 
     # the v1 object script form
     rendered_raw["build"] = {
@@ -229,6 +243,21 @@ def test_rewrite_build_script(tmp_path: Path) -> None:
         ),
         ("pip install . --no-compile", f"pip wheel . -w {dist}"),
         ("pip install . --upgrade-strategy eager -vv", f"pip wheel . -w {dist} -vv"),
+        # options may also come before the project directory
+        (
+            "pip install --no-deps --ignore-installed .",
+            f"pip wheel . -w {dist} --no-deps",
+        ),
+        (
+            "$PYTHON -m pip install -vv --prefix $PREFIX . --no-deps",
+            f"pip wheel . -w {dist} -vv --no-deps",
+        ),
+        (
+            "pip install --config-settings setup-args=-Dfoo=bar --no-deps . -vv",
+            f"pip wheel . -w {dist} --config-settings setup-args=-Dfoo=bar"
+            " --no-deps -vv",
+        ),
+        ("pip wheel --no-deps .", f"pip wheel . -w {dist} --no-deps"),
         # but not similarly named options, or when already using pip wheel
         ("pip install . --prefer-binary", f"pip wheel . -w {dist} --prefer-binary"),
         ("pip wheel . --no-deps -vv", f"pip wheel . -w {dist} --no-deps -vv"),
@@ -297,6 +326,14 @@ def test_rewrite_build_script(tmp_path: Path) -> None:
         rewrite_build_script(make_rendered("make install"), dist)
     with pytest.raises(RecipeError, match="does not use"):
         rewrite_build_script(make_rendered("pip install foo"), dist)
+    with pytest.raises(RecipeError, match="does not use"):
+        rewrite_build_script(make_rendered("pip install --no-deps foo"), dist)
+    with pytest.raises(RecipeError, match="does not use"):
+        rewrite_build_script(make_rendered("pip install -r reqs.txt"), dist)
+    with pytest.raises(RecipeError, match="does not use"):
+        rewrite_build_script(make_rendered("pip install -e ."), dist)
+    with pytest.raises(RecipeError, match="does not use"):
+        rewrite_build_script(make_rendered("pip install --no-deps -e ."), dist)
     with pytest.raises(RecipeError, match="does not use"):
         rewrite_build_script(make_rendered([]), dist)
 
