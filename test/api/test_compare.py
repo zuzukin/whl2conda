@@ -40,6 +40,7 @@ def make_pkg(
     name: str = "simple",
     version: str = "1.0",
     depends: Sequence[str] = ("python >=3.10",),
+    constrains: Sequence[str] = (),
     files: Mapping[str, str | bytes] | None = None,
     entry_points: Sequence[str] = (),
     subdir: str = "noarch",
@@ -67,6 +68,8 @@ def make_pkg(
         "license": license,
         "timestamp": timestamp,
     }
+    if constrains:
+        index["constrains"] = list(constrains)
     if noarch:
         index["noarch"] = noarch
     (info_dir / "index.json").write_text(json.dumps(index))
@@ -249,6 +252,41 @@ def test_dep_extra_and_version(tmp_path: Path) -> None:
     pkg4 = make_pkg(tmp_path / "pkg4", depends=["python >=3.10", "numpy >=1.24"])
     result = compare(pkg3, pkg4)
     assert find(result, DiffCategory.DEP_VERSION, Severity.NOTICE)
+
+
+def test_constrains(tmp_path: Path) -> None:
+    """Run constraints are compared like dependencies"""
+    pkg1 = make_pkg(tmp_path / "pkg1", constrains=["jinja2 >=3.0.0"])
+    pkg2 = make_pkg(tmp_path / "pkg2", constrains=["jinja2 >=3.0.0"])
+    result = compare(pkg1, pkg2)
+    assert result.ok
+    assert not [d for d in result.differences if d.key == "index.json:constrains"]
+
+    # a constraint only in the reference package is an error
+    pkg3 = make_pkg(tmp_path / "pkg3")
+    result = compare(pkg3, pkg2)
+    missing = find(result, DiffCategory.CONSTRAINT_MISSING, Severity.ERROR)
+    assert len(missing) == 1
+    assert missing[0].right == "jinja2 >=3.0.0"
+    assert not result.ok
+    assert compare(pkg3, pkg2, ignore={DiffCategory.CONSTRAINT_MISSING}).ok
+
+    # unless it is a dependency of the package or a run-export style constraint
+    pkg5 = make_pkg(tmp_path / "pkg5", depends=["python >=3.10", "__osx >=11.0"])
+    pkg6 = make_pkg(tmp_path / "pkg6", constrains=["__osx >=11.0", "__glibc >=2.17"])
+    result = compare(pkg5, pkg6)
+    assert not find(result, DiffCategory.CONSTRAINT_MISSING, Severity.ERROR)
+    assert len(find(result, DiffCategory.CONSTRAINT_MISSING, Severity.EXPECTED)) == 2
+    assert compare(pkg3, pkg2, extra_run_exports={"jinja2"}).ok
+
+    # extra constraints and version differences are notable
+    pkg4 = make_pkg(tmp_path / "pkg4", constrains=["jinja2 >=3.1", "numpy <3"])
+    result = compare(pkg4, pkg2)
+    extra = find(result, DiffCategory.CONSTRAINT_EXTRA, Severity.NOTICE)
+    assert [d.left for d in extra] == ["numpy <3"]
+    version = find(result, DiffCategory.CONSTRAINT_VERSION, Severity.NOTICE)
+    assert [(d.left, d.right) for d in version] == [("jinja2 >=3.1", "jinja2 >=3.0.0")]
+    assert result.ok
 
 
 def test_dep_unrenamed(tmp_path: Path) -> None:

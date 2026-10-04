@@ -89,7 +89,13 @@ class ComparisonPackage:
 #: Curated sample of binary packages that also exist on conda-forge,
 #: covering the main kinds of binary wheels whl2conda may encounter.
 COMPARISON_PACKAGES: tuple[ComparisonPackage, ...] = (
-    ComparisonPackage("markupsafe", "c-ext"),
+    ComparisonPackage(
+        "markupsafe",
+        "c-ext",
+        ignore=("constraint-missing",),
+        notes="the conda-forge recipe adds a jinja2 run constraint that"
+        " is not in the wheel's metadata",
+    ),
     ComparisonPackage("wrapt", "c-ext"),
     ComparisonPackage(
         "ujson",

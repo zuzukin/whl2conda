@@ -20,6 +20,11 @@
   `--no-build-isolation` from the recipe's pip command, so that pip
   installs the project's build requirements itself rather than
   requiring them in the current environment.
+* `whl2conda diff` now compares the run constraints (`constrains`) of
+  the packages. A constraint only in the reference package is an error,
+  unless it is a dependency of the package or a run-export style
+  constraint; such differences are in the new `constraint-missing`,
+  `constraint-extra` and `constraint-version` categories.
 * When a recipe renders to a variant per python version, `whl2conda
   build` now uses the variant for the python that builds the wheel
   instead of rejecting v1 recipes or using the first variant of
