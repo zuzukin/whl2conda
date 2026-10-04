@@ -67,6 +67,10 @@
 * The conda-forge comparison suite now selects reference builds
   matching the running python ABI (or CEP-20 abi3 builds for abi3
   wheels) and runs in a dedicated Python 3.13 pixi environment. (#231)
+* Added an on-demand external build test suite (`pixi run build-compare`)
+  that builds a sample of conda-forge feedstock recipes with
+  `whl2conda build` and compares the results against the conda-forge
+  packages.
 
 ### Changes
 

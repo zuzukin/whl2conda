@@ -30,17 +30,12 @@ cached across runs (override location with WHL2CONDA_TEST_CACHE).
 
 from __future__ import annotations
 
-import json
-import os
 import sys
 import urllib.error
-import urllib.request
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import pytest
-from platformdirs import user_cache_path
 
 from whl2conda.api.compare import (
     CompareOptions,
@@ -56,11 +51,14 @@ from whl2conda.impl.conda_forge import CondaForgeBuild, download_conda_forge_pac
 from .compare_support import (
     COMPARISON_PACKAGES,
     ComparisonPackage,
+    ComparisonReport,
     NoCommonVersion,
-    _select_conda_build,
-    _wheel_is_abi3,
+    cached_download,
+    download_cache_dir,
     find_common_version,
     ignore_paths,
+    select_conda_build,
+    wheel_is_abi3,
 )
 
 _PY_MAJOR, _PY_MINOR = sys.version_info[:2]
@@ -81,15 +79,15 @@ def _build(build: str, *depends: str, build_number: int = 0) -> CondaForgeBuild:
     )
 
 
-def test_wheel_is_abi3() -> None:
-    """Unit test for _wheel_is_abi3"""
-    assert _wheel_is_abi3("foo-1.0-cp39-abi3-manylinux_2_28_x86_64.whl")
-    assert not _wheel_is_abi3("foo-1.0-cp312-cp312-manylinux_2_28_x86_64.whl")
-    assert not _wheel_is_abi3("not-a-wheel.txt")
+def testwheel_is_abi3() -> None:
+    """Unit test for wheel_is_abi3"""
+    assert wheel_is_abi3("foo-1.0-cp39-abi3-manylinux_2_28_x86_64.whl")
+    assert not wheel_is_abi3("foo-1.0-cp312-cp312-manylinux_2_28_x86_64.whl")
+    assert not wheel_is_abi3("not-a-wheel.txt")
 
 
-def test_select_conda_build() -> None:
-    """Unit test for _select_conda_build"""
+def testselect_conda_build() -> None:
+    """Unit test for select_conda_build"""
     exact = _build("py_exact_0", _PY_ABI)
     exact2 = _build("py_exact_1", _PY_ABI, build_number=1)
     freethreaded = _build("py_ft_0", f"{_PY_ABI}t")
@@ -100,14 +98,14 @@ def test_select_conda_build() -> None:
     )
 
     def select(*builds: CondaForgeBuild, abi3: bool = False):
-        return _select_conda_build(list(builds), "1.0", "linux-64", abi3=abi3)
+        return select_conda_build(list(builds), "1.0", "linux-64", abi3=abi3)
 
     # regular wheels need an exact, non-free-threaded python match
     assert select(other_py, freethreaded, exact) is exact
     assert select(exact, exact2, other_py) is exact2
     assert select(other_py, freethreaded, abi3) is None
-    assert _select_conda_build([exact], "2.0", "linux-64") is None
-    assert _select_conda_build([exact], "1.0", "osx-arm64") is None
+    assert select_conda_build([exact], "2.0", "linux-64") is None
+    assert select_conda_build([exact], "1.0", "osx-arm64") is None
 
     # abi3 wheels prefer compatible CEP-20 abi3 builds
     assert select(freethreaded, exact, abi3, abi3=True) is abi3
@@ -137,86 +135,18 @@ def test_ignore_paths() -> None:
     assert result.ok
 
 
-@dataclass
-class ComparisonReport:
-    """Accumulates per-package comparison outcomes."""
-
-    entries: list[dict[str, Any]] = field(default_factory=list)
-
-    def add(
-        self,
-        package: ComparisonPackage,
-        *,
-        status: str,
-        version: str = "",
-        detail: str = "",
-        result: ComparisonResult | None = None,
-    ) -> None:
-        entry: dict[str, Any] = {
-            "package": package.pypi_name,
-            "category": package.category,
-            "status": status,
-            "version": version,
-            "detail": detail,
-        }
-        if package.xfail_reason:
-            entry["xfail_reason"] = package.xfail_reason
-        if result is not None:
-            entry["errors"] = len(result.errors)
-            entry["notices"] = sum(
-                1 for d in result.differences if d.severity.name == "NOTICE"
-            )
-            entry["comparison"] = result.to_json()
-        self.entries.append(entry)
-
-    def write(self, out_dir: Path) -> None:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        json_file = out_dir / "compare-report.json"
-        json_file.write_text(json.dumps(self.entries, indent=2), "utf8")
-
-        lines = [
-            "# conda-forge comparison report",
-            "",
-            "| package | category | version | status | errors | notices |",
-            "|---------|----------|---------|--------|--------|---------|",
-        ]
-        columns = ("package", "category", "version", "status", "errors", "notices")
-        lines.extend(
-            "| " + " | ".join(str(entry.get(col, "")) for col in columns) + " |"
-            for entry in self.entries
-        )
-        md_file = out_dir / "compare-report.md"
-        md_file.write_text("\n".join(lines) + "\n", "utf8")
-        print(f"\nComparison report written to {json_file} and {md_file}")
-
-
 @pytest.fixture(scope="session")
 def compare_report() -> Any:
     """Session report, written to disk after the suite finishes."""
     report = ComparisonReport()
     yield report
-    if report.entries:
-        out_dir = Path(os.environ.get("WHL2CONDA_COMPARE_REPORT_DIR", "."))
-        report.write(out_dir)
+    report.write_to_report_dir()
 
 
 @pytest.fixture(scope="session")
 def download_cache() -> Path:
     """Persistent cross-run download cache directory."""
-    if override := os.environ.get("WHL2CONDA_TEST_CACHE"):
-        cache_dir = Path(override)
-    else:
-        cache_dir = user_cache_path("whl2conda-tests") / "compare"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir
-
-
-def _cached_download(url: str, filename: str, cache_dir: Path) -> Path:
-    target = cache_dir / filename
-    if not target.is_file():
-        with urllib.request.urlopen(url, timeout=60.0) as response:
-            target.write_bytes(response.read())
-    return target
+    return download_cache_dir()
 
 
 @pytest.mark.external
@@ -232,15 +162,15 @@ def test_compare_with_conda_forge(
     try:
         common = find_common_version(entry)
     except NoCommonVersion as ex:
-        compare_report.add(entry, status="skipped", detail=str(ex))
+        compare_report.add_package(entry, status="skipped", detail=str(ex))
         pytest.skip(str(ex))
     except urllib.error.URLError as ex:  # pragma: no cover - network
         detail = f"network error querying {entry.pypi_name}: {ex}"
-        compare_report.add(entry, status="skipped", detail=detail)
+        compare_report.add_package(entry, status="skipped", detail=detail)
         pytest.skip(detail)
 
     try:
-        wheel_file = _cached_download(
+        wheel_file = cached_download(
             common.wheel.url, common.wheel.filename, download_cache
         )
         conda_file = download_cache / common.conda_build.filename
@@ -250,7 +180,7 @@ def test_compare_with_conda_forge(
             )
     except urllib.error.URLError as ex:  # pragma: no cover - network
         detail = f"network error downloading {entry.pypi_name}: {ex}"
-        compare_report.add(entry, status="skipped", detail=detail)
+        compare_report.add_package(entry, status="skipped", detail=detail)
         pytest.skip(detail)
 
     converter = Wheel2CondaConverter(wheel_file, out_dir=tmp_path)
@@ -266,7 +196,9 @@ def test_compare_with_conda_forge(
     result = compare_conda_packages(converted, conda_file, options=options)
     ignore_paths(result, entry.ignore_paths)
     status = "ok" if result.ok else "unexpected-differences"
-    compare_report.add(entry, status=status, version=common.version, result=result)
+    compare_report.add_package(
+        entry, status=status, version=common.version, result=result
+    )
 
     if not result.ok:
         if entry.xfail_reason:

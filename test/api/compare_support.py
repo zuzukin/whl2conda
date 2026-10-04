@@ -23,14 +23,17 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import re
 import sys
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
-from typing import NamedTuple
+from pathlib import Path
+from typing import Any, Literal, NamedTuple
 
 from packaging.version import InvalidVersion, Version
+from platformdirs import user_cache_path
 
 from whl2conda.api.compare import ComparisonResult, Severity
 from whl2conda.api.stdrename import load_std_renames
@@ -43,10 +46,22 @@ from whl2conda.impl.conda_forge import (
 __all__ = [
     "COMPARISON_PACKAGES",
     "CommonVersion",
+    "ComparisonCategory",
     "ComparisonPackage",
+    "ComparisonReport",
     "NoCommonVersion",
+    "cached_download",
+    "download_cache_dir",
     "find_common_version",
     "ignore_paths",
+    "select_conda_build",
+    "wheel_is_abi3",
+]
+
+
+#: Kind of binary wheel provided by a package.
+ComparisonCategory = Literal[
+    "c-ext", "cython", "abi3", "rust", "bundled-libs", "entry-points"
 ]
 
 
@@ -55,8 +70,7 @@ class ComparisonPackage:
     """A package in the conda-forge comparison manifest."""
 
     pypi_name: str
-    category: str
-    """One of: c-ext, cython, abi3, rust, bundled-libs, entry-points."""
+    category: ComparisonCategory
 
     conda_name: str = ""
     """Conda package name; defaults via the stdrename table."""
@@ -231,7 +245,7 @@ def _pypi_wheels(pypi_name: str, subdir: str, timeout: float) -> dict[str, PyPIW
     return result
 
 
-def _wheel_is_abi3(filename: str) -> bool:
+def wheel_is_abi3(filename: str) -> bool:
     """True if the wheel targets the stable ABI."""
     m = _WHEEL_FNAME_RE.fullmatch(filename)
     return m is not None and "abi3" in m.group("abi").split(".")
@@ -264,7 +278,7 @@ def _is_compatible_abi3_build(build: CondaForgeBuild) -> bool:
     return True
 
 
-def _select_conda_build(
+def select_conda_build(
     builds: list[CondaForgeBuild], version: str, subdir: str, *, abi3: bool = False
 ) -> CondaForgeBuild | None:
     """Best conda-forge build of the given version for the subdir.
@@ -325,8 +339,8 @@ def find_common_version(
         wheel = wheels.get(version)
         if not wheel:
             continue
-        conda_build = _select_conda_build(
-            builds, version, subdir, abi3=_wheel_is_abi3(wheel.filename)
+        conda_build = select_conda_build(
+            builds, version, subdir, abi3=wheel_is_abi3(wheel.filename)
         )
         if conda_build:
             return CommonVersion(version, wheel, conda_build)
@@ -336,3 +350,117 @@ def find_common_version(
         f" compatible wheel and a conda-forge build for {subdir}"
         " and python {}.{}".format(*sys.version_info[:2])
     )
+
+
+@dataclass
+class ComparisonReport:
+    """Accumulates per-package comparison outcomes."""
+
+    basename: str = "compare-report"
+    """Base name of the report files."""
+
+    title: str = "conda-forge comparison report"
+
+    entries: list[dict[str, Any]] = field(default_factory=list)
+
+    def add(
+        self,
+        name: str,
+        category: str,
+        *,
+        status: str,
+        version: str = "",
+        detail: str = "",
+        xfail_reason: str = "",
+        result: ComparisonResult | None = None,
+    ) -> None:
+        """Record the outcome for one package."""
+        entry: dict[str, Any] = {
+            "package": name,
+            "category": category,
+            "status": status,
+            "version": version,
+            "detail": detail,
+        }
+        if xfail_reason:
+            entry["xfail_reason"] = xfail_reason
+        if result is not None:
+            entry["errors"] = len(result.errors)
+            entry["notices"] = sum(
+                1 for d in result.differences if d.severity.name == "NOTICE"
+            )
+            entry["comparison"] = result.to_json()
+        self.entries.append(entry)
+
+    def add_package(
+        self,
+        package: ComparisonPackage,
+        *,
+        status: str,
+        version: str = "",
+        detail: str = "",
+        result: ComparisonResult | None = None,
+    ) -> None:
+        """Record the outcome for a package in the comparison manifest."""
+        self.add(
+            package.pypi_name,
+            package.category,
+            status=status,
+            version=version,
+            detail=detail,
+            xfail_reason=package.xfail_reason,
+            result=result,
+        )
+
+    def write(self, out_dir: Path) -> None:
+        """Write the json and markdown report files into the directory."""
+        out_dir.mkdir(parents=True, exist_ok=True)
+        json_file = out_dir / f"{self.basename}.json"
+        json_file.write_text(json.dumps(self.entries, indent=2), "utf8")
+
+        columns = ("package", "category", "version", "status", "errors", "notices")
+        lines = [
+            f"# {self.title}",
+            "",
+            "| " + " | ".join(columns) + " | detail |",
+            "|" + "|".join("---" for _ in range(len(columns) + 1)) + "|",
+        ]
+        for entry in self.entries:
+            cells = [str(entry.get(col, "")) for col in columns]
+            detail = str(entry.get("detail", "")).splitlines()
+            cells.append(detail[0].replace("|", "\\|")[:200] if detail else "")
+            lines.append("| " + " | ".join(cells) + " |")
+        md_file = out_dir / f"{self.basename}.md"
+        md_file.write_text("\n".join(lines) + "\n", "utf8")
+        print(f"\nComparison report written to {json_file} and {md_file}")
+
+    def write_to_report_dir(self) -> None:
+        """Write the report, if not empty, to the configured directory.
+
+        This is the current directory unless overridden with the
+        WHL2CONDA_COMPARE_REPORT_DIR environment variable.
+        """
+        if self.entries:
+            self.write(Path(os.environ.get("WHL2CONDA_COMPARE_REPORT_DIR", ".")))
+
+
+def download_cache_dir() -> Path:
+    """Persistent cross-run download cache directory.
+
+    Override the location with the WHL2CONDA_TEST_CACHE environment variable.
+    """
+    if override := os.environ.get("WHL2CONDA_TEST_CACHE"):
+        cache_dir = Path(override)
+    else:
+        cache_dir = user_cache_path("whl2conda-tests") / "compare"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
+
+
+def cached_download(url: str, filename: str, cache_dir: Path) -> Path:
+    """Download the url into the cache directory unless already there."""
+    target = cache_dir / filename
+    if not target.is_file():
+        with urllib.request.urlopen(url, timeout=60.0) as response:
+            target.write_bytes(response.read())
+    return target
