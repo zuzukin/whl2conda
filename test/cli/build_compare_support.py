@@ -88,7 +88,12 @@ BUILD_PROJECTS: tuple[BuildProject, ...] = (
     BuildProject("lazy-object-proxy", "c-ext"),
     BuildProject("bitarray", "c-ext"),
     BuildProject("zope.interface", "c-ext"),
-    BuildProject("kiwisolver", "c++"),
+    BuildProject(
+        "kiwisolver",
+        "c++",
+        build_args=("--build-isolation",),
+        notes="needs the cppy build requirement from the recipe's host environment",
+    ),
     # classic meta.yaml feedstocks
     BuildProject("regex", "c-ext"),
     BuildProject("tornado", "c-ext"),
