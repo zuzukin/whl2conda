@@ -16,14 +16,47 @@ Instead of solving and creating build/host/test environments, whl2conda:
 4. runs the recipe's tests against the package in a fresh conda
    environment.
 
+The package is named by the recipe, and its dependencies are those of
+the wheel together with the recipe's run requirements, which take
+precedence over the wheel's dependencies on the same packages. The
+python dependency of a binary package always comes from the wheel,
+since it depends on how the wheel was built. The recipe's run
+constraints (`run_constrained`, or `run_constraints` in v1 recipes)
+become the run constraints of the package.
+
 Because there is no build environment, this is much faster than
 `conda build`, but it only works for recipes that:
 
-* build a pure python (`noarch: python`) package
-  (see [#216] for planned binary package support),
-* whose build script consists of a single `pip install .` or
-  `pip wheel .` command (extra pip options are fine), and
+* have a build script consisting of a single `pip install .` or
+  `pip wheel .` command (extra pip options before or after the
+  project directory are fine), and
 * produce a single output package.
+
+Both pure python (`noarch: python`) and platform-specific binary
+recipes are supported. For binary recipes, the wheel is built with
+your local toolchain via the project's build backend — not in the
+recipe's `build`/`host` conda environments — so this works for
+self-contained extension modules but not for recipes that require
+conda-provided compilers or libraries (see the
+[Binary Conversion](binary-conversion.md) guide for the conversion
+limitations), and the built wheel reflects your local toolchain
+settings (e.g. the macOS deployment target). On Linux, the locally
+built wheel is not a portable manylinux wheel, so the package is given
+a `__glibc` dependency requiring at least the glibc version of the
+build machine.
+
+Recipes that use variant-dependent expressions such as
+`${{ compiler('c') }}` or `${{ stdlib('c') }}` need a variant
+configuration file to render. Variant files in the recipe directory
+(`conda_build_config.yaml`, and for v1 recipes also `variants.yaml`)
+are loaded automatically, and others can be supplied with
+`-m`/`--variant-config-files`. When the recipe renders to a variant
+for each of several python versions, only the variant for the python
+version used in the build - the one running whl2conda - is produced.
+
+The `--output`, `-t`/`--test`, and `--skip-existing` options remain
+restricted to noarch recipes, since a binary package's file name
+cannot be predicted before the wheel is built.
 
 ## Supported recipe formats
 
@@ -92,8 +125,17 @@ dropped into existing scripts:
 
 There are also a few whl2conda extensions: `--check` (validate the
 recipe without building), `--extra-deps` (additional conda
-dependencies), and `--keep-test-env` (keep the test environment for
-debugging).
+dependencies), `--keep-test-env` (keep the test environment for
+debugging), and `--build-isolation`.
+
+Recipes usually pass `--no-build-isolation` to pip, because the
+project's build requirements are installed in the recipe's host
+environment. Since whl2conda does not create that environment, the
+build requirements must instead be installed in the environment that
+`whl2conda build` is run from. Alternatively, the `--build-isolation`
+option removes `--no-build-isolation` from the pip command, so that pip
+downloads and installs the build requirements declared by the project
+into an isolated build environment.
 
 ## Evaluating whl2conda against your recipe
 
@@ -128,7 +170,6 @@ fresh conda environment created with `whl2conda install`:
   test environment, unlike rattler-build, which creates a separate
   environment per element.
 
-[#216]: https://github.com/zuzukin/whl2conda/issues/216
 [conda-build]: https://docs.conda.io/projects/conda-build/
 [rattler-build]: https://rattler.build/
 [py-rattler-build]: https://pypi.org/project/py-rattler-build/

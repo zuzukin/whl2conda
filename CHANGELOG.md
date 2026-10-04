@@ -2,6 +2,59 @@
 
 ## [next] - *in progress*
 
+### Features
+
+* `whl2conda build` now supports recipes for platform-specific binary
+  packages: when the recipe does not declare `noarch: python`, the
+  built wheel is converted with binary conversion enabled and the
+  package is written and installed into the target platform subdir.
+  The `--output`, `-t`/`--test`, and `--skip-existing` options remain
+  restricted to noarch recipes. On Linux, the package requires at
+  least the glibc version of the build machine. (#216)
+* `whl2conda build` and `whl2conda test` now pass
+  `-m`/`--variant-config-files` through to the recipe renderer,
+  which is required by recipes using variant-dependent expressions
+  such as `stdlib('c')`; the unresolved `${{ PYTHON }}` template in
+  rendered v1 build scripts is now handled. (#216)
+* New `whl2conda build --build-isolation` option removes
+  `--no-build-isolation` from the recipe's pip command, so that pip
+  installs the project's build requirements itself rather than
+  requiring them in the current environment.
+* `whl2conda diff` now compares the run constraints (`constrains`) of
+  the packages. A constraint only in the reference package is an error,
+  unless it is a dependency of the package or a run-export style
+  constraint; such differences are in the new `constraint-missing`,
+  `constraint-extra` and `constraint-version` categories.
+* When a recipe renders to a variant per python version, `whl2conda
+  build` now uses the variant for the python that builds the wheel
+  instead of rejecting v1 recipes or using the first variant of
+  classic recipes. Variant files in the directory of a v1 recipe are
+  now also loaded when rendering with py-rattler-build.
+
+### Bug fixes
+
+* `whl2conda build` no longer fails on recipe build scripts that
+  invoke pip through `{{ PYTHON }}` in classic recipes, `%PYTHON%`,
+  or `${PYTHON}`.
+* `whl2conda build` now adds the recipe's run requirements to the
+  dependencies of the package, in place of any dependencies on the
+  same packages from the wheel's metadata. Previously only the
+  wheel's dependencies were used.
+* `whl2conda build` now adds the recipe's run constraints
+  (`run_constrained`, or `run_constraints` in v1 recipes) to the
+  package. The converter has a new `constrains` option for this.
+* `whl2conda build` now recognizes pip commands with options before
+  the project directory, such as `pip install --no-deps .`.
+* `whl2conda build` now names the package after the recipe rather
+  than the built wheel, which differ for packages such as
+  `msgpack-python`.
+* `whl2conda build` no longer fails on recipe build scripts that pass
+  options of `pip install` not supported by `pip wheel`, such as
+  `--ignore-installed` or `--prefix`.
+* `whl2conda install` no longer corrupts dependencies that have a
+  build string (e.g. `python_abi 3.12.* *_cp312`), which prevented
+  installing and testing binary packages.
+
 ### Development
 
 * Code readability overhaul from an internal review: oriented and
@@ -11,9 +64,16 @@
   centralized shared test fixtures in conftest files, split the
   oversized converter test module, and removed stale comments and
   dead code throughout.
+* The conda-forge comparison suite now selects reference builds
+  matching the running python ABI (or CEP-20 abi3 builds for abi3
+  wheels) and runs in a dedicated Python 3.13 pixi environment. (#231)
 
 ### Changes
 
+* An explicit package name (`whl2conda convert --name`, or the
+  converter's `package_name`) is now only converted to lower case and
+  no longer normalized like a pypi name, so that conda package names
+  such as `zope.interface` can be produced.
 * Dependency rename replacement strings are now validated to contain
   only valid package name characters.
 * The documented python API has been narrowed to the intended stable

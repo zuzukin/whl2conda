@@ -50,6 +50,7 @@ class FakeTest:
         self.render_fail = False
         self.rendered_raw: dict[str, Any] = {}
         self.render_calls: list[Path] = []
+        self.render_kwargs: dict[str, Any] = {}
 
         fake = self
 
@@ -58,8 +59,9 @@ class FakeTest:
             if fake.fail:
                 raise PackageTestError("test failed")
 
-        def fake_render(recipe_dir: Path, **_kwargs) -> RenderedRecipe:
+        def fake_render(recipe_dir: Path, **kwargs) -> RenderedRecipe:
             fake.render_calls.append(recipe_dir)
+            fake.render_kwargs = kwargs
             if fake.render_fail:
                 raise RecipeError("render boom")
             fmt = (
@@ -148,8 +150,11 @@ def test_test_from_recipe(fake_test: FakeTest) -> None:
     (recipe_dir / "meta.yaml").write_text("unrendered")
     fake_test.rendered_raw = {"test": {"imports": ["simple"]}}
 
-    main(["test", str(fake_test.package), str(recipe_dir)])
+    variants = fake_test.tmp_path / "variants.yaml"
+    variants.write_text("c_stdlib: [sysroot]\n")
+    main(["test", str(fake_test.package), str(recipe_dir), "-m", str(variants)])
     assert fake_test.render_calls == [recipe_dir]
+    assert fake_test.render_kwargs["variant_config"] == [variants]
     assert fake_test.test_calls[0]["spec"].imports == ("simple",)
 
     # v1 recipe tests list

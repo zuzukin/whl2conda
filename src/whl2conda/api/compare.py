@@ -105,6 +105,10 @@ class DiffCategory(enum.Enum):
     DEP_VERSION = "dep-version"
     DEP_UNRENAMED = "dep-unrenamed"
     PYTHON_PIN = "python-pin"
+    # run constraints
+    CONSTRAINT_MISSING = "constraint-missing"
+    CONSTRAINT_EXTRA = "constraint-extra"
+    CONSTRAINT_VERSION = "constraint-version"
     # files
     FILE_MISSING = "file-missing"
     FILE_EXTRA = "file-extra"
@@ -354,6 +358,15 @@ class _ExtractedPackage:
         return result
 
     @cached_property
+    def constrains(self) -> dict[str, str]:
+        """Run constraints as a name to version-constraint map."""
+        result: dict[str, str] = {}
+        for constraint in self.index.get("constrains", ()):
+            name, _, spec = str(constraint).partition(" ")
+            result[name] = spec.strip()
+        return result
+
+    @cached_property
     def all_files(self) -> list[str]:
         """All non-info files, relative to the package root (posix style)."""
         return sorted(
@@ -457,6 +470,7 @@ class _PackageComparer:
         """Run all checks and return the differences found."""
         self._check_index()
         self._check_depends()
+        self._check_constrains()
         self._check_about()
         self._check_info_files()
         self._check_paths_consistency(self.pkg1, "package1")
@@ -642,6 +656,62 @@ class _PackageComparer:
                     f"dependency '{name}' not present in reference package",
                     left=f"{name} {deps1[name]}".strip(),
                 )
+
+    def _check_constrains(self) -> None:
+        constrains1 = self.pkg1.constrains
+        constrains2 = self.pkg2.constrains
+        key = "index.json:constrains"
+
+        for name in sorted(constrains1.keys() & constrains2.keys()):
+            if constrains1[name] != constrains2[name]:
+                self._add(
+                    DiffCategory.CONSTRAINT_VERSION,
+                    Severity.NOTICE,
+                    key,
+                    f"version constraints for run constraint '{name}' differ",
+                    left=f"{name} {constrains1[name]}".strip(),
+                    right=f"{name} {constrains2[name]}".strip(),
+                )
+
+        deps1 = self.pkg1.depends
+        for name in sorted(constrains2.keys() - constrains1.keys()):
+            if name in deps1:
+                # e.g. the reference package constrains `__osx`,
+                # which package1 requires outright
+                self._add(
+                    DiffCategory.CONSTRAINT_MISSING,
+                    Severity.EXPECTED,
+                    key,
+                    f"run constraint '{name}' from reference package"
+                    " is a dependency of package1",
+                    left=f"{name} {deps1[name]}".strip(),
+                    right=f"{name} {constrains2[name]}".strip(),
+                )
+            elif name in self.run_exports:
+                self._add(
+                    DiffCategory.CONSTRAINT_MISSING,
+                    Severity.EXPECTED,
+                    key,
+                    f"reference package has run-export style constraint '{name}'",
+                    right=f"{name} {constrains2[name]}".strip(),
+                )
+            else:
+                self._add(
+                    DiffCategory.CONSTRAINT_MISSING,
+                    Severity.ERROR,
+                    key,
+                    f"run constraint '{name}' from reference package is missing",
+                    right=f"{name} {constrains2[name]}".strip(),
+                )
+
+        for name in sorted(constrains1.keys() - constrains2.keys()):
+            self._add(
+                DiffCategory.CONSTRAINT_EXTRA,
+                Severity.NOTICE,
+                key,
+                f"run constraint '{name}' not present in reference package",
+                left=f"{name} {constrains1[name]}".strip(),
+            )
 
     #
     # about.json

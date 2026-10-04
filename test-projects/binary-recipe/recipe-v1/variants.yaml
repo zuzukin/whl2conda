@@ -1,0 +1,24 @@
+# One variant per python version, as in a typical binary recipe.
+# whl2conda build uses the variant for the python that builds the wheel.
+python:
+  - "3.10"
+  - "3.11"
+  - "3.12"
+  - "3.13"
+  - "3.14"
+
+# needed to render stdlib('c')
+c_stdlib:
+  - if: linux
+    then: sysroot
+  - if: osx
+    then: macosx_deployment_target
+  - if: win
+    then: vs
+c_stdlib_version:
+  - if: linux
+    then: "2.17"
+  - if: osx
+    then: "11.0"
+  - if: win
+    then: "2022"

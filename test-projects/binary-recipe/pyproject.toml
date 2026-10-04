@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hello-ext"
+version = "1.0.0"
+description = "whl2conda build binary recipe test fixture"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+
+[tool.setuptools]
+ext-modules = [{ name = "hello_ext", sources = ["src/hello_ext.c"] }]

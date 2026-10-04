@@ -173,6 +173,7 @@ class ConverterTestCase:
             self._validator.validate(
                 wheel_path,
                 package_path,
+                name=self.package_name,
                 std_renames=converter.std_renames,
                 renamed={
                     r.pattern.pattern: r.replacement for r in self.dependency_rename

@@ -22,7 +22,7 @@ import subprocess
 import sys
 import types
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import pytest
 import yaml
@@ -32,7 +32,9 @@ from whl2conda.impl.recipe import (
     RecipeFormat,
     RecipeRenderError,
     RenderedRecipe,
+    build_python_version,
     find_recipe_file,
+    python_variant_indices,
     render_recipe,
     rewrite_build_script,
 )
@@ -104,6 +106,23 @@ def test_render_recipe_meta(
     assert rendered.build_number == 0
     assert rendered.build_script == ("pip install .",)
     assert not rendered.noarch_python
+    assert rendered.run_requirements == ()
+
+    # run requirements are normalized dependency specs
+    monkeypatch.setattr(
+        "whl2conda.impl.render_meta.render_meta_yaml",
+        lambda _recipe_dir, **_kwargs: {
+            "package": {"name": "simple", "version": "1.2.3"},
+            "requirements": {
+                "host": ["python", "pip"],
+                "run": ["python  >=3.9", " setuptools ", "", {"pin_subpackage": {}}],
+                "run_constrained": ["jinja2  >=3.0.0"],
+            },
+        },
+    )
+    rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
+    assert rendered.run_requirements == ("python >=3.9", "setuptools")
+    assert rendered.run_constraints == ("jinja2 >=3.0.0",)
 
 
 RENDERED_V1 = {
@@ -133,7 +152,7 @@ def test_render_recipe_v1(
     rendered_raw = dict(RENDERED_V1)
     monkeypatch.setattr(
         "whl2conda.impl.render_v1.render_v1_yaml",
-        lambda _recipe_file: dict(rendered_raw),
+        lambda _recipe_file, *_args: dict(rendered_raw),
     )
 
     rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
@@ -145,6 +164,18 @@ def test_render_recipe_v1(
     assert rendered.build_script == ("pip install . -vv",)
     assert rendered.noarch_python
     assert rendered.raw == RENDERED_V1
+    assert rendered.run_requirements == ()
+    assert rendered.run_constraints == ()
+
+    # run requirements and constraints
+    rendered_raw["requirements"] = {
+        "run": ["python >=3.9", "numpy"],
+        "run_constraints": ["jinja2 >=3.0.0"],
+    }
+    rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
+    assert rendered.run_requirements == ("python >=3.9", "numpy")
+    assert rendered.run_constraints == ("jinja2 >=3.0.0",)
+    del rendered_raw["requirements"]
 
     # the v1 object script form
     rendered_raw["build"] = {
@@ -160,10 +191,19 @@ def test_render_recipe_v1(
     rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
     assert rendered.build_script == ()
 
-    # non-noarch v1 recipes are rejected
+    # non-noarch v1 recipes are accepted for binary conversion (#216)
     rendered_raw["build"] = {"script": "pip install ."}
-    with pytest.raises(RecipeError, match="noarch: python"):
-        render_recipe(recipe_dir, work_dir=tmp_path / "work")
+    rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
+    assert not rendered.noarch_python
+
+
+def test_python_variant_indices() -> None:
+    """Unit test for python_variant_indices"""
+    pythons = ["3.1", "3.12", "3.12.* *_cpython", " 3.12.4", "3.13", None, 3.12, ""]
+    assert python_variant_indices(pythons, "3.12") == [1, 2, 3, 6]
+    assert python_variant_indices(pythons, "3.1") == [0]
+    assert python_variant_indices(pythons, "3.9") == []
+    assert python_variant_indices([build_python_version()]) == [0]
 
 
 def make_rendered(script: str | list[str]) -> RenderedRecipe:
@@ -190,15 +230,90 @@ def test_rewrite_build_script(tmp_path: Path) -> None:
             f"pip wheel . -w {dist} -vv --no-deps --no-build-isolation",
         ),
         ("pip wheel . --no-deps", f"pip wheel . -w {dist} --no-deps"),
+        # options of pip install that pip wheel does not accept are dropped
+        (
+            "pip install . --no-deps --ignore-installed --no-cache-dir -vvv"
+            ' --config-settings="--build-option=--with-cython"',
+            f"pip wheel . -w {dist} --no-deps --no-cache-dir -vvv"
+            ' --config-settings="--build-option=--with-cython"',
+        ),
+        (
+            "pip install . -I --prefix=$PREFIX --no-deps --target /some/dir -U",
+            f"pip wheel . -w {dist} --no-deps",
+        ),
+        ("pip install . --no-compile", f"pip wheel . -w {dist}"),
+        ("pip install . --upgrade-strategy eager -vv", f"pip wheel . -w {dist} -vv"),
+        # options may also come before the project directory
+        (
+            "pip install --no-deps --ignore-installed .",
+            f"pip wheel . -w {dist} --no-deps",
+        ),
+        (
+            "$PYTHON -m pip install -vv --prefix $PREFIX . --no-deps",
+            f"pip wheel . -w {dist} -vv --no-deps",
+        ),
+        (
+            "pip install --config-settings setup-args=-Dfoo=bar --no-deps . -vv",
+            f"pip wheel . -w {dist} --config-settings setup-args=-Dfoo=bar"
+            " --no-deps -vv",
+        ),
+        ("pip wheel --no-deps .", f"pip wheel . -w {dist} --no-deps"),
+        # but not similarly named options, or when already using pip wheel
+        ("pip install . --prefer-binary", f"pip wheel . -w {dist} --prefer-binary"),
+        ("pip wheel . --no-deps -vv", f"pip wheel . -w {dist} --no-deps -vv"),
         ("python -m pip install .", f"pip wheel . -w {dist}"),
         ("python3 -m pip install .", f"pip wheel . -w {dist}"),
         ("python3.12 -m pip install .", f"pip wheel . -w {dist}"),
+        # conda-build renders {{ PYTHON }} in meta.yaml scripts to the
+        # path of the python in the (nonexistent) host environment
         (
-            '{{ PYTHON }} pip install . -vv',
-            f"{{{{ PYTHON }}}} pip wheel . -w {dist} -vv",
+            "/croot/foo_1/_h_env_placehold_placehold/bin/python -m pip install . -vv",
+            f"pip wheel . -w {dist} -vv",
         ),
+        (
+            r"C:\croot\foo_1\_h_env\python.exe -m pip install . -vv",
+            f"pip wheel . -w {dist} -vv",
+        ),
+        (
+            r'"C:\Program Files\croot\_h_env\python.exe" -m pip install .',
+            f"pip wheel . -w {dist}",
+        ),
+        (
+            "cd src && /opt/bin/python3 -m pip install .",
+            f"cd src && pip wheel . -w {dist}",
+        ),
+        # interpreter variables and templates are dropped, since they
+        # are not set when the script is run (the template is left
+        # unresolved in rendered v1 scripts)
+        ("{{ PYTHON }} pip install . -vv", f"pip wheel . -w {dist} -vv"),
+        ("%PYTHON% -m pip install . -vv", f"pip wheel . -w {dist} -vv"),
+        ('"%PYTHON%" -m pip install .', f"pip wheel . -w {dist}"),
+        ("${PYTHON} -m pip install .", f"pip wheel . -w {dist}"),
+        (
+            "${{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation",
+            f"pip wheel . -w {dist} -vv --no-deps --no-build-isolation",
+        ),
+        ("$PYTHON -m pip install .", f"pip wheel . -w {dist}"),
     ]:
         assert rewrite_build_script(make_rendered(script), dist) == [expected]
+
+    # build_isolation removes --no-build-isolation
+    for script, expected in [
+        (
+            "pip install . -vv --no-deps --no-build-isolation",
+            f"pip wheel . -w {dist} -vv --no-deps",
+        ),
+        (
+            "pip wheel . --no-build-isolation --no-deps",
+            f"pip wheel . -w {dist} --no-deps",
+        ),
+        ("pip install . --no-build-isolation", f"pip wheel . -w {dist}"),
+        ("pip install . -vv", f"pip wheel . -w {dist} -vv"),
+    ]:
+        rewritten = rewrite_build_script(
+            make_rendered(script), dist, build_isolation=True
+        )
+        assert rewritten == [expected]
 
     # multi-line scripts: only the pip line is rewritten
     rewritten = rewrite_build_script(
@@ -211,6 +326,14 @@ def test_rewrite_build_script(tmp_path: Path) -> None:
         rewrite_build_script(make_rendered("make install"), dist)
     with pytest.raises(RecipeError, match="does not use"):
         rewrite_build_script(make_rendered("pip install foo"), dist)
+    with pytest.raises(RecipeError, match="does not use"):
+        rewrite_build_script(make_rendered("pip install --no-deps foo"), dist)
+    with pytest.raises(RecipeError, match="does not use"):
+        rewrite_build_script(make_rendered("pip install -r reqs.txt"), dist)
+    with pytest.raises(RecipeError, match="does not use"):
+        rewrite_build_script(make_rendered("pip install -e ."), dist)
+    with pytest.raises(RecipeError, match="does not use"):
+        rewrite_build_script(make_rendered("pip install --no-deps -e ."), dist)
     with pytest.raises(RecipeError, match="does not use"):
         rewrite_build_script(make_rendered([]), dist)
 
@@ -281,22 +404,35 @@ def test_render_meta_yaml_in_process(
         """Stands in for conda_build.api"""
 
         croots: ClassVar[list[str]] = []
-        variants = 1
+        variant_files: ClassVar[list[str]] = []
+        pythons: ClassVar[list[str]] = ["3.12"]
+        output: ClassVar[list[str]] = []
         fail = False
 
         @classmethod
-        def Config(cls, croot: str) -> str:
+        def Config(cls, croot: str, variant_config_files=()) -> str:
             cls.croots.append(croot)
+            cls.variant_files = list(variant_config_files)
             return croot
 
         @classmethod
         def render(cls, recipe: str, config: str, bypass_env_check: bool) -> list:
             if cls.fail:
                 raise ValueError("bad recipe")
-            return [(f"metadata for {recipe}", True, True)] * cls.variants
+            return [
+                (
+                    types.SimpleNamespace(
+                        config=types.SimpleNamespace(variant={"python": python})
+                    ),
+                    True,
+                    True,
+                )
+                for python in cls.pythons
+            ]
 
-        @staticmethod
-        def output_yaml(metadata: str, file_path: str) -> None:
+        @classmethod
+        def output_yaml(cls, metadata: Any, file_path: str) -> None:
+            cls.output.append(metadata.config.variant["python"])
             Path(file_path).write_text(yaml.safe_dump(RENDERED_META))
 
     fake_api = FakeCondaBuildApi("conda_build.api")
@@ -313,10 +449,19 @@ def test_render_meta_yaml_in_process(
     assert rendered["package"]["name"] == "simple"
     assert FakeCondaBuildApi.croots == [str(work_dir / "croot")]
 
-    # multiple variants only produce a warning
-    FakeCondaBuildApi.variants = 2
+    # with multiple variants, the one for the build python is used
+    this_python = build_python_version()
+    FakeCondaBuildApi.pythons = ["2.7", f"{this_python}.* *_cpython", "3.99"]
     with caplog.at_level("WARNING"):
         render_meta_yaml(recipe_dir, work_dir=work_dir)
+    assert FakeCondaBuildApi.output[-1] == f"{this_python}.* *_cpython"
+    assert "multiple variants" not in caplog.text
+
+    # otherwise the first is used with a warning
+    FakeCondaBuildApi.pythons = ["2.7", "3.99"]
+    with caplog.at_level("WARNING"):
+        render_meta_yaml(recipe_dir, work_dir=work_dir)
+    assert FakeCondaBuildApi.output[-1] == "2.7"
     assert "multiple variants" in caplog.text
 
     # render errors are wrapped in RecipeRenderError
@@ -364,16 +509,29 @@ def test_render_meta_yaml_failure(
 
 
 def _fake_rattler_module(
-    *, multi=False, parse_fail=False, render_fail=False, variants=1
+    *, multi=False, parse_fail=False, render_fail=False, pythons=("3.12",)
 ):
-    """Create a fake rattler_build module rendering RENDERED_V1."""
+    """Create a fake rattler_build module rendering RENDERED_V1.
+
+    Renders a variant for each of the given python variant values. When
+    there is more than one, each rendered recipe records its python in
+    its `context`.
+    """
     mod = types.ModuleType("rattler_build")
 
+    class FakeRecipe:
+        def __init__(self, python: str):
+            self.python = python
+
+        def to_dict(self) -> dict:
+            if len(pythons) > 1:
+                return dict(RENDERED_V1, context={"python": self.python})
+            return dict(RENDERED_V1)
+
     class FakeRendered:
-        class recipe:
-            @staticmethod
-            def to_dict() -> dict:
-                return dict(RENDERED_V1)
+        def __init__(self, python: str):
+            self.variant = {"python": python, "target_platform": "linux-64"}
+            self.recipe = FakeRecipe(python)
 
     class Stage0Recipe:
         paths: ClassVar[list[str]] = []
@@ -389,12 +547,21 @@ def _fake_rattler_module(
             if multi:
                 raise TypeError("multi-output recipe")
 
-        def render(self) -> list:
+        def render(self, variant_config=None) -> list:
             if render_fail:
                 raise ValueError("render boom")
-            return [FakeRendered() for _ in range(variants)]
+            return [FakeRendered(python) for python in pythons]
+
+    class VariantConfig:
+        files: ClassVar[list[str]] = []
+
+        @classmethod
+        def from_files(cls, files: list) -> VariantConfig:
+            cls.files = list(files)
+            return cls()
 
     mod.Stage0Recipe = Stage0Recipe  # type: ignore[attr-defined]
+    mod.VariantConfig = VariantConfig  # type: ignore[attr-defined]
     return mod
 
 
@@ -415,14 +582,48 @@ def test_render_v1_yaml_in_process(
     assert render_v1_yaml(recipe_file) == RENDERED_V1
     assert fake.Stage0Recipe.paths == [str(recipe_file)]
 
+    # variant config files are loaded and passed to the renderer
+    variants_file = tmp_path / "variants.yaml"
+    variants_file.write_text("c_stdlib: [sysroot]\n")
+    assert render_v1_yaml(recipe_file, [variants_file]) == RENDERED_V1
+    assert fake.VariantConfig.files == [str(variants_file)]
+
+    # variant files in the recipe directory are loaded automatically,
+    # as the rattler-build executable does, before any explicit ones
+    other_file = tmp_path / "other.yaml"
+    other_file.write_text("c_stdlib: [sysroot]\n")
+    cbc_file = tmp_path / "conda_build_config.yaml"
+    cbc_file.write_text("c_stdlib: [sysroot]\n")
+    render_v1_yaml(recipe_file, [other_file])
+    assert fake.VariantConfig.files == [
+        str(cbc_file),
+        str(variants_file),
+        str(other_file),
+    ]
+    cbc_file.unlink()
+    variants_file.unlink()
+
     monkeypatch.setitem(sys.modules, "rattler_build", _fake_rattler_module(multi=True))
     with pytest.raises(RecipeError, match="multiple outputs"):
         render_v1_yaml(recipe_file)
 
-    # multiple rendered variants are also rejected
-    monkeypatch.setitem(sys.modules, "rattler_build", _fake_rattler_module(variants=2))
-    with pytest.raises(RecipeError, match="multiple outputs"):
-        render_v1_yaml(recipe_file)
+    # with multiple variants, the one for the build python is used
+    this_python = build_python_version()
+    monkeypatch.setitem(
+        sys.modules,
+        "rattler_build",
+        _fake_rattler_module(pythons=["2.7", f"{this_python}.* *_cp", "3.99"]),
+    )
+    rendered = render_v1_yaml(recipe_file)
+    assert rendered["context"] == {"python": f"{this_python}.* *_cp"}
+
+    # multiple variants without a single one for the build python are rejected
+    for pythons in (["2.7", "3.99"], [this_python, this_python], [None, None]):
+        monkeypatch.setitem(
+            sys.modules, "rattler_build", _fake_rattler_module(pythons=pythons)
+        )
+        with pytest.raises(RecipeError, match="multiple variants"):
+            render_v1_yaml(recipe_file)
 
     # unexpected binding version (no Stage0Recipe): falls back to the CLI
     monkeypatch.setitem(sys.modules, "rattler_build", types.ModuleType("rattler_build"))
@@ -488,8 +689,37 @@ def test_render_v1_yaml_cli(
     assert "--render-only" in cmd
     assert str(recipe_file) in cmd
 
-    # multiple outputs are rejected
+    # variant config files are passed with -m
+    variants_file = tmp_path / "variants.yaml"
+    variants_file.write_text("c_stdlib: [sysroot]\n")
+    render_v1_yaml(recipe_file, [variants_file])
+    assert commands[-1][commands[-1].index("-m") + 1] == str(variants_file)
+
+    # with multiple variants, the one for the build python is used
+    this_python = build_python_version()
+
+    def output(python: Any, name: str = "simple") -> dict[str, Any]:
+        return {
+            "recipe": dict(RENDERED_V1, package={"name": name}, context=python),
+            "build_configuration": {"variant": {"python": python}},
+        }
+
+    stdout = json.dumps([output("2.7"), output(this_python), output("3.99")])
+    assert render_v1_yaml(recipe_file)["context"] == this_python
+
+    # multiple variants without a single one for the build python are rejected
+    stdout = json.dumps([output("2.7"), output("3.99")])
+    with pytest.raises(RecipeError, match="multiple variants"):
+        render_v1_yaml(recipe_file)
     stdout = json.dumps([{"recipe": RENDERED_V1}, {"recipe": RENDERED_V1}])
+    with pytest.raises(RecipeError, match="multiple variants"):
+        render_v1_yaml(recipe_file)
+
+    # multiple outputs are rejected
+    stdout = json.dumps([output(this_python), output(this_python, name="other")])
+    with pytest.raises(RecipeError, match="multiple outputs"):
+        render_v1_yaml(recipe_file)
+    stdout = json.dumps([])
     with pytest.raises(RecipeError, match="multiple outputs"):
         render_v1_yaml(recipe_file)
 

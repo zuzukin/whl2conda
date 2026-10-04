@@ -103,8 +103,9 @@ $ whl2conda diff \
 
 By default, this semantically analyzes the differences between the two
 packages and prints a report of notable and unexpected differences —
-missing dependencies, missing or altered files, unrenamed pip
-dependencies, mismatched entry points, and so on — while suppressing
+missing dependencies or run constraints, missing or altered files,
+unrenamed pip dependencies, mismatched entry points, and so on — while
+suppressing
 differences that are *expected* when comparing a whl2conda-generated
 package against a recipe-built one, such as differing build strings and
 timestamps, run-export dependencies added by compilers, regenerated

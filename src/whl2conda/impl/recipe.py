@@ -26,6 +26,7 @@ from __future__ import annotations
 # standard
 import enum
 import re
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -36,7 +37,9 @@ __all__ = [
     "RecipeFormat",
     "RecipeRenderError",
     "RenderedRecipe",
+    "build_python_version",
     "find_recipe_file",
+    "python_variant_indices",
     "recipe_source_root",
     "render_recipe",
     "rewrite_build_script",
@@ -72,6 +75,10 @@ class RenderedRecipe:
     build_number: int = 0
     build_script: tuple[str, ...] = ()
     noarch_python: bool = False
+    run_requirements: tuple[str, ...] = ()
+    """The recipe's run requirements, as conda dependency specs."""
+    run_constraints: tuple[str, ...] = ()
+    """The recipe's run constraints, as conda dependency specs."""
     raw: Mapping[str, Any] = field(default_factory=dict)
     """The full rendered recipe document."""
 
@@ -105,6 +112,38 @@ def find_recipe_file(recipe_dir: Path) -> tuple[Path, RecipeFormat]:
     )
 
 
+def build_python_version() -> str:
+    """The `<major>.<minor>` version of the python used to build wheels.
+
+    The recipe's build script is run in the current environment, so
+    this is the version of the running interpreter.
+    """
+    return "{}.{}".format(*sys.version_info[:2])
+
+
+def python_variant_indices(
+    pythons: Sequence[Any], python_version: str = ""
+) -> list[int]:
+    """Indices of the recipe variants built for the given python version.
+
+    Args:
+        pythons: the `python` variant value of each rendered variant,
+            e.g. `3.12` or `3.13.* *_cp313`; values that are not for
+            a specific python version never match
+        python_version: `<major>.<minor>` python version, by default
+            the [build_python_version][(m).]
+
+    Returns:
+        Indices into `pythons` of the matching variants.
+    """
+    version_re = re.compile(
+        rf"\s*{re.escape(python_version or build_python_version())}(?!\d)"
+    )
+    return [
+        i for i, python in enumerate(pythons) if version_re.match(str(python or ""))
+    ]
+
+
 def render_recipe(
     recipe_dir: Path,
     *,
@@ -132,13 +171,18 @@ def render_recipe(
     if recipe_format is RecipeFormat.V1:
         from .render_v1 import render_v1_yaml  # noqa: PLC0415
 
-        raw = render_v1_yaml(recipe_file)
+        raw = render_v1_yaml(recipe_file, variant_config)
         return _normalize_v1(raw, recipe_dir)
 
     # local import so that recipe.py has no yaml dependency at import time
     from .render_meta import render_meta_yaml  # noqa: PLC0415
 
-    raw = render_meta_yaml(recipe_dir, work_dir=work_dir, use_mamba=use_mamba)
+    raw = render_meta_yaml(
+        recipe_dir,
+        work_dir=work_dir,
+        use_mamba=use_mamba,
+        variant_config=variant_config,
+    )
     return _normalize_meta_yaml(raw, recipe_dir)
 
 
@@ -154,25 +198,16 @@ def _normalize_meta_yaml(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRe
         build_number=_build_number(build),
         build_script=_script_lines(build.get("script")),
         noarch_python=build.get("noarch") == "python",
+        run_requirements=_requirement_specs(raw, "run"),
+        run_constraints=_requirement_specs(raw, "run_constrained"),
         raw=raw,
     )
 
 
 def _normalize_v1(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRecipe:
-    """Normalize a rendered v1 recipe.yaml document.
-
-    Raises:
-        RecipeError: if the recipe does not build a `noarch: python`
-            package.
-    """
+    """Normalize a rendered v1 recipe.yaml document."""
     package = raw.get("package") or {}
     build = raw.get("build") or {}
-    if build.get("noarch") != "python":
-        raise RecipeError(
-            f"Cannot build from v1 recipe in {recipe_dir}: whl2conda build"
-            " only supports v1 recipes with `noarch: python`"
-            " (see https://github.com/zuzukin/whl2conda/issues/216)"
-        )
     return RenderedRecipe(
         format=RecipeFormat.V1,
         recipe_dir=recipe_dir,
@@ -180,8 +215,29 @@ def _normalize_v1(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRecipe:
         version=str(package.get("version") or ""),
         build_number=_build_number(build),
         build_script=_script_lines(build.get("script")),
-        noarch_python=True,
+        noarch_python=build.get("noarch") == "python",
+        run_requirements=_requirement_specs(raw, "run"),
+        run_constraints=_requirement_specs(raw, "run_constraints"),
         raw=raw,
+    )
+
+
+def _requirement_specs(raw: Mapping[str, Any], key: str) -> tuple[str, ...]:
+    """The requirements of the given kind in a rendered recipe document.
+
+    Entries that are not plain dependency specs, such as the unresolved
+    pin expressions of rendered v1 recipes, are left out.
+
+    Args:
+        raw: the rendered recipe document
+        key: key in the `requirements` section, e.g. `run`
+    """
+    requirements = raw.get("requirements") or {}
+    specs = requirements.get(key) if isinstance(requirements, Mapping) else None
+    return tuple(
+        " ".join(entry.split())
+        for entry in specs or ()
+        if isinstance(entry, str) and entry.strip()
     )
 
 
@@ -208,13 +264,46 @@ def _script_lines(script: Any) -> tuple[str, ...]:
 
 
 #: Matches a `pip install .` or `pip wheel .` line, possibly prefixed
-#: with a python interpreter invocation and followed by extra options.
+#: with a python interpreter invocation and with extra options before
+#: or after the project directory.
+#: The interpreter may be a (possibly quoted) path to a python
+#: executable - conda-build renders `{{ PYTHON }}` in meta.yaml scripts
+#: to the path of the python in the not yet existing host environment -
+#: or a `PYTHON` variable reference, including the unresolved
+#: `${{ PYTHON }}` template that rattler-build leaves in rendered v1
+#: scripts. The interpreter prefix is dropped by the rewrite.
 _PIP_BUILD_RE = re.compile(
     r"(?P<pre>.*?)"
-    r"(?:python\d?(?:\.\d+)?\s+-m\s+)?"
-    r"pip\s+(?P<cmd>install|wheel)\s+\.(?=\s|$)"
-    r"(?P<post>.*)"
+    r"(?:"
+    r"(?:\"[^\"]*python[\d.]*(?:\.exe)?\"|[^\s\"]*python[\d.]*(?:\.exe)?)\s+-m\s+"
+    r"|\"?(?:\$?\{\{\s*PYTHON\s*\}\}|\$PYTHON|\$\{PYTHON\}|%PYTHON%)\"?"
+    r"\s+(?:-m\s+)?"
+    r")?"
+    r"pip\s+(?P<cmd>install|wheel)"
+    # options, with any separate values, preceding the project directory
+    r"(?P<opts>(?:\s+-\S+(?:\s+(?:[^-\s.]\S*|\.\S+))?)*)"
+    r"\s+\.(?=\s|$)"
+    r"(?P<post>.*)",
+    re.IGNORECASE,
 )
+
+
+#: Matches the options of `pip install` that `pip wheel` does not accept,
+#: with their value if they take one.
+_PIP_INSTALL_ONLY_RE = re.compile(
+    r"(?<!\S)(?:"
+    r"(?:--ignore-installed|-I|--upgrade|-U|--force-reinstall|--compile"
+    r"|--no-compile|--no-warn-script-location|--no-warn-conflicts|--user"
+    r"|--break-system-packages|--dry-run)"
+    r"|(?:--prefix|--target|-t|--root|--upgrade-strategy|--root-user-action"
+    r"|--report)(?:=\S+|\s+\S+)"
+    r")(?!\S)\s*"
+)
+
+
+_PIP_EDITABLE_RE = re.compile(r"(?<!\S)(?:-e|--editable)(?!\S)")
+
+_NO_BUILD_ISOLATION_RE = re.compile(r"(?<!\S)--no-build-isolation(?!\S)\s*")
 
 
 def recipe_source_root(rendered: RenderedRecipe, work_dir: Path) -> Path:
@@ -240,16 +329,24 @@ def recipe_source_root(rendered: RenderedRecipe, work_dir: Path) -> Path:
     return Path.cwd()
 
 
-def rewrite_build_script(recipe: RenderedRecipe, dist_dir: Path) -> list[str]:
+def rewrite_build_script(
+    recipe: RenderedRecipe, dist_dir: Path, *, build_isolation: bool = False
+) -> list[str]:
     """Rewrite the recipe build script to build a wheel.
 
     Rewrites the (single) `pip install .` or `pip wheel .` line in the
     recipe's build script into `pip wheel . -w <dist_dir>`, preserving
-    any trailing pip options.
+    any pip options, whether before or after the project directory,
+    other than those of `pip install` that `pip wheel` does not support
+    (e.g. `--ignore-installed`).
 
     Args:
         recipe: the rendered recipe
         dist_dir: directory into which the wheel should be built
+        build_isolation: remove pip's `--no-build-isolation` option, so
+            that pip installs the project's build requirements into an
+            isolated build environment instead of requiring them to be
+            installed in the current environment
 
     Returns:
         The rewritten script lines.
@@ -260,9 +357,18 @@ def rewrite_build_script(recipe: RenderedRecipe, dist_dir: Path) -> list[str]:
     rewritten: list[str] = []
     matched = 0
     for line in recipe.build_script:
-        if m := _PIP_BUILD_RE.fullmatch(line):
+        m = _PIP_BUILD_RE.fullmatch(line)
+        if m and not _PIP_EDITABLE_RE.search(m.group("opts")):
             matched += 1
-            line = f"{m.group('pre')}pip wheel . -w {dist_dir}{m.group('post')}"
+            # pip options may come before and after the project directory
+            post = m.group("opts") + m.group("post")
+            if m.group("cmd").lower() == "install":
+                post = _PIP_INSTALL_ONLY_RE.sub("", post)
+            if build_isolation:
+                post = _NO_BUILD_ISOLATION_RE.sub("", post)
+            post = post.strip()
+            post = post and f" {post}"
+            line = f"{m.group('pre')}pip wheel . -w {dist_dir}{post}"
         rewritten.append(line)
     if matched != 1:
         detail = "does not use" if matched == 0 else "uses more than one"

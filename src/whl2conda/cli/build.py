@@ -32,7 +32,6 @@ from ..api.converter import (
     CondaPackageFormat,
     Wheel2CondaConverter,
     noarch_build_string,
-    normalize_pypi_name,
 )
 
 # this project
@@ -48,6 +47,7 @@ from .common import (
     add_markdown_help,
     dedent,
     existing_dir,
+    existing_path,
     get_conda_bld_path,
     maybe_existing_dir,
     setup_logging,
@@ -67,8 +67,8 @@ def predict_package_path(
 ) -> Path:
     """Predict the file path of the package built from a rendered recipe.
 
-    Uses the same name normalization and build string generation as the
-    wheel converter, so the prediction matches the actual output.
+    Uses the recipe's package name and the same build string generation
+    as the wheel converter, so the prediction matches the actual output.
 
     Args:
         rendered: the rendered recipe
@@ -82,10 +82,12 @@ def predict_package_path(
     if not rendered.noarch_python:
         raise RecipeError(
             f"Cannot predict package path for recipe in {rendered.recipe_dir}:"
-            " it does not build a `noarch: python` package"
-            " (see https://github.com/zuzukin/whl2conda/issues/216)"
+            " it does not build a `noarch: python` package, whose file name"
+            " would depend on the python version and platform of the built"
+            " wheel. The --output, -t/--test and --skip-existing options"
+            " therefore only support noarch python recipes."
         )
-    name = normalize_pypi_name(rendered.name)
+    name = rendered.name.lower()
     build_string = noarch_build_string(rendered.build_number)
     suffix = str(package_format.value)
     return (
@@ -98,6 +100,7 @@ class BuildArgs:
     """Parsed arguments for whl2conda build"""
 
     recipe_path: list[Path]
+    build_isolation: bool
     build_only: bool
     channels: list[str]
     check: bool
@@ -114,6 +117,7 @@ class BuildArgs:
     skip_existing: bool
     test_only: bool
     use_mamba: bool
+    variant_config: list[Path]
 
 
 class _IgnoredOption(argparse.Action):
@@ -193,9 +197,9 @@ _IGNORED_OPTIONS: list[tuple[tuple[str, ...], int]] = [
     (("--no-remove-work-dir",), 0),
     # packages are always written with the default compression
     (("--zstd-compression-level",), 1),
-    # variant matrices do not arise for a single noarch python output;
-    # variant config file options are accepted for CLI compatibility
-    (("-m", "--variant-config-files"), 1),
+    # variant matrices do not arise for a single output package;
+    # inline variant options are accepted for CLI compatibility
+    # (variant config *files* are supported and passed to the renderer)
     (("--variants",), 1),
     (("-e", "--exclusive-config-files", "--exclusive-config-file"), 1),
     (("--append-file",), 1),
@@ -336,6 +340,20 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
         help="Output package format: '1'/'tar.bz2' or '2'/'conda' (default)",
     )
     conda_opts.add_argument(
+        "-m",
+        "--variant-config-files",
+        dest="variant_config",
+        metavar="<file>",
+        action="append",
+        default=[],
+        type=existing_path,
+        help=dedent("""
+            Additional variant configuration file passed to the recipe
+            renderer. Needed by recipes using variant-dependent
+            expressions (e.g. compilers or stdlib). May be repeated.
+            """),
+    )
+    conda_opts.add_argument(
         "--croot",
         metavar="<dir>",
         type=maybe_existing_dir,
@@ -366,6 +384,17 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
     )
 
     extension_opts = parser.add_argument_group("whl2conda extensions")
+    extension_opts.add_argument(
+        "--build-isolation",
+        action="store_true",
+        help=dedent("""
+            Remove --no-build-isolation from the recipe's pip command,
+            so that pip installs the project's build requirements into
+            an isolated build environment. Otherwise they must already
+            be installed in the current environment, since the recipe's
+            host environment is not created.
+            """),
+    )
     extension_opts.add_argument(
         "--extra-deps",
         metavar="<conda-dep>",
@@ -470,6 +499,7 @@ class CondaBuild:
                 self.recipe_path,
                 work_dir=self.work_dir,
                 use_mamba=self.args.use_mamba,
+                variant_config=self.args.variant_config,
             )
 
             if self.args.output:
@@ -493,7 +523,9 @@ class CondaBuild:
 
             dist_dir = self.work_dir / "dist"
             dist_dir.mkdir()
-            self.build_script = rewrite_build_script(rendered, dist_dir)
+            self.build_script = rewrite_build_script(
+                rendered, dist_dir, build_isolation=self.args.build_isolation
+            )
             if self.args.check:
                 logger.info("whl2conda can build the recipe in %s", self.recipe_path)
                 return
@@ -539,20 +571,55 @@ class CondaBuild:
             ) from None
 
     def _build_package(self, wheel: Path, rendered: RenderedRecipe) -> Path:
-        out_dir = self.work_dir
-        if self.args.output_folder:
-            out_dir = self.args.output_folder / "noarch"
-        converter = Wheel2CondaConverter(wheel, out_dir)
+        converter = Wheel2CondaConverter(wheel, self.work_dir)
         if self.args.package_format:
             converter.out_format = self.args.package_format
         converter.extra_dependencies.extend(self.args.extra_deps)
         converter.python_version = self.args.python
+        # the recipe, not the wheel, names the conda package
+        converter.package_name = rendered.name
+        self._add_run_requirements(converter, rendered)
         converter.build_number = rendered.build_number
         converter.overwrite = True
+        if not rendered.noarch_python:
+            # recipe builds a platform-specific package (#216)
+            converter.allow_impure = True
+            # the wheel was just built on this machine, so on linux it
+            # will not have a portable (manylinux) platform tag
+            converter.allow_local_platform = True
         pkg = converter.convert()
         if converter.conda_target is not None:
             self.subdir = converter.conda_target.subdir
+        if self.args.output_folder:
+            # place package in the target platform subdir, which is
+            # not known until the built wheel has been examined
+            dest_dir = self.args.output_folder / self.subdir
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest = dest_dir / pkg.name
+            shutil.move(pkg, dest)
+            logger.info("Moved package to %s", dest)
+            pkg = dest
         return pkg
+
+    @staticmethod
+    def _add_run_requirements(
+        converter: Wheel2CondaConverter, rendered: RenderedRecipe
+    ) -> None:
+        """Use the recipe's run requirements and constraints for the package.
+
+        Run requirements take precedence over dependencies on the same
+        packages in the wheel's metadata. The python dependency of a binary package
+        always comes from the wheel, since it depends on how the wheel
+        was built.
+        """
+        for requirement in rendered.run_requirements:
+            name, _, spec = requirement.partition(" ")
+            if name.lower() == "python":
+                if spec and rendered.noarch_python and not converter.python_version:
+                    converter.python_version = spec
+            elif name.lower() != "python_abi":
+                converter.override_dependencies.append(requirement)
+        converter.constrains.extend(rendered.run_constraints)
 
     def _run_package_tests(self, pkg: Path, rendered: RenderedRecipe) -> None:
         if rendered.format is RecipeFormat.V1:

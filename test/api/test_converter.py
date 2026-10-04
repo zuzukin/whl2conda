@@ -18,6 +18,7 @@ Unit tests for converter module
 from __future__ import annotations
 
 # standard
+import json
 import logging
 import platform
 import re
@@ -27,6 +28,7 @@ from pathlib import Path
 from time import sleep
 
 # third party
+import conda_package_handling.api
 import pytest
 from wheel.wheelfile import WheelFile
 
@@ -121,6 +123,41 @@ def test_keep_pip_dependencies(
     case.converter.keep_pip_dependencies = True
     v1pkg = case.build(out_format=CondaPackageFormat.V1)
     assert v1pkg.name.endswith(".tar.bz2")
+
+
+def test_explicit_package_name(
+    test_case: ConverterTestCaseFactory,
+    simple_wheel: Path,
+) -> None:
+    """An explicit package name is not normalized like a pypi name"""
+    case = test_case(simple_wheel, package_name="Zope.Interface_Ext")
+    pkg = case.build()
+    assert pkg.name.startswith("zope.interface_ext-")
+    assert case.converter.package_name == "zope.interface_ext"
+
+
+def test_constrains(
+    test_case: ConverterTestCaseFactory,
+    simple_wheel: Path,
+    tmp_path: Path,
+) -> None:
+    """Run constraints are written to the package index"""
+
+    def read_index(pkg: Path, name: str) -> dict:
+        extract_dir = tmp_path / name
+        conda_package_handling.api.extract(str(pkg), str(extract_dir))
+        return json.loads((extract_dir / "info" / "index.json").read_text("utf8"))
+
+    pkg = test_case(simple_wheel).build()
+    assert "constrains" not in read_index(pkg, "plain")
+
+    case = test_case(simple_wheel, overwrite=True)
+    case.converter.constrains = ["jinja2 >=3.0.0", "numpy <3"]
+    pkg = case.build()
+    assert read_index(pkg, "constrained")["constrains"] == [
+        "jinja2 >=3.0.0",
+        "numpy <3",
+    ]
 
 
 def test_simple_wheel(

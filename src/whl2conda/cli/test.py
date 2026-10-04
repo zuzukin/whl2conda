@@ -63,6 +63,7 @@ class TestArgs:
     quiet: int
     test_file: Path | None
     use_mamba: bool
+    variant_config: list[Path]
 
 
 def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
@@ -145,6 +146,19 @@ def _create_argparser(prog: str | None = None) -> argparse.ArgumentParser:
             location in a temporary work directory. Only allowed
             with a single python version. The environment is still
             removed after testing unless --keep-test-env is given.
+            """),
+    )
+    test_opts.add_argument(
+        "-m",
+        "--variant-config-files",
+        dest="variant_config",
+        metavar="<file>",
+        action="append",
+        default=[],
+        type=existing_path,
+        help=dedent("""
+            Additional variant configuration file passed to the recipe
+            renderer when reading tests from a recipe. May be repeated.
             """),
     )
     test_opts.add_argument(
@@ -267,7 +281,10 @@ def _resolve_test_spec(
         return PackageTestSpec(), project_dir.absolute(), ()
 
     rendered = render_recipe(
-        project_dir, work_dir=work_dir, use_mamba=testargs.use_mamba
+        project_dir,
+        work_dir=work_dir,
+        use_mamba=testargs.use_mamba,
+        variant_config=testargs.variant_config,
     )
     spec = PackageTestSpec.from_rendered_recipe(rendered)
     return spec, recipe_source_root(rendered, work_dir), pyproj.test_python

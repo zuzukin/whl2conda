@@ -30,6 +30,7 @@ from wheel.wheelfile import WheelFile
 from whl2conda.api.converter import (
     CondaPackageFormat,
     CondaTargetInfo,
+    RequiresDistEntry,
     Wheel2CondaConverter,
     Wheel2CondaError,
 )
@@ -86,6 +87,72 @@ def test_add_binary_dependencies_no_python_pin() -> None:
     result = converter._add_binary_dependencies(deps, target, "linux_x86_64")
     # No python pin added, original deps preserved
     assert "numpy >=1.20" in result
+
+
+def test_override_dependencies() -> None:
+    """Test dependencies overriding those derived from the wheel."""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+    wheel_deps = [
+        RequiresDistEntry("python", version=">=3.9"),
+        RequiresDistEntry("numpy", version=">=1.20"),
+        RequiresDistEntry("requests", version=">=2"),
+    ]
+
+    assert converter._compute_conda_dependencies(wheel_deps) == [
+        "python >=3.9",
+        "numpy >=1.20",
+        "requests >=2",
+    ]
+
+    # overrides replace dependencies on the same package and add others,
+    # ahead of any extra dependencies
+    converter.override_dependencies = ["NumPy >=2", "setuptools"]
+    converter.extra_dependencies = ["pytest"]
+    assert converter._compute_conda_dependencies(wheel_deps) == [
+        "python >=3.9",
+        "requests >=2",
+        "NumPy >=2",
+        "setuptools",
+        "pytest",
+    ]
+
+
+def test_add_binary_dependencies_local_linux(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test glibc floor for locally built linux wheels (#216)."""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+
+    target = CondaTargetInfo(
+        subdir="linux-64",
+        arch="x86_64",
+        platform="linux",
+        build_string="py312_0",
+        is_noarch=False,
+        site_packages_prefix="lib/python3.12/site-packages",
+        python_version="3.12",
+    )
+
+    libc_ver = ("glibc", "2.39")
+    monkeypatch.setattr(
+        "whl2conda.api.converter.platform_module.libc_ver", lambda: libc_ver
+    )
+    result = converter._add_binary_dependencies([], target, "linux_x86_64")
+    assert "__glibc >=2.39" in result
+
+    # portable wheels do not get a glibc floor from the local machine
+    result = converter._add_binary_dependencies([], target, "manylinux_2_17_x86_64")
+    assert not any(d.startswith("__glibc") for d in result)
+
+    # unknown libc
+    libc_ver = ("", "")
+    with caplog.at_level("WARNING"):
+        result = converter._add_binary_dependencies([], target, "linux_x86_64")
+    assert not any(d.startswith("__glibc") for d in result)
+    assert "Cannot determine glibc version" in caplog.text
 
 
 def test_add_binary_dependencies_abi3() -> None:

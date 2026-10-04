@@ -281,6 +281,7 @@ def test_build_test_adapter(
     def make_args(**overrides: Any) -> BuildArgs:
         values: dict[str, Any] = {
             "recipe_path": [tmp_path],
+            "build_isolation": False,
             "build_only": False,
             "channels": ["chan"],
             "check": False,
@@ -297,6 +298,7 @@ def test_build_test_adapter(
             "skip_existing": False,
             "test_only": False,
             "use_mamba": True,
+            "variant_config": [],
         }
         values.update(overrides)
         return BuildArgs(**values)
