@@ -30,6 +30,7 @@ from wheel.wheelfile import WheelFile
 from whl2conda.api.converter import (
     CondaPackageFormat,
     CondaTargetInfo,
+    RequiresDistEntry,
     Wheel2CondaConverter,
     Wheel2CondaError,
 )
@@ -86,6 +87,35 @@ def test_add_binary_dependencies_no_python_pin() -> None:
     result = converter._add_binary_dependencies(deps, target, "linux_x86_64")
     # No python pin added, original deps preserved
     assert "numpy >=1.20" in result
+
+
+def test_override_dependencies() -> None:
+    """Test dependencies overriding those derived from the wheel."""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+    wheel_deps = [
+        RequiresDistEntry("python", version=">=3.9"),
+        RequiresDistEntry("numpy", version=">=1.20"),
+        RequiresDistEntry("requests", version=">=2"),
+    ]
+
+    assert converter._compute_conda_dependencies(wheel_deps) == [
+        "python >=3.9",
+        "numpy >=1.20",
+        "requests >=2",
+    ]
+
+    # overrides replace dependencies on the same package and add others,
+    # ahead of any extra dependencies
+    converter.override_dependencies = ["NumPy >=2", "setuptools"]
+    converter.extra_dependencies = ["pytest"]
+    assert converter._compute_conda_dependencies(wheel_deps) == [
+        "python >=3.9",
+        "requests >=2",
+        "NumPy >=2",
+        "setuptools",
+        "pytest",
+    ]
 
 
 def test_add_binary_dependencies_local_linux(

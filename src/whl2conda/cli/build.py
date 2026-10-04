@@ -564,6 +564,7 @@ class CondaBuild:
         converter.python_version = self.args.python
         # the recipe, not the wheel, names the conda package
         converter.package_name = rendered.name
+        self._add_run_requirements(converter, rendered)
         converter.build_number = rendered.build_number
         converter.overwrite = True
         if not rendered.noarch_python:
@@ -585,6 +586,25 @@ class CondaBuild:
             logger.info("Moved package to %s", dest)
             pkg = dest
         return pkg
+
+    @staticmethod
+    def _add_run_requirements(
+        converter: Wheel2CondaConverter, rendered: RenderedRecipe
+    ) -> None:
+        """Use the recipe's run requirements as dependencies of the package.
+
+        These take precedence over dependencies on the same packages in
+        the wheel's metadata. The python dependency of a binary package
+        always comes from the wheel, since it depends on how the wheel
+        was built.
+        """
+        for requirement in rendered.run_requirements:
+            name, _, spec = requirement.partition(" ")
+            if name.lower() == "python":
+                if spec and rendered.noarch_python and not converter.python_version:
+                    converter.python_version = spec
+            elif name.lower() != "python_abi":
+                converter.override_dependencies.append(requirement)
 
     def _run_package_tests(self, pkg: Path, rendered: RenderedRecipe) -> None:
         if rendered.format is RecipeFormat.V1:

@@ -75,6 +75,8 @@ class RenderedRecipe:
     build_number: int = 0
     build_script: tuple[str, ...] = ()
     noarch_python: bool = False
+    run_requirements: tuple[str, ...] = ()
+    """The recipe's run requirements, as conda dependency specs."""
     raw: Mapping[str, Any] = field(default_factory=dict)
     """The full rendered recipe document."""
 
@@ -194,6 +196,7 @@ def _normalize_meta_yaml(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRe
         build_number=_build_number(build),
         build_script=_script_lines(build.get("script")),
         noarch_python=build.get("noarch") == "python",
+        run_requirements=_run_requirements(raw),
         raw=raw,
     )
 
@@ -210,7 +213,23 @@ def _normalize_v1(raw: Mapping[str, Any], recipe_dir: Path) -> RenderedRecipe:
         build_number=_build_number(build),
         build_script=_script_lines(build.get("script")),
         noarch_python=build.get("noarch") == "python",
+        run_requirements=_run_requirements(raw),
         raw=raw,
+    )
+
+
+def _run_requirements(raw: Mapping[str, Any]) -> tuple[str, ...]:
+    """The run requirements of a rendered recipe document.
+
+    Entries that are not plain dependency specs, such as the unresolved
+    pin expressions of rendered v1 recipes, are left out.
+    """
+    requirements = raw.get("requirements") or {}
+    run = requirements.get("run") if isinstance(requirements, Mapping) else None
+    return tuple(
+        " ".join(entry.split())
+        for entry in run or ()
+        if isinstance(entry, str) and entry.strip()
     )
 
 

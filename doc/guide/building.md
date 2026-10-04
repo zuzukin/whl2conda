@@ -16,6 +16,12 @@ Instead of solving and creating build/host/test environments, whl2conda:
 4. runs the recipe's tests against the package in a fresh conda
    environment.
 
+The package is named by the recipe, and its dependencies are those of
+the wheel together with the recipe's run requirements, which take
+precedence over the wheel's dependencies on the same packages. The
+python dependency of a binary package always comes from the wheel,
+since it depends on how the wheel was built.
+
 Because there is no build environment, this is much faster than
 `conda build`, but it only works for recipes that:
 

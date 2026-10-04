@@ -27,6 +27,10 @@
 * `whl2conda build` no longer fails on recipe build scripts that
   invoke pip through `{{ PYTHON }}` in classic recipes, `%PYTHON%`,
   or `${PYTHON}`.
+* `whl2conda build` now adds the recipe's run requirements to the
+  dependencies of the package, in place of any dependencies on the
+  same packages from the wheel's metadata. Previously only the
+  wheel's dependencies were used.
 * `whl2conda build` now names the package after the recipe rather
   than the built wheel, which differ for packages such as
   `msgpack-python`.

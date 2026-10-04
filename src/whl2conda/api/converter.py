@@ -651,6 +651,9 @@ class Wheel2CondaConverter:
     keep_pip_dependencies: bool = False
     dependency_rename: list[DependencyRename]
     extra_dependencies: list[str]
+    override_dependencies: list[str]
+    """Conda dependencies to add to the package in place of any dependencies
+    on the same packages derived from the wheel."""
     use_known_extras: bool = False
     """Replace known pypi extras with corresponding conda packages"""
     resolve_extras: bool = False
@@ -687,6 +690,7 @@ class Wheel2CondaConverter:
         self.out_dir = out_dir
         self.dependency_rename = []
         self.extra_dependencies = []
+        self.override_dependencies = []
         self._pypi_metadata_cache: dict[tuple[str, str], dict[str, Any]] = {}
         self.std_renames = load_std_renames(update=update_std_renames)
 
@@ -1156,6 +1160,20 @@ class Wheel2CondaConverter:
         if not saw_python and self.python_version:
             self._info("Added 'python %s' dependency", self.python_version)
             conda_dependencies.append(f"python {self.python_version}")
+
+        if self.override_dependencies:
+            overridden = {dep.split()[0].lower() for dep in self.override_dependencies}
+            for dep in conda_dependencies:
+                if dep.split()[0].lower() in overridden:
+                    self._debug("Dependency overridden: '%s'", dep.strip())
+            conda_dependencies = [
+                dep
+                for dep in conda_dependencies
+                if dep.split()[0].lower() not in overridden
+            ]
+            for dep in self.override_dependencies:
+                self._debug("Dependency added:  '%s'", dep)
+                conda_dependencies.append(dep)
 
         for dep in self.extra_dependencies:
             self._debug("Dependency added:  '%s'", dep)

@@ -106,6 +106,21 @@ def test_render_recipe_meta(
     assert rendered.build_number == 0
     assert rendered.build_script == ("pip install .",)
     assert not rendered.noarch_python
+    assert rendered.run_requirements == ()
+
+    # run requirements are normalized dependency specs
+    monkeypatch.setattr(
+        "whl2conda.impl.render_meta.render_meta_yaml",
+        lambda _recipe_dir, **_kwargs: {
+            "package": {"name": "simple", "version": "1.2.3"},
+            "requirements": {
+                "host": ["python", "pip"],
+                "run": ["python  >=3.9", " setuptools ", "", {"pin_subpackage": {}}],
+            },
+        },
+    )
+    rendered = render_recipe(recipe_dir, work_dir=tmp_path / "work")
+    assert rendered.run_requirements == ("python >=3.9", "setuptools")
 
 
 RENDERED_V1 = {

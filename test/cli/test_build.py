@@ -83,6 +83,7 @@ class FakeBuild:
                 build_number=int(build.get("number") or 0),
                 build_script=tuple(script),
                 noarch_python=build.get("noarch") == "python",
+                run_requirements=tuple((raw.get("requirements") or {}).get("run", ())),
                 raw=raw,
             )
 
@@ -796,6 +797,36 @@ def test_build_e2e_binary_with_tests(tmp_path: Path, recipe_name: str) -> None:
         "conda-forge",
     ])
     assert list((out_folder / native_conda_subdir()).glob("hello-ext-1.0.0-*.conda"))
+
+
+def test_build_run_requirements(fake_build: tuple[FakeBuild, Path]) -> None:
+    """Recipe run requirements become dependencies of the package"""
+    fake, recipe_dir = fake_build
+    run = ["python >=3.10", "setuptools", "numpy >=2", "python_abi 3.12.* *_cp312"]
+    fake.rendered_raw = dict(RENDERED_RAW, requirements={"run": run})
+
+    main(["build", str(recipe_dir), "--no-test"])
+    assert fake.converter is not None
+    assert fake.converter.override_dependencies == ["setuptools", "numpy >=2"]
+    # a noarch recipe's python requirement overrides the wheel's
+    assert fake.converter.python_version == ">=3.10"
+
+    # unless overridden on the command line
+    main(["build", str(recipe_dir), "--no-test", "--python", ">=3.11"])
+    assert fake.converter.python_version == ">=3.11"
+
+    # an unversioned python requirement does not override the wheel's
+    run[0] = "python"
+    main(["build", str(recipe_dir), "--no-test"])
+    assert fake.converter.python_version == ""
+
+    # the python dependency of a binary package comes from the wheel
+    run[0] = "python >=3.10"
+    fake.rendered_raw = dict(BINARY_RENDERED_RAW, requirements={"run": run})
+    fake.binary_wheel = True
+    main(["build", str(recipe_dir), "--no-test"])
+    assert fake.converter.override_dependencies == ["setuptools", "numpy >=2"]
+    assert fake.converter.python_version == ""
 
 
 BINARY_RENDERED_RAW: dict[str, Any] = {
