@@ -9,7 +9,8 @@
   built wheel is converted with binary conversion enabled and the
   package is written and installed into the target platform subdir.
   The `--output`, `-t`/`--test`, and `--skip-existing` options remain
-  restricted to noarch recipes. (#216)
+  restricted to noarch recipes. On Linux, the package requires at
+  least the glibc version of the build machine. (#216)
 * `whl2conda build` and `whl2conda test` now pass
   `-m`/`--variant-config-files` through to the recipe renderer,
   which is required by recipes using variant-dependent expressions

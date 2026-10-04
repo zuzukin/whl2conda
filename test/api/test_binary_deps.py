@@ -88,6 +88,43 @@ def test_add_binary_dependencies_no_python_pin() -> None:
     assert "numpy >=1.20" in result
 
 
+def test_add_binary_dependencies_local_linux(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test glibc floor for locally built linux wheels (#216)."""
+    converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))
+    converter.logger = logging.getLogger(__name__)
+
+    target = CondaTargetInfo(
+        subdir="linux-64",
+        arch="x86_64",
+        platform="linux",
+        build_string="py312_0",
+        is_noarch=False,
+        site_packages_prefix="lib/python3.12/site-packages",
+        python_version="3.12",
+    )
+
+    libc_ver = ("glibc", "2.39")
+    monkeypatch.setattr(
+        "whl2conda.api.converter.platform_module.libc_ver", lambda: libc_ver
+    )
+    result = converter._add_binary_dependencies([], target, "linux_x86_64")
+    assert "__glibc >=2.39" in result
+
+    # portable wheels do not get a glibc floor from the local machine
+    result = converter._add_binary_dependencies([], target, "manylinux_2_17_x86_64")
+    assert not any(d.startswith("__glibc") for d in result)
+
+    # unknown libc
+    libc_ver = ("", "")
+    with caplog.at_level("WARNING"):
+        result = converter._add_binary_dependencies([], target, "linux_x86_64")
+    assert not any(d.startswith("__glibc") for d in result)
+    assert "Cannot determine glibc version" in caplog.text
+
+
 def test_add_binary_dependencies_abi3() -> None:
     """Test _add_binary_dependencies python floor for abi3 wheels (#183)."""
     converter = Wheel2CondaConverter(Path("fake.whl"), Path("."))

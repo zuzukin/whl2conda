@@ -51,6 +51,7 @@ import importlib.resources
 import io
 import json
 import logging
+import platform as platform_module
 import re
 import shutil
 import tempfile
@@ -330,6 +331,8 @@ class CondaTargetInfo:
         cls,
         wheel_md: MetadataFromWheel,
         build_number: int = 0,
+        *,
+        allow_local_platform: bool = False,
     ) -> CondaTargetInfo:
         """Create from wheel metadata.
 
@@ -347,7 +350,9 @@ class CondaTargetInfo:
             )
 
         # Platform-specific package
-        subdir, arch, platform = _parse_platform_tag(wheel_md.platform_tag)
+        subdir, arch, platform = _parse_platform_tag(
+            wheel_md.platform_tag, allow_local=allow_local_platform
+        )
         python_version = _python_version_from_tag(wheel_md.python_tag)
         is_abi3 = wheel_md.abi_tag == "abi3"
         py_tag = f"py{''.join(python_version.split('.'))}"
@@ -390,14 +395,25 @@ _WHEEL_PLATFORM_MAP: list[tuple[re.Pattern, str, str, str]] = [
 # Generalized pattern for linux wheels — captures the architecture suffix
 _LINUX_PLATFORM_RE = re.compile(r"(?:manylinux\d+|(?:many|musl)linux(?:_\d+)+)_(\w+)")
 
+# Non-portable linux wheel, as produced by a local build that has not
+# been repaired for manylinux compliance — captures the architecture
+_LOCAL_LINUX_PLATFORM_RE = re.compile(r"linux_(\w+)")
+
 # Architectures that use a shortened conda subdir name
 _LINUX_SUBDIR_ALIASES: dict[str, str] = {
     "x86_64": "linux-64",
 }
 
 
-def _parse_platform_tag(platform_tag: str) -> tuple[str, str, str]:
+def _parse_platform_tag(
+    platform_tag: str, *, allow_local: bool = False
+) -> tuple[str, str, str]:
     """Parse wheel platform tag into (subdir, arch, platform).
+
+    Args:
+        platform_tag: the wheel's platform tag
+        allow_local: accept the non-portable `linux_<arch>` tags of
+            locally built wheels
 
     Returns:
         Tuple of (conda_subdir, arch, platform)
@@ -412,6 +428,15 @@ def _parse_platform_tag(platform_tag: str) -> tuple[str, str, str]:
         arch = m.group(1)
         subdir = _LINUX_SUBDIR_ALIASES.get(arch, f"linux-{arch}")
         return subdir, arch, "linux"
+    if m := _LOCAL_LINUX_PLATFORM_RE.fullmatch(platform_tag):
+        if allow_local:
+            arch = m.group(1)
+            subdir = _LINUX_SUBDIR_ALIASES.get(arch, f"linux-{arch}")
+            return subdir, arch, "linux"
+        raise Wheel2CondaError(
+            f"Unsupported wheel platform tag: '{platform_tag}'"
+            " - not a portable (manylinux or musllinux) linux wheel"
+        )
     raise Wheel2CondaError(f"Unsupported wheel platform tag: '{platform_tag}'")
 
 
@@ -635,6 +660,9 @@ class Wheel2CondaConverter:
     interactive: bool = False
     build_number: int | None = None
     allow_impure: bool = False
+    allow_local_platform: bool = False
+    """Accept the non-portable `linux_<arch>` platform tag of a wheel built
+    on this machine, adding a `__glibc` dependency for the local glibc."""
     for_conda_forge: bool = False
     platform_tag: str = ""
     """Wheel platform tag to convert for, when the wheel supports several."""
@@ -740,7 +768,9 @@ class Wheel2CondaConverter:
 
             build_number = self._resolve_build_number(wheel_md)
             conda_target = CondaTargetInfo.from_wheel_metadata(
-                wheel_md, build_number=build_number
+                wheel_md,
+                build_number=build_number,
+                allow_local_platform=self.allow_local_platform,
             )
             self.conda_target = conda_target
 
@@ -1415,6 +1445,22 @@ class Wheel2CondaConverter:
         if os_constraint := _os_constraint_from_platform_tag(platform_tag):
             result.append(os_constraint)
             self._debug("OS constraint: %s", os_constraint)
+        elif _LOCAL_LINUX_PLATFORM_RE.fullmatch(platform_tag):
+            # a locally built wheel is only known to work with the glibc
+            # of this machine or later
+            libc, libc_version = platform_module.libc_ver()
+            if libc == "glibc" and libc_version:
+                os_constraint = f"__glibc >={libc_version}"
+                result.append(os_constraint)
+                self._info(
+                    "Added '%s' dependency for locally built wheel", os_constraint
+                )
+            else:
+                self._warn(
+                    "Cannot determine glibc version required by locally built"
+                    " wheel with platform tag '%s'",
+                    platform_tag,
+                )
 
         return result
 

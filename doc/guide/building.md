@@ -31,7 +31,10 @@ self-contained extension modules but not for recipes that require
 conda-provided compilers or libraries (see the
 [Binary Conversion](binary-conversion.md) guide for the conversion
 limitations), and the built wheel reflects your local toolchain
-settings (e.g. the macOS deployment target).
+settings (e.g. the macOS deployment target). On Linux, the locally
+built wheel is not a portable manylinux wheel, so the package is given
+a `__glibc` dependency requiring at least the glibc version of the
+build machine.
 
 Recipes that use variant-dependent expressions such as
 `${{ compiler('c') }}` or `${{ stdlib('c') }}` need a variant

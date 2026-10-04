@@ -568,6 +568,9 @@ class CondaBuild:
         if not rendered.noarch_python:
             # recipe builds a platform-specific package (#216)
             converter.allow_impure = True
+            # the wheel was just built on this machine, so on linux it
+            # will not have a portable (manylinux) platform tag
+            converter.allow_local_platform = True
         pkg = converter.convert()
         if converter.conda_target is not None:
             self.subdir = converter.conda_target.subdir

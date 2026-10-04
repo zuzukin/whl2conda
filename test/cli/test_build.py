@@ -815,6 +815,7 @@ def test_build_binary_recipe(
     main(["build", str(recipe_dir), "--no-test"])
     assert fake.converter is not None
     assert fake.converter.allow_impure is True
+    assert fake.converter.allow_local_platform is True
     files, subdir, _kwargs = fake.install_calls[0]
     assert subdir == "linux-64"
     assert files[0].name == "simple-1.2.3-py312_0.conda"

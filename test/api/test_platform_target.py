@@ -88,6 +88,23 @@ def test_parse_platform_tag() -> None:
     with pytest.raises(Wheel2CondaError, match="Unsupported wheel platform tag"):
         _parse_platform_tag("unknown_platform")
 
+    # non-portable tags of locally built linux wheels are only
+    # accepted on request
+    with pytest.raises(Wheel2CondaError, match="not a portable"):
+        _parse_platform_tag("linux_x86_64")
+    assert _parse_platform_tag("linux_x86_64", allow_local=True) == (
+        "linux-64",
+        "x86_64",
+        "linux",
+    )
+    assert _parse_platform_tag("linux_aarch64", allow_local=True) == (
+        "linux-aarch64",
+        "aarch64",
+        "linux",
+    )
+    with pytest.raises(Wheel2CondaError, match="Unsupported wheel platform tag"):
+        _parse_platform_tag("unknown_platform", allow_local=True)
+
 
 def test_os_constraint_from_platform_tag() -> None:
     """Test _os_constraint_from_platform_tag helper."""
